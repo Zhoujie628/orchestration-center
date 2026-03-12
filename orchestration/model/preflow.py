@@ -4,6 +4,12 @@ from typing import Optional, List
 from uuid import uuid4
 
 
+"""
+PreFlow: Manual processing workflow for engineer review.
+Contains human-readable business process steps in markdown format.
+Used as input for LLM to generate PSOP.
+"""
+
 class PreFlow(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()),
                     description="Unique workflow identifier (auto-generated if not provided)")
