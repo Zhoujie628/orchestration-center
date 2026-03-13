@@ -1,0 +1,124 @@
+{
+  "nav": {
+    "title": "MWC 2026 A2A-T Prototype",
+    "tabs": {
+      "agents": "Registry Center",
+      "orchestration": "Orchestration Center"
+    }
+  },
+  "orchestration": {
+    "title": "Orchestration",
+    "list_label": "CORE 0&M FLOWS",
+    "edit_mode": "Edit Mode",
+    "preview_mode": "Preview",
+    "node_logic": "JUMP LOGIC",
+    "save": "SAVE WORKFLOW",
+    "search": "Filter workflow...",
+    "logic_editor": "LOGIC EDITOR",
+    "source_mod": "DIRECT SOURCE MODIFICATION",
+    "structured_view": "STRUCTURED SEQUENCE",
+    "edit_flow": "EDIT WORKFLOW",
+    "apply_change": "APPLY CHANGE",
+    "direct": "DIRECT",
+    "graph_mode": "Manual",
+    "invalid_file": "Please upload a valid JSON file.",
+    "incorrect_content": "Failed to parse the JSON file. Please check the file content."
+  },
+  "workflow": {
+    "title": "WORKFLOW PROGRESSION",
+    "progress_label": "System Execution Status",
+    "exportWorkflow": "Export",
+    "sidebar": {
+      "title": "Agent Library",
+      "defaultTask": "Execute {{name}} task",
+      "searchPlaceholder": "Search agents..."
+    },
+    "toolbar": {
+      "back": "Back",
+      "fitView": "Fit View",
+      "clear": "Clear Canvas",
+      "export": "Save",
+      "exportSuccess": "Saved successfully"
+    },
+    "node": {
+      "skill": "Skill",
+      "noTask": "Undefined Task",
+      "status": {
+        "executed": "Executed",
+        "not_executed": "Pending"
+      }
+    },
+    "panel": {
+      "empty": "No Element selected",
+      "emptySub": "Select a node or edge to configure",
+      "nodeConfig": "Node Config",
+      "edgeConfig": "Edge Config",
+      "agentName": "Agent Name",
+      "taskDesc": "Task Description",
+      "taskPlaceholder": "Describe the specific action",
+      "selectSkill": "Select Skill",
+      "executeSkill": "Current Skill",
+      "inputDefine": "Input Definitions",
+      "outputDefine": "Output Definitions",
+      "noInput": "No input definitions",
+      "noOutput": "no output definitions",
+      "inputParams": "Runtime Parameters",
+      "condition": "Condition",
+      "keyPlaceholder": "Key",
+      "valuePlaceholder": "Value",
+      "noParams": "No Parameters defined",
+      "confirm": "Confirm Configuration",
+      "placeholderSelect": "Please choose..."
+    },
+    "export": {
+      "success": "Workflow saved successfully",
+      "failed": "Saved failed, please check backend service",
+      "modalTitle": "Export Workflow",
+      "modalDesc": "Please describe the phenomenon for this workflow.",
+      "placeholder": "Input phenomenon description here..."
+    },
+    "validate": {
+      "empty": "Canvas cannot be empty",
+      "invalidAgent": "Node validation failed",
+      "noSkill": "Node validation failed: Skill must be selected",
+      "noEdge": "Node missing output connection:Please complete the topology",
+      "noEnd": "Workflow missing an End Node",
+      "yamlError": "YAML generation failed"
+    },
+    "registry": {
+      "title": "Registry center",
+      "search_placeholder": "Search by agent name, capability or toolstack...",
+      "units": "UNITS",
+      "description_label": "FUNCTIONAL SPECIFICATION",
+      "prompt_label": "CORE LOGIC(PROMPT)",
+      "tool_label": "TOOLSTACK BINDING",
+      "call_api": "EXECUTE API",
+      "secure_badge": "RUNTIME SECURE VERIFIED",
+      "secure_note": "Verified for A2A-T carrier-grade network environments",
+      "secure_prompt": "Select an instance to view registration metadata"
+    },
+    "agent_profile": {
+      "description": "Description",
+      "skills": "Skills",
+      "capabilities": "Capabilities",
+      "configuration": "Configuration",
+      "streaming": "Streaming",
+      "stateTransitionHistory": "State History",
+      "pushNotifications": "Push Notifications",
+      "protocolVersion": "Protocol Version",
+      "preferredTransport": "Preferred Transport",
+      "defaultInputModes": "Input Modes",
+      "defaultOutputModes": "Output Modes",
+      "documentationUrl": "Documentation"
+    },
+    "common": {
+      "loading": "Loading...",
+      "add": "Add",
+      "delete": "Delete",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "save": "Save",
+      "confirm_delete": "Confirm Delete?"
+    }
+  }
+}
