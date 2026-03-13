@@ -1,0 +1,172 @@
+"""
+PSOP (Parallel-Standard Operation Process) Generation Prompt Templates
+
+This module contains prompt templates for generating PSOP workflows from 
+human-readable business processes. PSOP is a workflow format that enables
+parallel execution of tasks with dependency management.
+
+The prompts are used by LLM to:
+1. Extract concrete tasks from markdown-formatted business steps
+2. Match tasks with available agent skills  
+3. Build PSOP structure based on task dependencies
+4. Generate complete executable workflows
+"""
+
+PSOP_EXAMPLE = """
+{
+    "name" : "基站批量掉站故障诊断与恢复",
+    "steps":[
+        {
+            "name":"step1",
+            "type":"AllSuccess",
+            "subtasks"[
+                {
+                    "description":"检查退服基站的动力环境故障",
+                    "agent":"MAE故障Agent",
+                    "skill":"检查基站动力环境故障",
+                },
+                {
+                    "description":"检查退服基站的软硬件故障",
+                    "agent":"MAE故障Agent",
+                    "skill":"检查基站软硬件故障",
+                },
+            ],
+            "next":[
+                {
+                    "step:"step2",
+                    "condition":"基站侧未发现明显问题"
+                },
+                {
+                    "step:"step3",
+                    "condition":"基站侧发现故障原因"
+                }
+            ]
+        },
+        {
+            "name":"step2",
+            "type":"AllSuccess",
+            "subtasks"[
+                {
+                    "description":"查询传输网元告警信息",
+                    "agent":"MAE故障Agent",
+                    "skill":"查询传输网元告警",
+                },
+                {
+                    "description":"检查传输侧是否存在光缆中断",
+                    "agent":"MAE故障Agent",
+                    "skill":"检查传输侧是否存在光缆中断",
+                },
+            ],
+            "next":[
+                {
+                    "step:"step3",
+                    "condition":"传输侧发现异常"
+                },
+                {
+                    "step:"step4",
+                    "condition":"传输侧未发现异常"
+                }
+            ]
+        },
+        {
+            "name":"step3",
+            "type":"AllSuccess",
+            "subtasks"[
+                {
+                    "description":"传输侧处理故障",
+                    "agent":"MAE故障Agent",
+                    "skill":"故障处理",
+                }
+            ],
+            "next":[
+                {
+                    "step:"end",
+                    "condition":"故障处理完成"
+                }
+            ]
+        },
+        {
+            "name":"step4",
+            "type":"AllSuccess",
+            "subtasks"[
+                {
+                    "description":"处理无线网络故障",
+                    "agent":"MAE故障Agent",
+                    "skill":"处理无线网络故障",
+                }
+            ],
+            "next":[
+                {
+                    "step:"end",
+                    "condition":"故障处理完成"
+                }
+            ]
+        }
+    ]
+}
+"""
+
+
+def get_preprocess_input_prompt(pre_wd_md: str) -> str:
+    return f"""提取下面人工处理步骤中，每一步执行的任务
+## 处理步骤
+{pre_wd_md}
+## 输出规则
+1、用一个json列表输出,用'''json'''包裹结果。
+2、结束步骤不需要提取为一个任务。
+3、不用输出其他内容。
+
+## 输出示例
+```json
+["无线侧获取批量掉站基站IP列表","无线排查掉站基站是否存在动环故障",...]
+```
+"""
+
+
+def get_choose_skill_prompt(actions: str, agents_card: str) -> str:
+    return f"""作为一个资深的无线网络运维专家，请你为下面每一个动作匹配对应的AgentSkill，输出每一个动作对应要使用的技能名称。
+## 智能体技能信息
+{agents_card}
+
+## 动作
+{actions}
+
+## 注意点
+1、选择的技能的数量，与动作数量保持一致。
+2、如果没有技能可以完成该动作，技能名称填“无”。
+
+## 输出格式
+```json
+{{
+    "动作1": "xxx技能",
+    "动作2": "xxx技能",
+    "动作3": "xxx技能",
+}}
+```"""
+
+
+def get_generate_psop_prompt(preflow: str, tasks: str, psop_scheme: str) -> str:
+    return f"""
+你是一个电信网络运维专家，我根据专家提供的人工处理步骤，将每一步安排给专业Agent完成。
+请按照人工处理步骤中的逻辑，帮我识别下Agent任务之间的依赖关系，并输出我们自定义的PSOP格式的工作流。
+
+## 人工处理步骤
+{preflow}
+
+## Agent任务
+{tasks}
+
+## PSOP格式
+{psop_scheme}
+
+## 规划规则
+1、如果任务间不存在明确的依赖，则这些任务可以放到一个step中并行执行。
+2、PSOP中的非必填字段留空，不用进行推理。
+3、最后一步的next属性，无条件走end，next属性值如下： "next":[{{"step":"end, "condition":""}}]
+4、仅输出psop即可，不用输出其他内容。
+
+## 示例输出
+```json
+{PSOP_EXAMPLE}
+```
+"""

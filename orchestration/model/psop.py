@@ -6,6 +6,12 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 
+"""
+PSOP (Parallel-Standard Operation Process): Runtime workflow for system execution.
+Defines explicit tasks and their relationships at agent granularity.
+Each task specifies which agent and skill to use.
+"""
+
 class TaskStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
