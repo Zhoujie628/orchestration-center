@@ -2,6 +2,8 @@ import {Bot, Box, Cpu, Database, Globe, Network, ShieldCheck, Zap, Search, Layou
 import {useTranslation} from "react-i18next";
 import React, {useEffect, useState} from "react";
 import {getAgentCards} from "@/service/api.js";
+import CodeInspector from "@/components/registry_center/code_inspector/index.jsx";
+import AgentDashboard from "@/components/registry_center/agentcard/index.tsx";
 
 const THEMES = ['emerald', 'blue', 'indigo', 'rose', 'cyan', 'amber', 'violet'];
 const ICONS = [<Network size={22}/>, <Zap size={22}/>, <ShieldCheck size={22}/>, <Cpu size={22}/>, <Box size={22}/>,
@@ -182,7 +184,7 @@ const AgentRegistry = ({isDark}) => {
 
                     <div className={"flex-1 overflow-y-auto no-scrollbar bg-white dark:bg-zinc-900"}>
                         {viewMode === 'structured' ? (
-                            <AgentCard agent={agent._raw} isDark={isDark}/>
+                            <AgentDashboard agent={agent._raw} isDark={isDark}/>
                         ) : (<CodeInspector data={agent._raw} fileName={`${agent.id.toLowerCase()}.json`}
                                             isDark={isDark}/>)}
                     </div>

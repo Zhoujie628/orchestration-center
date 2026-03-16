@@ -57,7 +57,7 @@ const MainContainer = () => {
 
             <main className="flex-1 min-h-0 relative overflow-hidden">
                 <div className={`h-full w-full ${activeTab === 'agents' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>
-                    <AgentRegistry isDark={isDark}/>
+                    <AgentRegistry isDark={isDark} t={t}/>
                 </div>
 
                 {/*<div className={`h-full w-full ${activeTab === 'orchestration' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>*/}
