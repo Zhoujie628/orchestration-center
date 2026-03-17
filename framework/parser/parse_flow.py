@@ -61,7 +61,7 @@ class SolutionPackageParser:
         if not path.exists():
             raise PDFParsingError(f'PDF file does not exist： {pdf_path}')
         try:
-            doc = fitz.open(path)
+            doc = fitz.open(pdf_path)
         except Exception as e:
             raise PDFParsingError(f"Cannot open pdf file: {e}") from e
         try:
