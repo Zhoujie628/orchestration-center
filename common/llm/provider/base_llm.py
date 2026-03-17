@@ -15,7 +15,7 @@ class BaseLLM(ABC):
         self.llm_config = config
         self.model = config.config_item.model
         self.base_url = config.config_item.api
-        self.api_key = config.config_item.api_key
+        self.api_key = config.config_item.apikey
 
     def ask_llm(self, prompt) -> Union[str, Tuple[str, str]]:
         start_time = time.time()
