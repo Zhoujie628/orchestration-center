@@ -39,7 +39,7 @@ class LLMConfig:
 
 
 def get_llm_config() -> {str, LLMConfig}:
-    config: dict[str, dict] = read_config_as_json("../../../config/llm_config.json")
+    config: dict[str, dict] = read_config_as_json("../../config/llm_config.json")
     llm_config_item = {}
     for key, config_item in config.items():
         llm_config_item[key] = LLMConfig(key, config_item)
