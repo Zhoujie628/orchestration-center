@@ -3,17 +3,16 @@ import uuid
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.types import (
-    Task, TaskStatus, TaskState, Artifact, TextPart,
+    Task, TaskStatus, TaskState, Artifact, TextPart, Part,
 )
 
-from common.llm.config.llm_config import get_llm_config_by_type, LLMType
-from common.llm.provider.llm_provider_registry import get_or_create_llm_instance
+from framework.orchestration.llm import get_or_create_deepseek_llm_instance
 
 
 class EnergySavingIntentAgentExecutor(AgentExecutor):
 
     def __init__(self) -> None:
-        self.llm = get_or_create_llm_instance(get_llm_config_by_type(LLMType.QWEN3_32B))
+        self.llm = get_or_create_deepseek_llm_instance()
 
     async def execute(
             self,
@@ -27,7 +26,7 @@ class EnergySavingIntentAgentExecutor(AgentExecutor):
             context_id=context.context_id,
             status=TaskStatus(state=TaskState.completed),
             artifacts=[
-                Artifact(artifact_id=str(uuid.uuid4()), parts=[TextPart(text=response)])
+                Artifact(artifact_id=str(uuid.uuid4()), parts=[Part(root=TextPart(text=response))])
             ]
         )
         await event_queue.enqueue_event(task)

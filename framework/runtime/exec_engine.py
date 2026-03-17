@@ -7,8 +7,7 @@ from a2a.types import TransportProtocol
 from a2a.utils import get_message_text
 from loguru import logger
 
-from common.llm.config.llm_config import get_llm_config_by_type, LLMType
-from common.llm.provider.llm_provider_registry import get_or_create_llm_instance
+from framework.orchestration.llm import get_or_create_deepseek_llm_instance
 from framework.orchestration.model.psop import PSOP, Step, TaskStatus
 
 
@@ -17,7 +16,7 @@ class DynamicWorkflowEngine:
         self.workflow = psop
         self.current_step_idx = 0
         self.execution_history = []
-        self.llm_client = get_or_create_llm_instance(get_llm_config_by_type(LLMType.QWEN3_32B))
+        self.llm_client = get_or_create_deepseek_llm_instance()
         self.agent_cards = agent_cards
 
     async def run(self):
@@ -58,7 +57,7 @@ class DynamicWorkflowEngine:
                 return get_message_text(task.artifacts[-1])
             raise RuntimeError("Agent completed but no text artifact found")
         except httpx.TimeoutException as e:
-            raise RuntimeError(f"Agent call timed out after {e.connect_timeout}s") from e
+            raise RuntimeError(f"Agent call timed out") from e
         except httpx.ConnectError as e:
             raise RuntimeError(f"Faild to connect to Agent : {e}") from e
         except Exception as e:

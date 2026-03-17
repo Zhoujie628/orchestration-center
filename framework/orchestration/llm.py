@@ -77,7 +77,7 @@ class DeepSeekLLM:
         return reasoning, content
 
 
-def get_or_create_llm_instance():
+def get_or_create_deepseek_llm_instance():
     """Factory function to get or create a DeepSeekLLM instance.
 
     Returns:
