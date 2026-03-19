@@ -40,7 +40,7 @@ def parse_pdf():
         parser = SolutionPackageParser()
         pre_md = parser.parse_pdf_chapter(
             tmp_file_path,
-            "5. Interation Flow"
+            "5. Interaction Flow"
         )
         if not pre_md:
             return jsonify({"error": "PDF解析失败，未找到指定章节"}), 400
