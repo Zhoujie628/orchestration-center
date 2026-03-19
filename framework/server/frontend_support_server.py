@@ -10,7 +10,7 @@ from framework.orchestration.model.psop import PSOP
 from framework.orchestration.psop_generator import PsopGenerator
 from framework.orchestration.persistence import WorkflowStorage
 from framework.orchestration.retrieval import WorkflowRetrieval
-from framework.parser.parse_flow import SolutionPackageParser
+from framework.solution_package.parse_flow import SolutionPackageParser
 from framework.agentcard_lib import AgentCardLib
 
 app = Flask(__name__)
