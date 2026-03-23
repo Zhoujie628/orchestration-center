@@ -376,6 +376,8 @@ const OrchestrationCenter = ({ isDark }) => {
                                 // Edit 模式使用的 Props
                                 importedNodes={nodes}
                                 importedEdges={edges}
+                                workflowId={selectedId}
+                                workflowName={currentWf?.name}
                                 onCancel={() => {
                                     if (selectedId) {
                                         setActiveView('detail');

@@ -184,6 +184,10 @@ export const transformReactFlowToPSOP = (nodes, edges, metadata = {}) => {
         tags: metadata.tags || []
     };
 
+    if (metadata.id) {
+        psopData.id = metadata.id;
+    }
+
     const stepsMap = {};
 
     nodes.forEach((node) => {

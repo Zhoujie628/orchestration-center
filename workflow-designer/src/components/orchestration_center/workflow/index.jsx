@@ -60,6 +60,8 @@ const FlowInner = ({
                        // Edit 模式 Props
                        importedNodes,
                        importedEdges,
+                       workflowId,
+                       workflowName,
                        onCancel,
                        onSaveSuccess
                    }) => {
@@ -294,7 +296,7 @@ const FlowInner = ({
                 <>
                     <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
                         <div className="pointer-events-auto">
-                            <Toolbar isDark={isDark} nodes={editNodes} edges={editEdges} onCancel={onCancel} onClear={() => { setEditNodes(initialEditNodes); setEditEdges([]); }} onFitView={() => fitView({ padding: 0.4, duration: 800 })} phenomenon={phenomenon} onSaveSuccess={onSaveSuccess} />
+                             <Toolbar isDark={isDark} nodes={editNodes} edges={editEdges} workflowId={workflowId} workflowName={workflowName} onCancel={onCancel} onClear={() => { setEditNodes(initialEditNodes); setEditEdges([]); }} onFitView={() => fitView({ padding: 0.4, duration: 800 })} phenomenon={phenomenon} onSaveSuccess={onSaveSuccess} />
                         </div>
                     </div>
                     <div className="absolute justify-center left-8 top-12 bottom-12 w-32 z-40 pointer-events-none flex flex-col min-h-0">
@@ -325,6 +327,8 @@ const UnifiedWorkflow = ({
                              visible = true,
                              importedNodes,
                              importedEdges,
+                             workflowId,
+                             workflowName,
                              onCancel,
                              onSaveSuccess
                          }) => {
@@ -361,10 +365,12 @@ const UnifiedWorkflow = ({
                     viewEdges={edges}
                     onSelectChange={onSelectChange}
                     importedNodes={importedNodes}
-                    importedEdges={importedEdges}
-                    onCancel={onCancel}
-                    onSaveSuccess={onSaveSuccess}
-                />
+                     importedEdges={importedEdges}
+                     workflowId={workflowId}
+                     workflowName={workflowName}
+                     onCancel={onCancel}
+                     onSaveSuccess={onSaveSuccess}
+                 />
             </ReactFlowProvider>
         </div>
     );

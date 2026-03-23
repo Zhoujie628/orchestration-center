@@ -1,9 +1,10 @@
-import {useRef, useState, useTransition} from "react";
+import {useRef, useState} from "react";
+import {useTranslation} from "react-i18next";
 import {createPortal} from "react-dom";
 import {AnimatePresence, motion} from "framer-motion";
 
 const DeleteConfirm = ({children, onConfirm, title, isDark}) => {
-    const {t} = useTransition();
+    const {t} = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({top: 0, left: 0});
     const triggerRef = useRef(null);
