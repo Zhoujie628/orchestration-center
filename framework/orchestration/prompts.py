@@ -172,7 +172,7 @@ def get_generate_psop_prompt(preflow: str, tasks: list, psop_scheme: str) -> str
 """
 
 
-def get_intent_to_psop_prompt(user_intent: str, agent_cards_json: str, psop_schema: str) -> str:
+def get_intent_to_psop_prompt(user_intent: str, agent_cards_json: str, psop_schema: str, rag: str = None) -> str:
     return f"""作为一个资深的电信网络运维专家，请根据用户意图直接生成PSOP（Parallel-Standard Operation Process）工作流。
 
 ## 用户意图
@@ -180,6 +180,9 @@ def get_intent_to_psop_prompt(user_intent: str, agent_cards_json: str, psop_sche
 
 ## 可用Agent及技能
 {agent_cards_json}
+
+## 规划知识
+{"无" if rag is None else rag}
 
 ## PSOP格式要求
 {psop_schema}
