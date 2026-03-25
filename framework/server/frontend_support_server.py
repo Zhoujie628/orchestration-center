@@ -238,6 +238,54 @@ def generate_psop_from_intent():
         return jsonify({"error": f"生成PSOP失败: {str(e)}"}), 500
 
 
+@app.route('/retrieve-by-intent', methods=['POST'])
+def retrieve_psop_by_intent():
+    """
+    根据自然语言意图检索最合适的PSOP工作流。
+    
+    请求体格式:
+    {
+        "user_intent": "自然语言描述的业务意图"
+    }
+    
+    返回:
+        JSON响应，包含检索到的PSOP工作流或错误信息
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "请求体为空"}), 400
+        
+        user_intent = data.get("user_intent")
+        
+        if not user_intent:
+            return jsonify({"error": "缺少必要字段: user_intent"}), 400
+        
+        logger.info(f"开始根据意图检索PSOP: {user_intent}")
+        
+        # 使用WorkflowRetrieval的retrieve_psop_by_intent方法
+        psop = retrieval.retrieve_psop_by_intent(user_intent)
+        
+        if not psop:
+            return jsonify({
+                "status": "success",
+                "message": "未找到匹配的PSOP",
+                "data": None
+            }), 200
+        
+        logger.info(f"成功检索到PSOP: {psop.name} (ID: {psop.id})")
+        
+        return jsonify({
+            "status": "success",
+            "message": "PSOP检索成功",
+            "data": psop.model_dump()
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"根据意图检索PSOP失败: {e}")
+        return jsonify({"error": f"检索PSOP失败: {str(e)}"}), 500
+
+
 # SSE事件队列用于存储推送事件
 sse_events = {}
 
@@ -379,6 +427,7 @@ if __name__ == '__main__':
     logger.info("")
     logger.info("  意图生成接口:")
     logger.info("  POST /generate-from-intent - 根据自然语言意图生成PSOP")
+    logger.info("  POST /retrieve-by-intent   - 根据自然语言意图检索PSOP")
     logger.info("")
     logger.info("  SSE执行接口:")
     logger.info("  GET  /rest/start_process_stream?psop_id=<id> - 启动PSOP执行并推送实时进展")
