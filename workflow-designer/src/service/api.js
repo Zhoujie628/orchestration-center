@@ -36,9 +36,14 @@ export async function getWorkflowById(id) {
     return api.get(`${getBaseUrl()}/psops/${id}`);
 }
 
+export async function delWorkflowById(id) {
+    return api.delete(`${getBaseUrl()}/psops/${id}`);
+}
+
 export async function createWorkflow(data) {
     return api.post(`${getBaseUrl()}/psops`, data);
 }
+
 
 export async function switchLanguage(local) {
     return axios.post(`${getBaseUrl()}/rest/agents/switch-language?scenario='5g'`, {
@@ -142,11 +147,9 @@ export async function matchWorkflows(intent) {
         });
 
         if (response.data.status === "success" || response.status === 200) {
-            // 根据文档，data 可能是单个对象也可能是 null
             const data = response.data.data;
-            if (!data) return []; 
-            
-            // 将单个返回对象包装为数组以适配 UI (UI 期望展示 1~3 个)
+            if (!data) return [];
+
             return [{
                 workflow_id: data.id,
                 name: data.name,
