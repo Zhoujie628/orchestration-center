@@ -140,6 +140,37 @@ def save_psop():
         return jsonify({"error": f"保存PSOP失败: {str(e)}"}), 500
 
 
+@app.route('/psops/<workflow_id>', methods=['DELETE'])
+def delete_psop(workflow_id):
+    """
+    删除指定ID的PSOP工作流。
+    
+    路径参数:
+        workflow_id: PSOP的唯一标识符
+    
+    返回:
+        成功: 200 OK
+        失败: 404 Not Found 或 500 Internal Server Error
+    """
+    try:
+        # 先检查PSOP是否存在
+        psop = retrieval.get_psop_by_id(workflow_id)
+        if not psop:
+            return jsonify({"error": f"未找到ID为 {workflow_id} 的PSOP"}), 404
+        
+        # 删除PSOP
+        deleted = storage.delete_psop(workflow_id)
+        if not deleted:
+            return jsonify({"error": f"删除PSOP失败: 文件可能不存在"}), 500
+        
+        return jsonify({
+            "status": "success",
+            "message": f"PSOP {workflow_id} 删除成功"
+        }), 200
+    except Exception as e:
+        return jsonify({"error": f"删除PSOP失败: {str(e)}"}), 500
+
+
 @app.route('/agent-cards', methods=['GET'])
 def get_all_agent_cards():
     """
@@ -421,6 +452,7 @@ if __name__ == '__main__':
     logger.info("  GET  /psops         -  获取PSOP列表")
     logger.info("  GET  /psops/<id>    -  根据ID获取PSOP详情")
     logger.info("  POST /psops         -  保存PSOP")
+    logger.info("  DELETE /psops/<id>  -  删除PSOP")
     logger.info("")
     logger.info("  AgentCard 管理接口:")
     logger.info("  GET  /agent-cards   -  获取全量AgentCard列表")
