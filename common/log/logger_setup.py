@@ -36,27 +36,12 @@ def add_module_logger(module_prefix: str):
     logger.remove()
     old_mask = os.umask(0o027)
     try:
-        logger.add(sys.stdout, format=LOG_FORMAT, level="info", backtrace=False, colorize=True)
+        logger.add(sys.stdout, format=LOG_FORMAT, level="INFO", backtrace=False, colorize=True)
 
         logger.add(
             _LOG_DIR / f"{module_prefix}_log_{{time:YYYY-MM-DD}}.log",
             format=LOG_FORMAT,
             level="INFO",
-            rotation=lambda message, file: (
-                    os.stat(file.name).st_size > 10 * 1024 * 1024
-                    or datetime.now(tz=timezone.utc).date() != datetime.fromtimestamp(
-                os.path.getctime(file.name)).date()
-            ),
-            retention="30 days",
-            compression=compress_and_set_permission,
-            encoding="utf-8",
-            enqueue=True,
-        )
-
-        logger.add(
-            _LOG_DIR / f"{module_prefix}_error_{{time:YYYY-MM-DD}}.log",
-            format=LOG_FORMAT,
-            level="ERROR",
             rotation=lambda message, file: (
                     os.stat(file.name).st_size > 10 * 1024 * 1024
                     or datetime.now(tz=timezone.utc).date() != datetime.fromtimestamp(

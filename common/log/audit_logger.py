@@ -102,7 +102,7 @@ class AuditLogger:
     def _write_log(self, log_data: Dict[str, Any]):
         with self.lock:
             self._rotate_logs()
-            with open(self.log_file, "a", encoding="utg-8") as f:
+            with open(self.log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
             os.chmod(self.log_file, FILE_PERMISSION_MODE)
 
