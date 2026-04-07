@@ -4,6 +4,8 @@ import json
 
 from a2a.types import AgentCard
 from flask import Flask, request, jsonify, Response, stream_with_context
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from loguru import logger
 from flask_cors import CORS
 from framework.orchestration.model.preflow import PreFlow
@@ -23,8 +25,21 @@ storage = WorkflowStorage()
 retrieval = WorkflowRetrieval(storage)
 agent_lib = AgentCardLib()
 
+@app.errorhandler(429)
+def rate_limit_handler(e):
+    return jsonify({
+        'error': '请求过于频繁，请稍后再试',
+        'limit': str(e.limit),
+    }), 429
+
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["10 per second"],
+)
 
 @app.route('/parse-pdf', methods=['POST'])
+@limiter.limit("1 per second")
 def parse_pdf():
     if 'file' not in request.files:
         return jsonify({'error': '未提供文件'}), 400
@@ -64,6 +79,7 @@ def parse_pdf():
 
 
 @app.route('/plan', methods=['POST'])
+@limiter.limit("1 per second")
 def plan():
     try:
         data = request.get_json()
@@ -90,6 +106,7 @@ def plan():
 
 
 @app.route('/psops', methods=['GET'])
+@limiter.limit("1 per second")
 def get_all_psops():
     try:
         limit = request.args.get('limit', default=10, type=int)
@@ -107,6 +124,7 @@ def get_all_psops():
 
 
 @app.route('/psops/<workflow_id>', methods=['GET'])
+@limiter.limit("1 per second")
 def get_psop_by_id(workflow_id):
     try:
         psop = retrieval.get_psop_by_id(workflow_id)
@@ -122,6 +140,7 @@ def get_psop_by_id(workflow_id):
 
 
 @app.route('/psops', methods=['POST'])
+@limiter.limit("1 per second")
 def save_psop():
     try:
         data = request.get_json()
@@ -141,6 +160,7 @@ def save_psop():
 
 
 @app.route('/psops/<workflow_id>', methods=['DELETE'])
+@limiter.limit("1 per second")
 def delete_psop(workflow_id):
     """
     删除指定ID的PSOP工作流。
@@ -172,6 +192,7 @@ def delete_psop(workflow_id):
 
 
 @app.route('/agent-cards', methods=['GET'])
+@limiter.limit("1 per second")
 def get_all_agent_cards():
     """
     获取全量AgentCard列表。
@@ -215,6 +236,7 @@ def get_all_agent_cards():
 
 
 @app.route('/generate-from-intent', methods=['POST'])
+@limiter.limit("1 per second")
 def generate_psop_from_intent():
     """
     根据自然语言意图生成PSOP工作流。
@@ -270,6 +292,7 @@ def generate_psop_from_intent():
 
 
 @app.route('/retrieve-by-intent', methods=['POST'])
+@limiter.limit("1 per second")
 def retrieve_psop_by_intent():
     """
     根据自然语言意图检索最合适的PSOP工作流。
@@ -322,6 +345,7 @@ sse_events = {}
 
 
 @app.route('/rest/start_process_stream', methods=['GET'])
+@limiter.limit("1 per second")
 def start_process_stream():
     psop_id = request.args.get('psop_id')
     if not psop_id:

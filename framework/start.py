@@ -3,6 +3,7 @@ import ssl
 import sys
 
 import uvicorn
+from asgiref.wsgi import WsgiToAsgi
 from loguru import logger
 from uvicorn import config
 
@@ -71,7 +72,7 @@ class CustomUvicornServer:
     def run(self):
         os.environ.setdefault("FORWARDED_ALLOW_IPS", self.server_config.get("forwarded_allow_ips"))
         server_config = uvicorn.Config(
-            app=app,
+            app=WsgiToAsgi(app),
             host=self.server_config.get('ip', "127.0.0.1"),
             port=int(self.server_config.get('port', 60000)),
             ssl_certfile=self.conf_obj.ssl_certfile,
@@ -86,6 +87,7 @@ class CustomUvicornServer:
             proxy_headers=True
         )
         server = uvicorn.Server(server_config)
+        record_startup_log()
         server.run()
 
 
