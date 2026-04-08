@@ -252,7 +252,7 @@ class DynamicWorkflowEngine:
             raise ValueError("LLM Client not initialized. Please set engine.llm_client.")
         try:
             _, decision = self.llm_client.ask_llm(prompt_template)
-            decision = decision.strip().lower()
+            decision = decision.strip()
             logger.info(f'LLM 选择的下一步: {decision}')
             if decision in ["end", "retry"]:
                 return decision
