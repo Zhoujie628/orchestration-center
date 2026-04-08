@@ -7,3 +7,4 @@ loguru>=0.7.3
 PyYAML>=6.0.3
 a2a-sdk[http-server]
 pymupdf>=1.27.2.2
+limit>=5.8.0

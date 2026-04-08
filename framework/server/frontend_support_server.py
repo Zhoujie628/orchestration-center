@@ -4,20 +4,26 @@ import json
 import asyncio
 import threading
 import queue
-from typing import Optional, List
+from typing import Optional, List, Any
 
+import uvicorn
 from a2a.types import AgentCard
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from pydantic import BaseModel
+from starlette import status
+from starlette.responses import Response
+
+from common.config import MAX_URL_LENGTH, MAX_REQUEST_BODY_SIZE
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.psop_generator import PsopGenerator
 from framework.orchestration.intent_psop_generator import IntentPsopGenerator
 from framework.orchestration.persistence import WorkflowStorage
 from framework.orchestration.retrieval import WorkflowRetrieval
+from framework.server.middleware import ConnectionLimitMiddleware, TimeoutMiddleware, RateLimiter
 from framework.solution_package.parse_flow import SolutionPackageParser
 from framework.agentcard_lib import AgentCardLib
 from framework.runtime.exec_engine import DynamicWorkflowEngine
@@ -33,6 +39,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(ConnectionLimitMiddleware, max_connections=10)
+
+app.add_middleware(TimeoutMiddleware, timeout_seconds=30)
+
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    if len(str(request.url)) > MAX_URL_LENGTH:
+        return Response(
+            content="URI Too Long",
+            status_code=status.HTTP_414_URI_TOO_LONG
+        )
+    if request.method in ("POST", "PUT"):
+        total_size = 0
+        body_chunks = []
+
+        try:
+            async for chunk in request.stream():
+                total_size += len(chunk)
+                if total_size > MAX_REQUEST_BODY_SIZE:
+                    return Response(
+                        content=f"Request body is toll large, maximum allowed {MAX_REQUEST_BODY_SIZE // 1024} KB",
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE
+                    )
+                body_chunks.append(chunk)
+            request._body = b''.join(body_chunks)
+        except Exception as e:
+            logger.error(f"aaaaaaaaaaaaaaaaa: {e}")
+            return Response(
+                content=f"Bad Request",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+    return await call_next(request)
+
 
 # 初始化存储和检索组件
 storage = WorkflowStorage()
@@ -105,7 +146,7 @@ class RetrieveIntentResponse(BaseModel):
 
 
 @app.post("/parse-pdf", response_model=ParsePDFResponse)
-async def parse_pdf(file: UploadFile = File(...)):
+async def parse_pdf(file: UploadFile = File(...), _: Any = Depends(RateLimiter("parse_pdf"))):
     """
     解析PDF文件，提取工作流定义
     """
@@ -146,7 +187,7 @@ async def parse_pdf(file: UploadFile = File(...)):
 
 
 @app.post("/plan", response_model=PlanResponse)
-async def plan(request: PlanRequest):
+async def plan(request: PlanRequest, _: Any = Depends(RateLimiter("plan"))):
     """
     根据PreFlow和AgentCards生成PSOP工作流
     """
@@ -167,7 +208,7 @@ async def plan(request: PlanRequest):
 
 
 @app.get("/psops", response_model=PSOPListResponse)
-async def get_all_psops(limit: int = 10, workflow_type: str = 'psop'):
+async def get_all_psops(limit: int = 10, workflow_type: str = 'psop', _: Any = Depends(RateLimiter("get_all_psops"))):
     """
     获取所有PSOP工作流列表
     """
@@ -184,7 +225,7 @@ async def get_all_psops(limit: int = 10, workflow_type: str = 'psop'):
 
 
 @app.get("/psops/{workflow_id}", response_model=PSOPDetailResponse)
-async def get_psop_by_id(workflow_id: str):
+async def get_psop_by_id(workflow_id: str, _: Any = Depends(RateLimiter("get_psop_by_id"))):
     """
     根据ID获取PSOP工作流详情
     """
@@ -204,7 +245,7 @@ async def get_psop_by_id(workflow_id: str):
 
 
 @app.post("/psops", status_code=201)
-async def save_psop(request: SavePSOPRequest):
+async def save_psop(request: SavePSOPRequest, _: Any = Depends(RateLimiter("save_psop"))):
     """
     保存PSOP工作流
     """
@@ -225,7 +266,7 @@ async def save_psop(request: SavePSOPRequest):
 
 
 @app.delete("/psops/{workflow_id}", response_model=PSOPDeleteResponse)
-async def delete_psop(workflow_id: str):
+async def delete_psop(workflow_id: str,  _: Any = Depends(RateLimiter("delete_psop"))):
     """
     删除指定ID的PSOP工作流
     """
@@ -251,7 +292,7 @@ async def delete_psop(workflow_id: str):
 
 
 @app.get("/agent-cards", response_model=AgentCardResponse)
-async def get_all_agent_cards():
+async def get_all_agent_cards(_: Any = Depends(RateLimiter("get_all_agent_cards"))):
     """
     获取全量AgentCard列表
     """
@@ -276,7 +317,7 @@ async def get_all_agent_cards():
 
 
 @app.post("/generate-from-intent", response_model=IntentResponse)
-async def generate_psop_from_intent(request: IntentRequest):
+async def generate_psop_from_intent(request: IntentRequest, _: Any = Depends(RateLimiter("generate_psop_from_intent"))):
     """
     根据自然语言意图生成PSOP工作流
     """
@@ -313,7 +354,7 @@ async def generate_psop_from_intent(request: IntentRequest):
 
 
 @app.post("/retrieve-by-intent", response_model=RetrieveIntentResponse)
-async def retrieve_psop_by_intent(request: RetrieveIntentRequest):
+async def retrieve_psop_by_intent(request: RetrieveIntentRequest, _: Any = Depends(RateLimiter("retrieve_psop_by_intent"))):
     """
     根据自然语言意图检索最合适的PSOP工作流
     """

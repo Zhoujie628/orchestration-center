@@ -7,6 +7,7 @@ from loguru import logger
 from uvicorn import config
 
 from common.cert.cert_validater import CertValidator
+from common.config import TLS_CIPHER, FORWARDED_ALLOW_IPS, CONN_TIMEOUT
 from common.log.audit_logger import audit_logger, OperationObject, OperationName, LogLevel, OperationResult
 from common.util.cipher_converter import CipherConverter
 from common.util.cipher_util import DEFAULT_ENCODING
@@ -69,19 +70,19 @@ class CustomUvicornServer:
         self.conf_obj = conf_obj
 
     def run(self):
-        os.environ.setdefault("FORWARDED_ALLOW_IPS", self.server_config.get("forwarded_allow_ips"))
+        os.environ.setdefault("FORWARDED_ALLOW_IPS", self.server_config.get(FORWARDED_ALLOW_IPS))
         server_config = uvicorn.Config(
             app=app,
             host=self.server_config.get('ip', "127.0.0.1"),
             port=int(self.server_config.get('port', 60000)),
-            ssl_certfile=self.conf_obj.ssl_certfile,
-            ssl_keyfile=self.conf_obj.ssl_keyfile,
-            ssl_keyfile_password=load_cert_password(self.conf_obj.ssl_keyfile_password).decode(DEFAULT_ENCODING),
-            ssl_ca_certs=self.conf_obj.ssl_ca_certs,
-            ssl_cert_reqs=self.conf_obj.verify_client,
-            ssl_ciphers=CipherConverter.convert(self.server_config.get("tls.cipher")),
+            # ssl_certfile=self.conf_obj.ssl_certfile,
+            # ssl_keyfile=self.conf_obj.ssl_keyfile,
+            # ssl_keyfile_password=load_cert_password(self.conf_obj.ssl_keyfile_password).decode(DEFAULT_ENCODING),
+            # ssl_ca_certs=self.conf_obj.ssl_ca_certs,
+            # ssl_cert_reqs=self.conf_obj.verify_client,
+            ssl_ciphers=CipherConverter.convert(self.server_config.get(TLS_CIPHER)),
             timeout_keep_alive=0,
-            timeout_graceful_shutdown=int(self.server_config.get("connection.timeout", 30)),
+            timeout_graceful_shutdown=int(self.server_config.get(CONN_TIMEOUT, 30)),
             log_level="info",
             proxy_headers=True
         )
@@ -94,9 +95,9 @@ def main():
     server_config = get_conf()
     try:
         conf_obj = conf_singleton_obj
-        result = CertValidator(conf_obj).validate()
-        if not result.is_valid:
-            sys.exit(result.message)
+        # result = CertValidator(conf_obj).validate()
+        # if not result.is_valid:
+        #     sys.exit(result.message)
         set_ssl_folder_permissions()
         server = CustomUvicornServer(server_config, conf_obj)
         server.run()
