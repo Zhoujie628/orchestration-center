@@ -1,3 +1,18 @@
+# Copyright (c) 2026 Huawei Technologies Co., Ltd.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
 import os
 import ssl
 import sys
@@ -23,6 +38,24 @@ def customized_create_ssl_context(certfile: str | os.PathLike[str],
                                   cert_reqs: int,
                                   ca_certs: str | os.PathLike[str] | None,
                                   ciphers: str | None) -> ssl.SSLContext:
+    """
+    Create a custom SSL context for secure connections.
+    
+    Args:
+        certfile: Path to the certificate file
+        keyfile: Path to the private key file (optional)
+        password: Password for the private key (optional)
+        ssl_version: SSL version to use
+        cert_reqs: Certificate verification requirements
+        ca_certs: Path to CA certificates file (optional)
+        ciphers: Cipher suites to use (optional)
+        
+    Returns:
+        SSLContext: Configured SSL context
+        
+    Raises:
+        Exception: If SSL context creation fails
+    """
     try:
         ctx = ssl.SSLContext(ssl_version)
         get_password = (lambda: password) if password else None
@@ -41,6 +74,12 @@ def customized_create_ssl_context(certfile: str | os.PathLike[str],
         raise e
 
 def get_user_info_from_env():
+    """
+    Retrieve user information from environment variables.
+    
+    Returns:
+        dict: Dictionary containing username, uid, and gid
+    """
     user_info = {
         "username":os.environ.get("APP_USER", "unknown"),
         "uid":os.environ.get("APP_UID", "unknown"),
@@ -50,6 +89,9 @@ def get_user_info_from_env():
 
 
 def record_startup_log():
+    """
+    Record server startup audit log.
+    """
     server_config = get_conf()
     audit_logger.audit({
         'object_name': OperationObject.SERVER,
@@ -65,11 +107,24 @@ config.create_ssl_context = customized_create_ssl_context
 
 
 class CustomUvicornServer:
+    """
+    Custom Uvicorn server with SSL configuration.
+    """
     def __init__(self, server_config, conf_obj):
+        """
+        Initialize the custom Uvicorn server.
+        
+        Args:
+            server_config: Server configuration dictionary
+            conf_obj: Configuration object containing SSL settings
+        """
         self.server_config = server_config
         self.conf_obj = conf_obj
 
     def run(self):
+        """
+        Start the Uvicorn server with SSL configuration.
+        """
         os.environ.setdefault("FORWARDED_ALLOW_IPS", self.server_config.get(FORWARDED_ALLOW_IPS))
         server_config = uvicorn.Config(
             app=app,
@@ -92,6 +147,9 @@ class CustomUvicornServer:
 
 
 def main():
+    """
+    Main entry point for starting the PSOP server.
+    """
     server_config = get_conf()
     try:
         conf_obj = conf_singleton_obj
@@ -116,27 +174,27 @@ def main():
 
 if __name__ == '__main__':
     logger.info("=" * 50)
-    logger.info("  PSOP 服务器接口")
+    logger.info("  PSOP Server Interfaces")
     logger.info("=" * 50)
-    logger.info("  POST /parse-pdf     -  上传 PDF 文件并解析")
-    logger.info("  POST /plan          -  提交任务和步骤，获取规划结果")
+    logger.info("  POST /parse-pdf     -  Upload PDF file and parse")
+    logger.info("  POST /plan          -  Submit tasks and steps, get planning results")
     logger.info("")
-    logger.info("  PSOP 管理接口:")
-    logger.info("  GET  /psops         -  获取PSOP列表")
-    logger.info("  GET  /psops/<id>    -  根据ID获取PSOP详情")
-    logger.info("  POST /psops         -  保存PSOP")
-    logger.info("  DELETE /psops/<id>  -  删除PSOP")
+    logger.info("  PSOP Management Interfaces:")
+    logger.info("  GET  /psops         -  Get PSOP list")
+    logger.info("  GET  /psops/<id>    -  Get PSOP details by ID")
+    logger.info("  POST /psops         -  Save PSOP")
+    logger.info("  DELETE /psops/<id>  -  Delete PSOP")
     logger.info("")
-    logger.info("  AgentCard 管理接口:")
-    logger.info("  GET  /agent-cards   -  获取全量AgentCard列表")
+    logger.info("  AgentCard Management Interfaces:")
+    logger.info("  GET  /agent-cards   -  Get all AgentCard list")
     logger.info("")
-    logger.info("  意图生成接口:")
-    logger.info("  POST /generate-from-intent - 根据自然语言意图生成PSOP")
-    logger.info("  POST /retrieve-by-intent   - 根据自然语言意图检索PSOP")
+    logger.info("  Intent Generation Interfaces:")
+    logger.info("  POST /generate-from-intent - Generate PSOP from natural language intent")
+    logger.info("  POST /retrieve-by-intent   - Retrieve PSOP by natural language intent")
     logger.info("")
-    logger.info("  SSE执行接口:")
-    logger.info("  GET  /rest/start_process_stream?psop_id=<id> - 启动PSOP执行并推送实时进展")
+    logger.info("  SSE Execution Interface:")
+    logger.info("  GET  /rest/start_process_stream?psop_id=<id> - Start PSOP execution and push real-time progress")
     logger.info("")
-    logger.info("  详细文档请参考: PSOP_API_DOCUMENTATION.md")
+    logger.info("  For detailed documentation, refer to: PSOP_API_DOCUMENTATION.md")
     logger.info("=" * 50)
     main()

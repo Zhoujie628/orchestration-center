@@ -1,3 +1,18 @@
+# Copyright (c) 2026 Huawei Technologies Co., Ltd.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
 """
 DeepSeek LLM Client Module
 
@@ -80,10 +95,10 @@ class DeepSeekLLM:
             return reasoning, content
 
         except Exception as e:
-            error_msg = f"LLM API调用失败: {str(e)}"
+            error_msg = f"LLM API call failed: {str(e)}"
             logger.error(error_msg)
-            logger.error(f"错误类型: {type(e).__name__}")
-            raise Exception(f"LLM调用失败: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            raise Exception(f"LLM call failed: {str(e)}")
 
 
 def get_or_create_deepseek_llm_instance():

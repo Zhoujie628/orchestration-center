@@ -1,3 +1,18 @@
+# Copyright (c) 2026 Huawei Technologies Co., Ltd.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
 import os
 import tempfile
 import json
@@ -431,7 +446,7 @@ async def generate_psop_from_intent(request: IntentRequest,
         try:
             storage.save_psop(psop)
         except Exception as save_error:
-            logger.warning(f"PSOP保存失败（不影响返回）: {save_error}")
+            logger.warning(f"PSOP save failed (does not affect response): {save_error}")
 
         return IntentResponse(
             status="success",
@@ -444,7 +459,7 @@ async def generate_psop_from_intent(request: IntentRequest,
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"根据意图生成PSOP失败: {e}")
+        logger.error(f"Failed to generate PSOP from intent: {e}")
         raise HTTPException(status_code=500, detail=f"生成PSOP失败: {str(e)}")
     finally:
         if acquired:
@@ -464,7 +479,7 @@ async def retrieve_psop_by_intent(request: RetrieveIntentRequest,
     try:
         retrieve_semaphore.acquire_nowait()
         acquired = True
-        logger.info(f"开始根据意图检索PSOP: {request.user_intent}")
+        logger.info(f"Starting PSOP retrieval based on intent: {request.user_intent}")
 
         # 使用WorkflowRetrieval的retrieve_psop_by_intent方法
         psop = retrieval.retrieve_psop_by_intent(request.user_intent)
@@ -476,7 +491,7 @@ async def retrieve_psop_by_intent(request: RetrieveIntentRequest,
                 data=None
             )
 
-        logger.info(f"成功检索到PSOP: {psop.name} (ID: {psop.id})")
+        logger.info(f"Successfully retrieved PSOP: {psop.name} (ID: {psop.id})")
 
         return RetrieveIntentResponse(
             status="success",
@@ -487,7 +502,7 @@ async def retrieve_psop_by_intent(request: RetrieveIntentRequest,
         logger.error(f"Server is busy: {str(e)}")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Server is busy: {str(e)}")
     except Exception as e:
-        logger.error(f"根据意图检索PSOP失败: {e}")
+        logger.error(f"Failed to retrieve PSOP based on intent: {e}")
         raise HTTPException(status_code=500, detail=f"检索PSOP失败: {str(e)}")
     finally:
         if acquired:
@@ -550,7 +565,7 @@ async def start_process_stream(psop_id: str):
                 }
                 event_queue.put(event_data)
             except Exception as e:
-                logger.error(f"推送事件到队列失败: {e}")
+                logger.error(f"Failed to push event to queue: {e}")
 
         async def run_workflow_async():
             try:
@@ -570,7 +585,7 @@ async def start_process_stream(psop_id: str):
                 })
 
             except Exception as e:
-                logger.error(f"工作流执行失败: {e}")
+                logger.error(f"Workflow execution failed: {e}")
                 event_queue.put({
                     "type": "error",
                     "data": {"psop_id": psop_id, "error": str(e)}
@@ -599,7 +614,7 @@ async def start_process_stream(psop_id: str):
             except queue.Empty:
                 continue
             except Exception as e:
-                logger.error(f"处理事件失败: {e}")
+                logger.error(f"Failed to process event: {e}")
 
         yield "event: close\ndata: {}\n\n"
 

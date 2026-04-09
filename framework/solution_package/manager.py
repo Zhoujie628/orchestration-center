@@ -1,3 +1,18 @@
+# Copyright (c) 2026 Huawei Technologies Co., Ltd.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
 import json
 import os
 from pathlib import Path
@@ -7,14 +22,14 @@ from loguru import logger
 
 
 class SolutionPackageManager:
-    """管理solutionpackage的存储和检索功能"""
+    """Manage storage and retrieval of solution packages."""
     
     def __init__(self, storage_dir: Optional[str] = None):
         """
-        初始化SolutionPackageManager
+        Initialize SolutionPackageManager.
         
         Args:
-            storage_dir: 存储目录路径，默认为与framework同级的data/solution_packages
+            storage_dir: Storage directory path, defaults to data/solution_packages sibling to framework directory
         """
         if storage_dir is None:
             # 获取当前文件的绝对路径，然后找到项目根目录（framework的父级）
@@ -29,34 +44,34 @@ class SolutionPackageManager:
     
     def _get_storage_path(self, pdf_filename: str) -> Path:
         """
-        根据PDF文件名获取存储路径
+        Get storage path based on PDF filename.
         
         Args:
-            pdf_filename: PDF文件名
+            pdf_filename: PDF filename
             
         Returns:
-            Path: 存储文件路径
+            Path: Storage file path
         """
-        # 移除文件扩展名，使用纯文件名作为存储文件名
+        # Remove file extension, use base filename as storage filename
         filename_without_ext = Path(pdf_filename).stem
         storage_filename = f"{filename_without_ext}.json"
         return self.storage_dir / storage_filename
     
     def store_solution_package(self, pdf_filename: str, chapters_dict: Dict[str, str]) -> bool:
         """
-        存储solutionpackage数据
+        Store solution package data.
         
         Args:
-            pdf_filename: PDF文件名
-            chapters_dict: 通过extract_all_chapters方法提取的章节字典
+            pdf_filename: PDF filename
+            chapters_dict: Chapter dictionary extracted via extract_all_chapters method
             
         Returns:
-            bool: 存储是否成功
+            bool: Whether storage succeeded
         """
         try:
             storage_path = self._get_storage_path(pdf_filename)
             
-            # 准备存储数据
+            # Prepare storage data
             storage_data = {
                 "pdf_filename": pdf_filename,
                 "chapters": chapters_dict,
@@ -78,13 +93,13 @@ class SolutionPackageManager:
     
     def retrieve_by_filename(self, pdf_filename: str) -> Optional[Dict[str, Any]]:
         """
-        按PDF文件名检索solutionpackage数据
+        Retrieve solution package data by PDF filename.
         
         Args:
-            pdf_filename: PDF文件名
+            pdf_filename: PDF filename
             
         Returns:
-            Optional[Dict[str, Any]]: 检索到的数据，包含章节字典等信息
+            Optional[Dict[str, Any]]: Retrieved data including chapter dictionary and other information
         """
         try:
             storage_path = self._get_storage_path(pdf_filename)
@@ -93,7 +108,7 @@ class SolutionPackageManager:
                 logger.warning(f"No solution package found for '{pdf_filename}' at {storage_path}")
                 return None
             
-            # 读取JSON文件
+            # Read JSON file
             with open(storage_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
@@ -107,15 +122,15 @@ class SolutionPackageManager:
     
     def retrieve_all(self) -> List[Dict[str, Any]]:
         """
-        全量检索所有存储的solutionpackage数据
+        Retrieve all stored solution package data.
         
         Returns:
-            List[Dict[str, Any]]: 所有存储的solutionpackage数据列表
+            List[Dict[str, Any]]: List of all stored solution package data
         """
         try:
             all_packages = []
             
-            # 遍历存储目录中的所有JSON文件
+            # Iterate through all JSON files in the storage directory
             for file_path in self.storage_dir.glob("*.json"):
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
@@ -134,10 +149,10 @@ class SolutionPackageManager:
     
     def get_all_filenames(self) -> List[str]:
         """
-        获取所有已存储的PDF文件名列表
+        Get list of all stored PDF filenames.
         
         Returns:
-            List[str]: PDF文件名列表
+            List[str]: PDF filename list
         """
         try:
             filenames = []
@@ -160,13 +175,13 @@ class SolutionPackageManager:
     
     def delete_by_filename(self, pdf_filename: str) -> bool:
         """
-        删除指定PDF文件名的solutionpackage数据
+        Delete solution package data for specified PDF filename.
         
         Args:
-            pdf_filename: PDF文件名
+            pdf_filename: PDF filename
             
         Returns:
-            bool: 删除是否成功
+            bool: Whether deletion succeeded
         """
         try:
             storage_path = self._get_storage_path(pdf_filename)
@@ -185,14 +200,14 @@ class SolutionPackageManager:
     
     def get_chapter_content(self, pdf_filename: str, chapter_title: str) -> Optional[str]:
         """
-        获取指定PDF文件中特定章节的内容
+        Get content of specific chapter in specified PDF file.
         
         Args:
-            pdf_filename: PDF文件名
-            chapter_title: 章节标题
+            pdf_filename: PDF filename
+            chapter_title: Chapter title
             
         Returns:
-            Optional[str]: 章节内容，如果不存在则返回None
+            Optional[str]: Chapter content, None if not exists
         """
         try:
             data = self.retrieve_by_filename(pdf_filename)
@@ -208,13 +223,13 @@ class SolutionPackageManager:
     
     def search_chapters_by_keyword(self, keyword: str) -> List[Dict[str, Any]]:
         """
-        在所有存储的solutionpackage中搜索包含关键词的章节
+        Search chapters containing keyword across all stored solution packages.
         
         Args:
-            keyword: 搜索关键词
+            keyword: Search keyword
             
         Returns:
-            List[Dict[str, Any]]: 包含匹配结果的列表，每个结果包含PDF文件名和匹配的章节
+            List[Dict[str, Any]]: List of matching results, each containing PDF filename and matching chapters
         """
         try:
             all_packages = self.retrieve_all()
@@ -245,10 +260,10 @@ class SolutionPackageManager:
     
     def get_storage_stats(self) -> Dict[str, Any]:
         """
-        获取存储统计信息
+        Get storage statistics.
         
         Returns:
-            Dict[str, Any]: 存储统计信息
+            Dict[str, Any]: Storage statistics
         """
         try:
             all_packages = self.retrieve_all()
