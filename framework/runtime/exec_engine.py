@@ -22,7 +22,7 @@ from a2a.types import TransportProtocol
 from a2a.utils import get_message_text
 from loguru import logger
 
-from framework.llm import get_or_create_deepseek_llm_instance
+from framework.llm import get_llm_instance
 from framework.orchestration.model.psop import PSOP, Step, TaskStatus
 
 
@@ -31,7 +31,7 @@ class DynamicWorkflowEngine:
         self.workflow = psop
         self.current_step_idx = 0
         self.execution_history = []
-        self.llm_client = get_or_create_deepseek_llm_instance()
+        self.llm_client = get_llm_instance()
         self.agent_cards = agent_cards
         self.push_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
     

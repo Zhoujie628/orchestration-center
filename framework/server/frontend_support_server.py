@@ -32,6 +32,7 @@ from pydantic import BaseModel
 from starlette import status
 from starlette.responses import Response
 
+from agent_registry_client.client_factory import AgentRegistryClientFactory
 from common.config import MAX_URL_LENGTH, MAX_REQUEST_BODY_SIZE, CONN_MAX, CONN_TIMEOUT, \
     FLOW_CTL_PARALLEL_RETRIEVE_PSOP, FLOW_CTL_PARALLEL_GENERATE_PSOP, FLOW_CTL_PARALLEL_AGENT_CARDS, \
     FLOW_CTL_PARALLEL_DELETE_PSOP, FLOW_CTL_PARALLEL_SAVE_PSOP, FLOW_CTL_PARALLEL_ONE_PSOP, FLOW_CTL_PARALLEL_ALL_PSOPS, \
@@ -392,7 +393,8 @@ async def get_all_agent_cards(_: Any = Depends(RateLimiter(config, "get_all_agen
         agent_cards_semaphore.acquire_nowait()
         acquired = True
         # 获取所有AgentCard
-        agent_cards = agent_lib.get_all_agent_cards()
+        agent_registry_factory = AgentRegistryClientFactory()
+        agent_cards = agent_registry_factory.create_from_env().list_exact()
 
         # 将AgentCard转换为字典格式
         agent_cards_data = [card.model_dump() for card in agent_cards]
@@ -430,7 +432,8 @@ async def generate_psop_from_intent(request: IntentRequest,
         generate_semaphore.acquire_nowait()
         acquired = True
         # 获取AgentCards
-        agent_cards = agent_lib.get_all_agent_cards()
+        agent_registry_factory = AgentRegistryClientFactory()
+        agent_cards = agent_registry_factory.create_from_env().list_exact()
         if not agent_cards:
             raise HTTPException(status_code=404, detail="未找到可用的AgentCard")
 
@@ -521,7 +524,8 @@ async def start_process_stream(psop_id: str):
     if not psop:
         raise HTTPException(status_code=404, detail=f"未找到ID为 {psop_id} 的PSOP")
 
-    agent_cards = agent_lib.get_all_agent_cards()
+    agent_registry_factory = AgentRegistryClientFactory()
+    agent_cards = agent_registry_factory.create_from_env().list_exact()
     if not agent_cards:
         raise HTTPException(status_code=404, detail="未找到可用的AgentCard")
 

@@ -21,13 +21,13 @@ from a2a.types import (
     Task, TaskStatus, TaskState, Artifact, TextPart, Part,
 )
 
-from framework.llm import get_or_create_deepseek_llm_instance
+from framework.llm import get_llm_instance
 
 
 class EnergySavingIntentAgentExecutor(AgentExecutor):
 
     def __init__(self) -> None:
-        self.llm = get_or_create_deepseek_llm_instance()
+        self.llm = get_llm_instance()
 
     async def execute(
             self,
