@@ -38,7 +38,7 @@ from typing import Type, Optional, Union, Any, Dict, List
 from a2a.types import AgentCard
 from pydantic import BaseModel
 
-from framework.llm import get_or_create_deepseek_llm_instance
+from framework.llm import get_llm_instance
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.prompts import get_generate_psop_prompt, get_choose_skill_prompt, \
@@ -69,7 +69,7 @@ class PsopGenerator:
 
     def __init__(self):
         """Initialize the PSOP generator with an LLM instance."""
-        self._llm = get_or_create_deepseek_llm_instance()
+        self._llm = get_llm_instance()
 
     @staticmethod
     def _parse_json_response(

@@ -18,7 +18,7 @@ import re
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
-from framework.llm import get_or_create_deepseek_llm_instance
+from framework.llm import get_llm_instance
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.model.psop import PSOP
 from framework.orchestration.persistence import WorkflowStorage
@@ -255,7 +255,7 @@ class WorkflowRetrieval:
         psop_list_str = json.dumps(psop_list, ensure_ascii=False, indent=2)
         
         # 获取LLM实例并调用
-        llm = get_or_create_deepseek_llm_instance()
+        llm = get_llm_instance()
         prompt = get_retrieve_psop_prompt(user_intent, psop_list_str)
         
         try:

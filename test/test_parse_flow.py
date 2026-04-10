@@ -27,7 +27,7 @@ from framework.solution_package.parse_flow import (
 @pytest.fixture
 def parser():
     """创建解析器实例"""
-    with patch('framework.solution_package.parse_flow.get_or_create_deepseek_llm_instance'):
+    with patch('framework.solution_package.parse_flow.get_llm_instance'):
         return SolutionPackageParser()
 
 

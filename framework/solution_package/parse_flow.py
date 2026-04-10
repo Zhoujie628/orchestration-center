@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 import concurrent.futures
 
-from framework.llm import get_or_create_deepseek_llm_instance
+from framework.llm import get_llm_instance
 
 
 class PDFParsingError(Exception):
@@ -36,7 +36,7 @@ class SolutionPackageParser:
     """Parser for extracting and converting PDF solution package chapters to markdown."""
     
     def __init__(self):
-        self.llm = get_or_create_deepseek_llm_instance()
+        self.llm = get_llm_instance()
 
     @staticmethod
     def find_chapter_range(doc, chapter_title: str) -> tuple:

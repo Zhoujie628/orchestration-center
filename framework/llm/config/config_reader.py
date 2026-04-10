@@ -13,14 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from framework.llm.config.llm_config import get_llm_config_by_type, LLMType
-from framework.llm.provider.llm_provider_registry import get_or_create_llm_instance
+import json
+import os
 
 
-def get_llm_instance(llm_type: LLMType = LLMType.DEEPSEEK_CHAT):
-    """get a LLM instance.
-
-    Returns:
-        A LLM instance
-    """
-    return get_or_create_llm_instance(get_llm_config_by_type(llm_type))
+def read_config_as_json(file_name):
+    current_dir = os.path.abspath(__file__)
+    grandparent_path = os.path.dirname(current_dir)
+    dir_path= os.path.join(grandparent_path, "")
+    file_path = os.path.join(dir_path, file_name)
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
