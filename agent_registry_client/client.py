@@ -75,19 +75,6 @@ class AgentRegistryClient:
                              json=data)
         return resp.json()
 
-    def update_partial(self, name: str, organization: str, updates: Dict[str, Any]) -> bool:
-        """
-        Partially replace an agent.
-        :param name: Agent name
-        :param organization: Agent organization
-        :param updates: Dictionary of fields to update
-        :return: True if updated, False if not found
-        """
-        resp = self._request('PATCH', f'/rest/a2a-t/v1/update_agent_partial/{name}',
-                             params={'organization': organization},
-                             json=updates)
-        return resp.json()
-
     def deregister(self, name: str, organization: str) -> bool:
         """
         Deregister an agent.
@@ -137,7 +124,7 @@ class AgentRegistryClient:
         :param task: Natural language task
         :return: List of relevant AgentCard instances
         """
-        resp = self._request('GET', f'/rest/a2a-t/v1/agents/search', params={'task': task})
+        resp = self._request('GET', f'/rest/a2a-t/v1/agents/retrieve', params={'task': task})
         data = resp.json()
         return [AgentCard(**item) for item in data]
 
