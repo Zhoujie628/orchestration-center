@@ -17,7 +17,7 @@ from framework.llm.config.llm_config import get_llm_config_by_type, LLMType
 from framework.llm.provider.llm_provider_registry import get_or_create_llm_instance
 
 
-def get_llm_instance(llm_type: LLMType = LLMType.DEEPSEEK_CHAT):
+def get_llm_instance(llm_type: LLMType = LLMType.OPENAI_STYLE_LLM):
     """get a LLM instance.
 
     Returns:

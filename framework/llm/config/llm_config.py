@@ -19,14 +19,14 @@ from framework.llm.config.config_reader import read_config_as_json
 
 
 class LLMType(Enum):
-    DEEPSEEK_CHAT = "deepseek-chat"
+    OPENAI_STYLE_LLM = "openai_style_llm"
 
 
 def convert_llm_type(llm_type: str) -> LLMType:
     for member in LLMType:
         if member.value == llm_type:
             return member
-    return LLMType.DEEPSEEK_CHAT
+    return LLMType.OPENAI_STYLE_LLM
 
 
 class LLMConfigItem:

@@ -24,7 +24,7 @@ from framework.llm.provider.base_llm import BaseLLM
 from framework.llm.provider.llm_provider_registry import registry_provider
 
 
-@registry_provider(LLMType.DEEPSEEK_CHAT)
+@registry_provider(LLMType.OPENAI_STYLE_LLM)
 class OpenAIStyleLLM(BaseLLM):
     def __init__(self, llm_config: LLMConfig):
         super().__init__(llm_config)

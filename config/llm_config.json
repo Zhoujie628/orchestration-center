@@ -1,5 +1,5 @@
 {
-  "deepseek-chat": {
+  "openai_style_llm": {
     "description": "this is openai rest api, deepseek-chat",
     "model": "deepseek-chat",
     "api": "https://api.deepseek.com",
