@@ -42,12 +42,6 @@ class BaseLLM(ABC):
             logger.error(f"ask llm exception {e}")
         return ""
 
-    def ask_llm_with_duration(self, prompt):
-        start_time = time.time()
-        ans = self.ask_llm(prompt)
-        duration = time.time() - start_time
-        return ans, duration
-
     def to_dict(self):
         return {"name": self.llm_config.llm_type.value}
 

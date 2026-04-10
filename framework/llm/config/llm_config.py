@@ -38,7 +38,7 @@ class LLMConfigItem:
         self.description = config.get("description", "")
         self.model = config.get("model", "")
         self.api = config.get("api", "")
-        self.apikey = config.get("apikey", "")
+        self.apikey = config.get("api_key", "")
 
 
 class LLMConfig:
