@@ -1,8 +1,3 @@
-# AgentCard配置
-# 如果设置了source_url，则优先从URL获取AgentCard
-# 否则使用下面的agents字段
-# source_url: "http://example.com/agents"
-
 agents:
   - name: "RAN Energy Saving Agent"
     description: "负责RAN能效优化的自主闭环运行，包括意图探索、意图实现、效果评估与报告。"
@@ -65,7 +60,7 @@ agents:
       stateTransitionHistory: true
     defaultInputModes: [ "text" ]
     defaultOutputModes: [ "text" ]
-  - name: "live-streaming-agent"
+  - name: "Live Streaming Agent"
     description: "负责赛事需求的解析与监控。"
     provider:
       organization: "Huawei"
@@ -90,7 +85,7 @@ agents:
     defaultInputModes: [ "text" ]
     defaultOutputModes: [ "text" ]
 
-  - name: "assurance-agent"
+  - name: "Assurance Agent"
     description: "负责保障策略及其恢复策略的生成。"
     provider:
       organization: "Huawei"
@@ -115,7 +110,7 @@ agents:
     defaultInputModes: [ "text" ]
     defaultOutputModes: [ "text" ]
 
-  - name: "ran-agent"
+  - name: "RAN Agent"
     description: "负责无线网络的分析、规划与策略执行。"
     provider:
       organization: "Huawei"

@@ -14,29 +14,32 @@
 #    under the License.
 
 import asyncio
+
 import uvicorn
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard
+from dotenv import load_dotenv
 from loguru import logger
 from typing import List
 from urllib.parse import urlparse
 
-from framework import AgentCardLib
+from agent_registry_client.client_factory import AgentRegistryClientFactory
+from framework import AgentCardLoader
 from samples.agents.energy_saving_agent import EnergySavingAgentExecutor
 from samples.agents.energy_saving_intent_agent import EnergySavingIntentAgentExecutor
 from samples.agents.live_streaming_agent import LiveStreamingAgentExecutor
 from samples.agents.assurance_agent import AssuranceAgentExecutor
 from samples.agents.ran_agent import RanAgentExecutor
 
-async def start_server(agent_card: AgentCard, registry_url: str, port: int, host: str = "127.0.0.1") -> None:
+async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1") -> None:
     agent2class = {
         "RAN Energy Saving Agent": EnergySavingAgentExecutor,
         "Energy Saving Intent Agent": EnergySavingIntentAgentExecutor,
-        "live-streaming-agent": LiveStreamingAgentExecutor,
-        "assurance-agent": AssuranceAgentExecutor,
-        "ran-agent": RanAgentExecutor
+        "Live Streaming Agent": LiveStreamingAgentExecutor,
+        "Assurance Agent": AssuranceAgentExecutor,
+        "RAN Agent": RanAgentExecutor
     }
     agent_name = agent_card.name
     agent_class = agent2class.get(agent_name)
@@ -67,15 +70,22 @@ async def start_server(agent_card: AgentCard, registry_url: str, port: int, host
 
 
 async def main() -> None:
-    agent_lib = AgentCardLib()
+    load_dotenv()
+    agent_lib = AgentCardLoader()
     agent_cards = agent_lib.get_all_agent_cards()
-    registry_url = ""
+    factory = AgentRegistryClientFactory().create_from_env()
+
     tasks: List[asyncio.Task] = []
     for agent_card in agent_cards:
+        try:
+            result = factory.register(agent_card)
+            logger.info(f"register agentcard for {agent_card.name}, result is {result}")
+        except Exception as e:
+            logger.error(f"register agent card failed: {e}")
         agent_name = agent_card.name
         parsed = urlparse(agent_card.url)
         task = asyncio.create_task(
-            start_server(agent_card, registry_url=registry_url, port=parsed.port, host=parsed.hostname),
+            start_server(agent_card, port=parsed.port, host=parsed.hostname),
             name=f"server_{agent_name}"
         )
         tasks.append(task)

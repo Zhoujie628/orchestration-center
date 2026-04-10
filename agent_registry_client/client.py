@@ -42,6 +42,7 @@ class AgentRegistryClient:
         kwargs.setdefault('timeout', self.timeout)
         try:
             resp = self.session.request(method=method, url=url, **kwargs)
+            logger.info(f"request for :{url}, the result is {resp.content}")
             resp.raise_for_status()
             return resp
         except requests.exceptions.RequestException as e:

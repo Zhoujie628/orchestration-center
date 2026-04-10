@@ -30,12 +30,12 @@ else
     exit 1
 fi
 
-# Check if Python script 'run.py' exists in the target directory
-PYTHON_SCRIPT="${TARGET_DIR}/run.py"
+# Check if Python script 'preflow_orchestrator_demo.py' exists in the target directory
+PYTHON_SCRIPT="${TARGET_DIR}/preflow_orchestrator_demo.py"
 if [ -f "$PYTHON_SCRIPT" ]; then
     echo -e "${GREEN}Python script found: $PYTHON_SCRIPT${NC}"
 else
-    echo -e "${RED}Error: Python script run.py does not exist in $TARGET_DIR${NC}"
+    echo -e "${RED}Error: Python script preflow_orchestrator_demo.py does not exist in $TARGET_DIR${NC}"
     exit 1
 fi
 

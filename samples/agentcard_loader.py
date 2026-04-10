@@ -14,37 +14,22 @@
 #    under the License.
 
 import yaml
-import httpx
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 from a2a.types import AgentCard
 
 
-class AgentCardLib:
+class AgentCardLoader:
     """
     AgentCard library supporting initialization from config file or URL.
-    
-    Configuration file logic:
-    1. If config file contains source_url field, prioritize fetching AgentCards from that URL
-    2. Otherwise, use the agents field in the config file
     """
     
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self):
         """
         Initialize AgentCard library.
-        
-        Args:
-            config_path: Configuration file path, defaults to config/agent_cards.yaml
         """
-        self._agent_cards: List[AgentCard] = []
-        
-        if config_path:
-            config_file = Path(config_path)
-        else:
-            # Use default configuration file
-            config_file = Path(__file__).parent.parent / "config" / "agent_cards.yaml"
-        
-        self._load_from_config_file(config_file)
+        self.config_file = Path(__file__).parent / "agentcard" / "agent_cards.yaml"
+        self._load_from_config_file(self.config_file)
     
     def _load_from_config_file(self, config_file: Path) -> None:
         """
@@ -58,18 +43,10 @@ class AgentCardLib:
         
         with open(config_file, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
-        
         if not config:
             raise ValueError(f"配置文件为空或格式不正确: {config_file}")
-        
-        # Check if source_url is configured
-        source_url = config.get("source_url")
-        if source_url:
-            # Fetch AgentCards from URL
-            self._load_from_url(source_url)
-        else:
-            # Load from agents field in configuration file
-            self._load_from_config_data(config, str(config_file))
+        # Load from agents field in configuration file
+        self._load_from_config_data(config, str(config_file))
     
     def _load_from_config_data(self, config: Dict[str, Any], config_path: str) -> None:
         """
@@ -93,27 +70,6 @@ class AgentCardLib:
                 self._agent_cards.append(agent_card)
             except Exception as e:
                 raise ValueError(f"解析AgentCard失败: {agent_dict.get('name', 'unknown')} - {e}")
-    
-    def _load_from_url(self, url: str) -> None:
-        """
-        Fetch AgentCards from URL.
-        
-        Args:
-            url: URL address to fetch AgentCards from
-        """
-        try:
-            response = httpx.get(url, timeout=30.0)
-            response.raise_for_status()
-            data = response.json()
-
-            if isinstance(data, list):
-                self._agent_cards = [AgentCard.model_validate(item) for item in data]
-            elif "agents" in data:
-                self._agent_cards = [AgentCard.model_validate(item) for item in data["agents"]]
-            else:
-                raise ValueError(f"无法解析URL返回的数据格式: {data}")
-        except Exception as e:
-            raise RuntimeError(f"从URL获取AgentCard失败: {e}")
 
     def get_all_agent_cards(self) -> List[AgentCard]:
         """

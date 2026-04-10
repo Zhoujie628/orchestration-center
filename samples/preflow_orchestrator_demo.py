@@ -18,7 +18,7 @@ import time
 
 from loguru import logger
 
-from framework import AgentCardLib
+from framework import AgentCardLoader
 from framework.orchestration.model.preflow import PreFlow
 from framework.orchestration.psop_generator import PsopGenerator
 from framework.runtime.exec_engine import DynamicWorkflowEngine
@@ -70,7 +70,7 @@ def _get_and_validate_preflow():
 
 
 def _load_agents_and_get_cards():
-    agent_lib = AgentCardLib()
+    agent_lib = AgentCardLoader()
     return agent_lib.get_all_agent_cards()
 
 def _generate_workflow(preflow, agent_cards):

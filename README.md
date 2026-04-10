@@ -126,7 +126,7 @@ yarn dev
 
 2. **启动后端服务器**
 ```bash
-python samples/run.py
+python samples/preflow_orchestrator_demo.py
 ```
 后端将在 http://localhost:6000 启动
 
@@ -336,7 +336,7 @@ Frontend will start at http://localhost:5173
 
 2. **Start Backend Server**
 ```bash
-python samples/run.py
+python samples/preflow_orchestrator_demo.py
 ```
 Backend will start at http://localhost:6000
 

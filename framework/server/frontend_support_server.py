@@ -19,7 +19,6 @@ import json
 import asyncio
 import threading
 import queue
-import time
 from typing import Optional, List, Any
 
 import anyio
@@ -46,7 +45,6 @@ from framework.orchestration.persistence import WorkflowStorage
 from framework.orchestration.retrieval import WorkflowRetrieval
 from framework.server.middleware import ConnectionLimitMiddleware, TimeoutMiddleware, RateLimiter
 from framework.solution_package.parse_flow import SolutionPackageParser
-from framework.agentcard_lib import AgentCardLib
 from framework.runtime.exec_engine import DynamicWorkflowEngine
 
 # 创建FastAPI应用
@@ -100,7 +98,6 @@ async def security_middleware(request: Request, call_next):
 # 初始化存储和检索组件
 storage = WorkflowStorage()
 retrieval = WorkflowRetrieval(storage)
-agent_lib = AgentCardLib()
 
 
 # 定义请求/响应模型
