@@ -61,18 +61,8 @@ export const getBestHandles = (sourceNode, targetNode) => {
     const sCenter = { x: sPos.x + (sourceNode.width || 200) / 2, y: sPos.y + (sourceNode.height || 100) / 2 };
     const tCenter = { x: tPos.x + (targetNode.width || 200) / 2, y: tPos.y + (targetNode.height || 100) / 2 };
 
-    const dx = tCenter.x - sCenter.x;
-    const dy = tCenter.y - sCenter.y;
-
-    if (Math.abs(dy) > Math.abs(dx)) {
-        return dy > 0
-            ? { sourceHandle: 's-bottom', targetHandle: 'target' }
-            : { sourceHandle: 's-top', targetHandle: 'target' };
-    } else {
-        return dx > 0
-            ? { sourceHandle: 's-right', targetHandle: 'target' }
-            : { sourceHandle: 's-left', targetHandle: 'target' };
-    }
+    // 统一改为：下方出，上方进
+    return { sourceHandle: 's-bottom', targetHandle: 't-top' };
 };
 
 /**

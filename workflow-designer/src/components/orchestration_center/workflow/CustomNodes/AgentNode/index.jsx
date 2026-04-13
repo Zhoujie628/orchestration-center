@@ -58,20 +58,12 @@ const AgentNode = ({ data, selected }) => {
     `;
 
     // 目标点样式：平时隐藏且不拦截点击，连线时变为全屏拦截
-    const targetHandleStyle = {
-        position: 'absolute',
-        width: '100%',
-        height: '100%',
-        top: 0,
-        left: 0,
-        transform: 'none',
-        background: 'transparent',
-        border: 'none',
-        borderRadius: '12px',
-        zIndex: isConnecting ? 100 : -1,
-        pointerEvents: isConnecting ? 'auto' : 'none',
-        transition: 'all 0.2s',
-    };
+    const targetHandleBaseClasses = `
+        !w-0 !h-0 !bg-transparent !border-0 !absolute !transform-none
+        z-[100]
+        after:content-[''] after:absolute after:bg-transparent
+        ${isConnecting ? 'after:pointer-events-auto' : 'after:pointer-events-none'}
+    `;
 
     const getStatusColor = (s) => {
         const normalized = (s || '').toLowerCase();
@@ -138,14 +130,11 @@ const AgentNode = ({ data, selected }) => {
                  </div>
              </div>
  
-             {/* Target Handle (Hidden drop zone covering the entire node) */}
-             <Handle type="target" position={Position.Top} id="target" style={targetHandleStyle} />
+             {/* Target Handle (Hidden drop zone covering the entire node, entering from Top) */}
+             <Handle type="target" position={Position.Top} id="t-top" style={{ top: 0, left: '50%' }} className={`${targetHandleBaseClasses} after:w-[400px] after:h-[200px] after:top-[100px] after:left-1/2 after:-translate-x-1/2`} />
  
-             {/* Source Handles (Visibility trigger points) */}
-             <Handle type="source" position={Position.Top} id="s-top" style={{ left: '50%' }} className={handleBaseStyle} />
+             {/* Source Handle (Bottom center trigger point) */}
              <Handle type="source" position={Position.Bottom} id="s-bottom" style={{ left: '50%' }} className={handleBaseStyle} />
-             <Handle type="source" position={Position.Left} id="s-left" style={{ top: '50%' }} className={handleBaseStyle} />
-             <Handle type="source" position={Position.Right} id="s-right" style={{ top: '50%' }} className={handleBaseStyle} />
          </div>
      );
  };

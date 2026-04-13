@@ -138,13 +138,13 @@ const FlowInner = ({
 
             return {
                 ...edge,
-                type: 'floating',
+                type: 'default',
                 label: edge.label || null,
-                animated: isActive,
+                animated: true,
                 style: {
                     ...edge.style,
                     stroke: isActive ? themeClasses.activeEdgeColor : themeClasses.inactiveEdgeColor,
-                    strokeWidth: isActive ? themeClasses.activeStrokeWidth : themeClasses.inactiveStrokeWidth,
+                    strokeWidth: isActive ? 3 : 2,
                     opacity: isActive ? 1 : 0.6,
                 },
                 markerEnd: {
@@ -234,9 +234,10 @@ const FlowInner = ({
         if (mode === 'edit' && importedEdges) {
             setEditEdges(importedEdges.map(edge => ({
                 ...edge,
-                type: 'floating',
+                type: 'default',
                 zIndex: 1000,
-                animated: edge.animated !== undefined ? edge.animated : true,
+                animated: true,
+                style: { strokeWidth: 3, stroke: isDark ? '#3b82f6' : '#2563eb' },
             })));
             setIsDirty(false);
         }
@@ -341,11 +342,11 @@ const FlowInner = ({
     const onConnect = useCallback((params) => {
         const newEdge = {
             ...params,
-            type: 'floating',
+            type: 'default',
             zIndex: 1000,
             animated: true,
             markerEnd: { type: MarkerType.ArrowClosed, color: isDark ? '#3b82f6' : '#2563eb' },
-            style: { strokeWidth: 2, stroke: isDark ? '#3b82f6' : '#2563eb' }
+            style: { strokeWidth: 3, stroke: isDark ? '#3b82f6' : '#2563eb' }
         };
         setEditEdges((eds) => addEdge(newEdge, eds));
         setIsDirty(true);
@@ -475,9 +476,10 @@ const FlowInner = ({
                 proOptions={{ hideAttribution: true }}
 
                 defaultEdgeOptions={{
-                    type: 'floating',
-                    animated: false,
+                    type: 'default',
+                    animated: true,
                     zIndex: 1000,
+                    style: { strokeWidth: 3 },
                 }}
             >
                 <Background color={themeClasses.gridColor} gap={20} variant="dots" />
