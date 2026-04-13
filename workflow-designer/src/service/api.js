@@ -17,7 +17,7 @@ export const getBaseUrl = () => {
     }
 }
 
-const api = axios.create({ timeout: 10000 });
+const api = axios.create({timeout: 10000});
 
 api.interceptors.response.use(
     (response) => response.data,
@@ -41,7 +41,7 @@ export async function delWorkflowById(id) {
 }
 
 export async function createWorkflow(data) {
-    return api.post(`${getBaseUrl()}/psops`, data);
+    return api.post(`${getBaseUrl()}/psops`, {psop: data});
 }
 
 
@@ -93,6 +93,7 @@ export async function handlePlan(preflow, agentCards) {
         throw new Error(errorMsg);
     }
 }
+
 export async function generateWorkflowFromIntent(intent, name = "AI Generated Workflow") {
     try {
         const response = await axios.post(`${getBaseUrl()}/generate-from-intent`, {

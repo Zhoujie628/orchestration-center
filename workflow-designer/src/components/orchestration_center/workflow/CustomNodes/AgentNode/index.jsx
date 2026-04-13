@@ -89,7 +89,7 @@ const AgentNode = ({ data, selected }) => {
                  <div className="flex justify-between items-start gap-2">
                      <div className="flex flex-col">
                          <span className={`text-[10px] font-bold uppercase tracking-widest ${theme.textSub}`}>Workflow Step</span>
-                         <h3 className="text-[14px] font-bold leading-tight truncate max-w-[280px]">
+                         <h3 className="text-[14px] font-bold leading-[1.15] break-words whitespace-normal">
                              {stepName}
                          </h3>
                      </div>
@@ -112,12 +112,12 @@ const AgentNode = ({ data, selected }) => {
                              ${isDark ? 'bg-zinc-800/40 border-zinc-700/30 hover:bg-zinc-800' : 'bg-slate-50/50 border-slate-100 hover:bg-slate-100'}
                          `}>
                              <div className="flex justify-between items-center">
-                                 <span className="text-[9px] font-bold uppercase text-blue-500 tracking-tight opacity-80 truncate max-w-[150px]">
+                                 <span className="text-[9px] font-bold uppercase text-blue-500 tracking-tight opacity-80 break-words whitespace-normal">
                                      {task.agent || 'Agent'}
                                  </span>
                                  <div className={`h-1.5 w-1.5 rounded-full ${getStatusColor(task.status)} opacity-60`} />
                              </div>
-                             <div className={`text-[11px] font-medium leading-tight truncate ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>
+                             <div className={`text-[11px] font-medium leading-[1.15] break-words whitespace-normal ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>
                                  {task.skill || 'No skill specified'}
                              </div>
                          </div>
@@ -130,11 +130,11 @@ const AgentNode = ({ data, selected }) => {
                  </div>
              </div>
  
-             {/* Target Handle (Hidden drop zone covering the entire node, entering from Top) */}
-             <Handle type="target" position={Position.Top} id="t-top" style={{ top: 0, left: '50%' }} className={`${targetHandleBaseClasses} after:w-[400px] after:h-[200px] after:top-[100px] after:left-1/2 after:-translate-x-1/2`} />
+             {/* Target Handle (Hidden drop zone covering the entire node, entering from Left) */}
+             <Handle type="target" position={Position.Left} id="t-left" style={{ top: '50%', left: 0 }} className={`${targetHandleBaseClasses} after:w-[300px] after:h-[400px] after:left-[150px] after:top-1/2 after:-translate-y-1/2`} />
  
-             {/* Source Handle (Bottom center trigger point) */}
-             <Handle type="source" position={Position.Bottom} id="s-bottom" style={{ left: '50%' }} className={handleBaseStyle} />
+             {/* Source Handle (Right center trigger point) */}
+             <Handle type="source" position={Position.Right} id="s-right" style={{ top: '50%' }} className={handleBaseStyle} />
          </div>
      );
  };

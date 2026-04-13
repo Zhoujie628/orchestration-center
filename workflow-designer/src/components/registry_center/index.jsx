@@ -92,7 +92,7 @@ const AgentRegistry = ({isDark,t}) => {
 
     return (
         <div
-            className="h-full p-8 flex items-stretch gap-8 max-w-[1650px] mx-auto w-full transition-all animate-in fade-in duration-500 overflow-hidden font-sans">
+            className="h-full p-6 flex items-stretch gap-6 w-full transition-all animate-in fade-in duration-500 overflow-hidden font-sans">
             <div className="w-[380px] flex flex-col p-2 shrink-0 min-h-0">
                 <div className="flex flex-col gap-6 h-full min-h-0">
                     <div

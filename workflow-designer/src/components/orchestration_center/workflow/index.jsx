@@ -11,6 +11,8 @@ import {
     addEdge
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { transformWorkflowToReactFlow, getBestHandles } from "./utils/index.jsx";
+import CustomEdge from './CustomEdge';
 import { Layers } from 'lucide-react';
 import { useTranslation } from "react-i18next";
 
@@ -35,6 +37,7 @@ const nodeTypes = {
 const edgeTypes = {
     smart: SmartStepEdge,
     floating: FloatingEdge,
+    custom: CustomEdge,
 };
 
 const initialEditNodes = [
@@ -53,21 +56,21 @@ const initialEditNodes = [
 ];
 
 const FlowInner = ({
-                       mode,
-                       isDark,
-                       // View 模式 Props
-                       viewNodes = [],
-                       viewEdges = [],
-                       onSelectChange,
-                       // Edit 模式 Props
-                       importedNodes,
-                       importedEdges,
-                       workflowId,
-                       workflowName,
-                       workflowDescription,
-                       onCancel,
-                       onSaveSuccess
-                   }) => {
+    mode,
+    isDark,
+    // View 模式 Props
+    viewNodes = [],
+    viewEdges = [],
+    onSelectChange,
+    // Edit 模式 Props
+    importedNodes,
+    importedEdges,
+    workflowId,
+    workflowName,
+    workflowDescription,
+    onCancel,
+    onSaveSuccess
+}) => {
     const { t } = useTranslation();
     const { screenToFlowPosition, fitView, setCenter, getNode } = useReactFlow();
     const [rfInstance, setRfInstance] = useState(null);
@@ -90,6 +93,7 @@ const FlowInner = ({
             ...node,
             data: { ...node.data, isDark },
             selected: node.id === viewSelectedNodeId,
+            zIndex: 100,
         }));
     }, [viewNodes, viewSelectedNodeId, isDark, mode]);
 
@@ -121,10 +125,11 @@ const FlowInner = ({
             const sourceNode = nodeMap.get(edge.source);
             const targetNode = nodeMap.get(edge.target);
             const sourceStats = sourceOutgoingStats.get(edge.source);
-            
+
             if (!sourceNode || !targetNode) return {
                 ...edge,
-                style: { ...edge.style, stroke: themeClasses.inactiveEdgeColor, strokeWidth: themeClasses.inactiveStrokeWidth, opacity: 0.5 },
+                type: 'custom',
+                style: { ...edge.style, stroke: themeClasses.inactiveEdgeColor, strokeWidth: themeClasses.inactiveEdgeColor, opacity: 0.5 },
                 markerEnd: { type: MarkerType.ArrowClosed, color: themeClasses.inactiveEdgeColor }
             };
 
@@ -138,8 +143,9 @@ const FlowInner = ({
 
             return {
                 ...edge,
-                type: 'default',
+                type: 'custom',
                 label: edge.label || null,
+                data: { ...edge.data, condition: edge.data?.condition || edge.label || '' },
                 animated: true,
                 style: {
                     ...edge.style,
@@ -151,7 +157,7 @@ const FlowInner = ({
                     type: MarkerType.ArrowClosed,
                     color: isActive ? themeClasses.activeEdgeColor : themeClasses.inactiveEdgeColor,
                 },
-                zIndex: isActive ? 2000 : 1000,
+                zIndex: isActive ? 10 : 0,
             };
         });
     }, [viewEdges, viewNodes, themeClasses, mode]);
@@ -187,7 +193,7 @@ const FlowInner = ({
             if (activeNode) {
                 if (activeNode.id !== lastCenteredNodeId.current) {
                     lastCenteredNodeId.current = activeNode.id;
-                    
+
                     // Auto-select to visually emphasize the node
                     setViewSelectedNodeId(activeNode.id);
 
@@ -195,17 +201,17 @@ const FlowInner = ({
                         const internalNode = getNode(activeNode.id);
                         const width = internalNode?.measured?.width || activeNode.width || 260;
                         const height = internalNode?.measured?.height || activeNode.height || 110;
-                        
+
                         const centerX = activeNode.position.x + width / 2;
                         const centerY = activeNode.position.y + height / 2;
-                        
+
                         setCenter(centerX, centerY, { zoom: 1.25, duration: 1200 });
                     }, 100);
                     return () => clearTimeout(timer);
                 }
             } else if (!lastCenteredNodeId.current) {
                 const timer = setTimeout(() => {
-                   fitView({ padding: 0.2, duration: 1000 });
+                    fitView({ padding: 0.2, duration: 1000 });
                 }, 200);
                 return () => clearTimeout(timer);
             }
@@ -225,22 +231,21 @@ const FlowInner = ({
 
     useEffect(() => {
         if (mode === 'edit' && importedNodes?.length > 0) {
-            setEditNodes(importedNodes.map(node => ({ ...node, data: { ...node.data, isDark } })));
+            setEditNodes(importedNodes.map(node => ({ ...node, zIndex: 100, data: { ...node.data, isDark } })));
             setIsDirty(false);
         }
     }, [importedNodes, setEditNodes, isDark, mode]);
 
     useEffect(() => {
-        if (mode === 'edit' && importedEdges) {
-            setEditEdges(importedEdges.map(edge => ({
-                ...edge,
-                type: 'default',
-                zIndex: 1000,
-                animated: true,
-                style: { strokeWidth: 3, stroke: isDark ? '#3b82f6' : '#2563eb' },
-            })));
-            setIsDirty(false);
-        }
+        setEditEdges(importedEdges.map(edge => ({
+            ...edge,
+            type: 'custom',
+            data: { ...edge.data, condition: edge.data?.condition || edge.label || '' },
+            zIndex: 0,
+            animated: true,
+            style: { strokeWidth: 3, stroke: isDark ? '#3b82f6' : '#2563eb' },
+        })));
+        setIsDirty(false);
     }, [importedEdges, setEditEdges, mode]);
 
     // Track changes for isDirty
@@ -342,8 +347,8 @@ const FlowInner = ({
     const onConnect = useCallback((params) => {
         const newEdge = {
             ...params,
-            type: 'default',
-            zIndex: 1000,
+            type: 'custom',
+            data: { condition: '' },
             animated: true,
             markerEnd: { type: MarkerType.ArrowClosed, color: isDark ? '#3b82f6' : '#2563eb' },
             style: { strokeWidth: 3, stroke: isDark ? '#3b82f6' : '#2563eb' }
@@ -366,7 +371,7 @@ const FlowInner = ({
             const targetNode = allNodes.find(node => {
                 if (node.type !== 'agentNode') return false;
                 const { x, y } = node.position;
-                const width = node.measured?.width || node.width || 260;
+                const width = node.measured?.width || node.width || 200;
                 const height = node.measured?.height || node.height || 110;
                 return (
                     position.x >= x &&
@@ -397,7 +402,7 @@ const FlowInner = ({
                                 ...n.data,
                                 subtasks: newSubtasks
                             },
-                            height: 80 + newSubtasks.length * 55
+                            height: 100 + newSubtasks.length * 60
                         };
                     }
                     return n;
@@ -425,8 +430,8 @@ const FlowInner = ({
                         name: newId,
                         isDark,
                     },
-                    width: 260,
-                    height: 80 + 1 * 55
+                    width: 200,
+                    height: 100 + 1 * 60
                 };
                 setEditNodes((nds) => nds.concat(newNode));
                 setIsDirty(true);
@@ -471,14 +476,13 @@ const FlowInner = ({
                 elementsSelectable={true}
                 onInit={setRfInstance}
                 colorMode={isDark ? 'dark' : 'light'}
-                // fitView
-                // fitViewOptions={{ padding: 0.2 }}
+                fitView
+                fitViewOptions={{ padding: 0.1 }}
                 proOptions={{ hideAttribution: true }}
 
                 defaultEdgeOptions={{
-                    type: 'default',
+                    type: 'custom',
                     animated: true,
-                    zIndex: 1000,
                     style: { strokeWidth: 3 },
                 }}
             >
@@ -498,7 +502,7 @@ const FlowInner = ({
                 <>
                     <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
                         <div className="pointer-events-auto">
-                             <Toolbar isDark={isDark} nodes={editNodes} edges={editEdges} workflowId={workflowId} workflowName={workflowName} workflowDescription={workflowDescription} onCancel={handleCancel} onClear={() => { setEditNodes(initialEditNodes); setEditEdges([]); setIsDirty(true); }} onFitView={() => fitView({ padding: 0.4, duration: 800 })} phenomenon={phenomenon} onSaveSuccess={handleSaveSuccess} />
+                            <Toolbar isDark={isDark} nodes={editNodes} edges={editEdges} workflowId={workflowId} workflowName={workflowName} workflowDescription={workflowDescription} onCancel={handleCancel} onClear={() => { setEditNodes(initialEditNodes); setEditEdges([]); setIsDirty(true); }} onFitView={() => fitView({ padding: 0.4, duration: 800 })} phenomenon={phenomenon} onSaveSuccess={handleSaveSuccess} />
                         </div>
                     </div>
                     <div className="absolute justify-center left-8 top-12 bottom-12 w-32 z-40 pointer-events-none flex flex-col min-h-0">
@@ -531,22 +535,22 @@ const FlowInner = ({
     );
 };
 const UnifiedWorkflow = ({
-                             mode = 'view',
-                             isDark = false,
-                             nodes = [],
-                             edges = [],
-                             isLoading = false,
-                             loadingMessage = "Loading workflow...",
-                             onSelectChange,
-                             visible = true,
-                             importedNodes,
-                             importedEdges,
-                             workflowId,
-                             workflowName,
-                             workflowDescription,
-                             onCancel,
-                             onSaveSuccess
-                         }) => {
+    mode = 'view',
+    isDark = false,
+    nodes = [],
+    edges = [],
+    isLoading = false,
+    loadingMessage = "Loading workflow...",
+    onSelectChange,
+    visible = true,
+    importedNodes,
+    importedEdges,
+    workflowId,
+    workflowName,
+    workflowDescription,
+    onCancel,
+    onSaveSuccess
+}) => {
     if (mode === 'view' && isLoading) {
         return <WorkflowLoader isDark={isDark} loadingMessage={loadingMessage} />;
     }
@@ -580,13 +584,13 @@ const UnifiedWorkflow = ({
                     viewEdges={edges}
                     onSelectChange={onSelectChange}
                     importedNodes={importedNodes}
-                     importedEdges={importedEdges}
-                     workflowId={workflowId}
-                     workflowName={workflowName}
-                     workflowDescription={workflowDescription}
-                     onCancel={onCancel}
-                     onSaveSuccess={onSaveSuccess}
-                 />
+                    importedEdges={importedEdges}
+                    workflowId={workflowId}
+                    workflowName={workflowName}
+                    workflowDescription={workflowDescription}
+                    onCancel={onCancel}
+                    onSaveSuccess={onSaveSuccess}
+                />
             </ReactFlowProvider>
         </div>
     );

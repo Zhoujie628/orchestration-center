@@ -22,10 +22,10 @@ export const normalizeStatus = (status) => {
 /**
  * 2. Dagre 自动排版逻辑
  */
-export const getLayoutedElements = (nodes, edges, direction = 'TB') => {
+export const getLayoutedElements = (nodes, edges, direction = 'LR') => {
     const dagreGraph = new dagre.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
-    dagreGraph.setGraph({ rankdir: direction, ranksep: 100, nodesep: 80 });
+    dagreGraph.setGraph({ rankdir: direction, ranksep: 180, nodesep: 100 });
 
     nodes.forEach((node) => {
         dagreGraph.setNode(node.id, { width: node.width, height: node.height });
@@ -37,13 +37,43 @@ export const getLayoutedElements = (nodes, edges, direction = 'TB') => {
 
     dagre.layout(dagreGraph);
 
-    const layoutedNodes = nodes.map((node) => {
+    let lastY = nodes.length > 0 ? (dagreGraph.node(nodes[0].id).y || 0) : 0;
+
+    const layoutedNodes = nodes.map((node, index) => {
         const nodeWithPosition = dagreGraph.node(node.id);
+        
+        let finalY = nodeWithPosition.y;
+        if (direction === 'LR' && index > 0) {
+            // 计算确定性随机位移 (120 - 180px)
+            let hash = 0;
+            const seed = String(node.id) + index;
+            for (let i = 0; i < seed.length; i++) {
+                hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const magnitude = (Math.abs(hash) % 60) + 120;
+            const sign = (Math.abs(hash) >> 4) % 2 === 0 ? 1 : -1;
+            
+            // 基于上一个节点的最终 Y 坐标进行偏移
+            finalY = lastY + (sign * magnitude);
+            
+            // 安全限制：防止偏离画布中心太远 (假设中心在 300 左右)
+            // 如果计算出的位置太离谱，则向心拉回
+            const centerDistance = finalY - nodeWithPosition.y;
+            if (Math.abs(centerDistance) > 400) {
+                finalY = nodeWithPosition.y + (centerDistance > 0 ? 200 : -200);
+            }
+        } else if (index === 0) {
+            // 第一个节点也给一个初始随机位移，避免总是在中心
+            finalY = nodeWithPosition.y + 40;
+        }
+
+        lastY = finalY;
+
         return {
             ...node,
             position: {
-                x: nodeWithPosition.x - node.width / 2,
-                y: nodeWithPosition.y - node.height / 2,
+                x: nodeWithPosition.x - (node.width || 200) / 2,
+                y: finalY - (node.height || 100) / 2,
             },
         };
     });
@@ -61,8 +91,8 @@ export const getBestHandles = (sourceNode, targetNode) => {
     const sCenter = { x: sPos.x + (sourceNode.width || 200) / 2, y: sPos.y + (sourceNode.height || 100) / 2 };
     const tCenter = { x: tPos.x + (targetNode.width || 200) / 2, y: tPos.y + (targetNode.height || 100) / 2 };
 
-    // 统一改为：下方出，上方进
-    return { sourceHandle: 's-bottom', targetHandle: 't-top' };
+    // 统一改为：右侧出，左侧进
+    return { sourceHandle: 's-right', targetHandle: 't-left' };
 };
 
 /**
@@ -120,8 +150,8 @@ export const transformWorkflowToReactFlow = (rawInput) => {
             id: nodeId,
             type: 'agentNode',
             position: { x: 0, y: 0 },
-            width: 260,
-            height: 80 + Math.max(subtasks.length, 1) * 55,
+            width: 200,
+            height: 100 + Math.max(subtasks.length, 1) * 60,
             data: {
                 ...step,
                 label: step.name,
@@ -141,6 +171,7 @@ export const transformWorkflowToReactFlow = (rawInput) => {
                 source: nodeId,
                 target: targetId,
                 label: link.condition || '',
+                data: { condition: link.condition || '' },
                 animated: nodeStatus === 'running',
                 style: { stroke: '#94a3b8', strokeWidth: 2 }
             });
@@ -162,7 +193,7 @@ export const transformWorkflowToReactFlow = (rawInput) => {
     }
 
     steps.forEach(s => delete s._normalizedNext);
-    const layouted = getLayoutedElements(nodes, edges, 'TB');
+    const layouted = getLayoutedElements(nodes, edges, 'LR');
     const finalEdges = layouted.edges.map(edge => {
         const sourceNode = layouted.nodes.find(n => n.id === edge.source);
         const targetNode = layouted.nodes.find(n => n.id === edge.target);

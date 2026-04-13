@@ -231,7 +231,7 @@ const ExecutionCenter = ({ isDark }) => {
     };
 
     return (
-        <div className="h-full p-8 flex flex-col gap-8 max-w-[1750px] mx-auto w-full transition-all animate-in fade-in duration-500 overflow-hidden font-sans">
+        <div className="h-full p-8 flex flex-col gap-8 w-full transition-all animate-in fade-in duration-500 overflow-hidden font-sans">
             <div className={`shrink-0 rounded-[3rem] border flex items-center justify-between px-10 py-6 bg-zinc-50/10 dark:bg-zinc-900/40 ${theme.mainCard} shadow-xl`}>
 
                 <div className="flex-1 relative group mr-12 min-w-0">
@@ -241,7 +241,7 @@ const ExecutionCenter = ({ isDark }) => {
                         value={userIntent}
                         onChange={(e) => setUserIntent(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleMatchIntent()}
-                        placeholder="Talk to sequence engine (e.g., 'Deploy instance to prod env')..."
+                        placeholder="please input your intent..."
                         className={`w-full h-16 pl-16 pr-8 rounded-[1.5rem] border-2 text-lg font-bold outline-none transition-all duration-300 focus:shadow-[0_0_0_8px_rgba(59,130,246,0.1)] focus:border-blue-500 ${theme.intentInput}`}
                     />
                 </div>

@@ -2,13 +2,13 @@
   "nav": {
     "title": "A2A-T Prototype",
     "tabs": {
-      "agents": "注册中心",
+      "agents": "Agent库",
       "orchestration": "编排中心",
-      "execution": "执行中心"
+      "execution": "执行Demo"
     }
   },
   "execution": {
-    "title": "执行中心",
+    "title": "执行Demo",
     "execute": "开始执行",
     "history": "执行记录",
     "status": "状态",
@@ -125,7 +125,7 @@
     }
   },
   "registry": {
-    "title": "注册中心",
+    "title": "Agent库",
     "search_placeholder": "搜索智能体名称或功能...",
     "units": "个实例",
     "description_label": "智能体描述",

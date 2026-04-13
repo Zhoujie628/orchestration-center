@@ -429,7 +429,7 @@ const OrchestrationCenter = ({ isDark }) => {
 
     return (
         <div
-            className="h-full p-8 flex items-stretch gap-8 max-w-[1700px] mx-auto w-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden font-sans">
+            className="h-full p-8 flex items-stretch gap-8 w-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden font-sans">
             <div className="w-[300px] flex flex-col gap-6 shrink-0">
                 <div
                     className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-6 shadow-xl">

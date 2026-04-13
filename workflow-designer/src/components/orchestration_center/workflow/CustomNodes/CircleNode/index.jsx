@@ -28,8 +28,8 @@ export const StartNode = ({ selected }) => {
             </div>
             START
 
-            {/* Start nodes only have Bottom Source for T-B flow */}
-            <Handle type={"source"} position={Position.Bottom} id={"s-bottom"} style={{ left: '50%' }} className={handleBaseStyle} />
+            {/* Start nodes only have Right Source for L-R flow */}
+            <Handle type={"source"} position={Position.Right} id={"s-right"} style={{ top: '50%' }} className={handleBaseStyle} />
         </div>
     );
 };
@@ -55,8 +55,8 @@ export const EndNode = ({ selected }) => {
             </div>
             END
 
-            {/* End nodes only have Top Target (whole node) for T-B flow */}
-            <Handle type="target" position={Position.Top} id="t-top" style={{ top: 0, left: '50%' }} className={`${targetHandleBaseClasses} after:w-[64px] after:h-[64px] after:top-[32px] after:left-1/2 after:-translate-x-1/2`} />
+            {/* End nodes only have Left Target (whole node) for L-R flow */}
+            <Handle type="target" position={Position.Left} id="t-left" style={{ left: 0, top: '50%' }} className={`${targetHandleBaseClasses} after:w-[64px] after:h-[64px] after:left-[32px] after:top-1/2 after:-translate-y-1/2`} />
         </div>
     );
 };
