@@ -88,15 +88,15 @@ limiter = strategies.MovingWindowRateLimiter(sync_storage)
 
 def parser_rate_lime(interface_name: str, config):
     config_map = {
-        "parse_pdf":(FLOW_CTL_PARSE_PDF, 1),
-        "plan":(FLOW_CTL_PLAN, 1),
-        "get_all_psops":(FLOW_CTL_ALL_PSOPS, 1),
-        "get_psop_by_id":(FLOW_CTL_ONE_PSOP, 1),
-        "save_psop":(FLOW_CTL_SAVE_PSOP, 1),
-        "delete_psop":(FLOW_CTL_DELETE_PSOP, 1),
-        "get_all_agent_cards":(FLOW_CTL_AGENT_CARDS, 1),
-        "generate_psop_from_intent":(FLOW_CTL_GENERATE_PSOP, 1),
-        "retrieve_psop_by_intent":(FLOW_CTL_RETRIEVE_PSOP, 1),
+        "parse_pdf":(FLOW_CTL_PARSE_PDF, 50),
+        "plan":(FLOW_CTL_PLAN, 50),
+        "get_all_psops":(FLOW_CTL_ALL_PSOPS, 50),
+        "get_psop_by_id":(FLOW_CTL_ONE_PSOP, 50),
+        "save_psop":(FLOW_CTL_SAVE_PSOP, 50),
+        "delete_psop":(FLOW_CTL_DELETE_PSOP, 50),
+        "get_all_agent_cards":(FLOW_CTL_AGENT_CARDS, 50),
+        "generate_psop_from_intent":(FLOW_CTL_GENERATE_PSOP, 50),
+        "retrieve_psop_by_intent":(FLOW_CTL_RETRIEVE_PSOP, 50),
     }
 
     entry = config_map.get(interface_name)
