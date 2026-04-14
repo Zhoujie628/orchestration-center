@@ -36,7 +36,7 @@ class WorkflowStorage:
         """
         if storage_dir is None:
             current_file = Path(__file__).resolve()
-            project_root = current_file.parent.parent
+            project_root = current_file.parent.parent.parent
             self.psop_dir = project_root / "data" / "workflow_storage" / "psop"
             self.preflow_dir = project_root / "data" / "workflow_storage" / "preflow"
         else:
