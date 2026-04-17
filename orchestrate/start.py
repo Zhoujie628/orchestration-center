@@ -30,7 +30,6 @@ from common.util.conf_util import conf_singleton_obj, set_ssl_folder_permissions
 from common.util.config_util import get_conf
 from orchestrate.server.frontend_support_server import app
 
-
 def customized_create_ssl_context(certfile: str | os.PathLike[str],
                                   keyfile: str | os.PathLike[str] | None,
                                   password: str | None,
@@ -151,25 +150,30 @@ def main():
     Main entry point for starting the PSOP server.
     """
     server_config = get_conf()
-    try:
-        conf_obj = conf_singleton_obj
-        result = CertValidator(conf_obj).validate()
-        if not result.is_valid:
-            sys.exit(result.message)
-        set_ssl_folder_permissions()
-        server = CustomUvicornServer(server_config, conf_obj)
-        server.run()
-    except Exception as e:
-        logger.error(f"server start failed {e}")
-        audit_logger.audit({
-            'object_name':OperationObject.SERVER,
-            'operation_name':OperationName.START_SERVER,
-            'level':LogLevel.DANGER,
-            'result':OperationResult.FAILURE,
-            'details':{"ip": server_config.get('ip', ""), "port": server_config.get('port', "")},
-            'user_name':get_user_info_from_env().get('username'),
-        })
-        sys.exit(f"server start failed {e}")
+    is_https = server_config.get("enable_https", True)
+    is_enable_https = str(is_https).lower() == 'true'
+    if not is_enable_https:
+        uvicorn.run(app, host=server_config.get('ip', ""), port=int(server_config.get('port', 60000)))
+    else:
+        try:
+            conf_obj = conf_singleton_obj
+            result = CertValidator(conf_obj).validate()
+            if not result.is_valid:
+                sys.exit(result.message)
+            set_ssl_folder_permissions()
+            server = CustomUvicornServer(server_config, conf_obj)
+            server.run()
+        except Exception as e:
+            logger.error(f"server start failed {e}")
+            audit_logger.audit({
+                'object_name': OperationObject.SERVER,
+                'operation_name': OperationName.START_SERVER,
+                'level': LogLevel.DANGER,
+                'result': OperationResult.FAILURE,
+                'details': {"ip": server_config.get('ip', ""), "port": server_config.get('port', "")},
+                'user_name': get_user_info_from_env().get('username'),
+            })
+            sys.exit(f"server start failed {e}")
 
 
 if __name__ == '__main__':
