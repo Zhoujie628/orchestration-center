@@ -238,7 +238,7 @@ const AgentDashboard: React.FC<AgentProfileProps> = ({agent, isDark}) => {
                   {t('agent_profile.defaultInputModes')}
                 </span>
                                 <div className="flex flex-wrap gap-2 mt-2 mb-4">
-                                    {agent.defaultInputModes.map(m => (
+                                    {agent.default_input_modes.map(m => (
                                         <span key={m}
                                               className={`px-2 py-1 text-xs rounded border ${theme.border} ${theme.textSecondary} bg-opacity-50`}>
                       {m}
@@ -250,7 +250,7 @@ const AgentDashboard: React.FC<AgentProfileProps> = ({agent, isDark}) => {
                   {t('agent_profile.defaultOutputModes')}
                 </span>
                                 <div className="flex flex-wrap gap-2 mt-2">
-                                    {agent.defaultOutputModes.map(m => (
+                                    {agent.default_output_modes.map(m => (
                                         <span key={m}
                                               className={`px-2 py-1 text-xs rounded border ${theme.border} ${theme.textSecondary} bg-opacity-50`}>
                       {m}
@@ -259,9 +259,9 @@ const AgentDashboard: React.FC<AgentProfileProps> = ({agent, isDark}) => {
                                 </div>
                             </div>
                         </div>
-                        {agent.documentationUrl && (
+                        {agent.documentation_url && (
                             <a
-                                href={agent.documentationUrl}
+                                href={agent.documentation_url}
                                 target="_blank"
                                 rel="noreferrer"
                                 className={`mt-6 flex items-center justify-center gap-2 w-full py-2 rounded-lg text-sm font-medium transition-colors ${
