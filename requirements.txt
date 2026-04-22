@@ -26,4 +26,4 @@ pymupdf>=1.26.0
 limits>=5.8.0
 python-multipart>=0.0.24
 sse_starlette>=3.3.4
-psycopg2>=2.9.10
+psycopg2-binary>=2.9.10
