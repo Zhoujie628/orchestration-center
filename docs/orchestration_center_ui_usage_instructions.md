@@ -12,6 +12,10 @@
 等待所有依赖下载完成，执行`npm run dev`
 
 如果想查看demo，需要额外启动samples目录下的`start_agents_server.py`脚本(注册中心默认没有注册Agent，该脚本时向注册中心注册了几个Agent并启动对应的Agent)
+进入到项目{安装目录}，执行命令
+```bash
+python -m samples.start_agents_server
+```
 ### 方式二：
 进入项目目录下的`bin`文件夹
 ```bash
@@ -28,6 +32,8 @@ cd {安装目录}/orchestration-center/bin
 3. 通过 API 接口管理 PSOP 工作流
 
 ## 界面功能介绍
+进入编排中心界面后，首先点击界面右上角的齿轮状图标，修改ip为编排中心实际的安装环境ip，修改端口为编排中心实际监听的端口，保存即可。
+![photo](images/photo6.jpeg)
 ### Agent库：
 
 左侧展示所有Agent，可以通过Agent名称或者功能进行搜索；点击某个Agent，右侧展示该Agent详情
