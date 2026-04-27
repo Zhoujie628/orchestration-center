@@ -132,7 +132,7 @@ source myproject_env/bin/activate
 pip install -r ./requirements.txt
 ```
 #### 3. 启动项目
-执行如下命令即可启动编排中心后端服务：
+执行如下命令即可启动编排中心后端服务，`nohup`的作用是在用户退出登录或关闭终端后继续运行：
 ```bash
 nohup python -m orchestrate.start > orchestrate.log 2>&1 &
 ```
