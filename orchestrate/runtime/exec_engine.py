@@ -64,7 +64,7 @@ class DynamicWorkflowEngine:
             if card.name == agent_name:
                 agent_card = card
         if not agent_card:
-            raise RuntimeError(f"未找到Agent: {agent_name}")
+            raise RuntimeError(f"Agent not found: {agent_name}")
 
         try:
             timeout_config = httpx.Timeout(
@@ -83,10 +83,10 @@ class DynamicWorkflowEngine:
             )
             client = ClientFactory(config).create(agent_card)
             request = new_text_message(text=task)
-            # 推送请求信息
+            # Push request information
             try:
                 request_data = request.model_dump_json() if hasattr(request, 'model_dump_json') else str(request)
-            except:
+            except Exception:
                 request_data = str(request)
 
             self._push_event("agent_request", {
@@ -99,25 +99,25 @@ class DynamicWorkflowEngine:
             from a2a.types import Task, Message
 
             async for response in client.send_message(SendMessageRequest(message=request)):
-                # response 现在是 StreamResponse 对象, 同时包含Task 和 Message 对象
+                # response is now a StreamResponse object, containing both Task and Message objects
                 task_result = response.task
                 message_result = response.message
 
                 last_response = response
 
-                # 处理响应
+                # Process response
                 if isinstance(task_result, Task):
-                    # 处理 Task 类型响应
+                    # Handle Task type response
                     response_text = ""
                     if hasattr(task_result, 'artifacts') and task_result.artifacts:
-                        # 从 artifact 中提取文本
+                        # Extract text from artifacts
                         for artifact in task_result.artifacts:
                             if hasattr(artifact, 'parts') and artifact.parts:
                                 for part in artifact.parts:
                                     if hasattr(part, 'text') and part.text:
                                         response_text += part.text
 
-                    # 推送响应信息
+                    # Push response information
                     response_data = MessageToJson(task_result, preserving_proto_field_name=True)
                     self._push_event("agent_response", {
                         "agent": agent_name,
@@ -125,14 +125,14 @@ class DynamicWorkflowEngine:
                     })
 
                 elif isinstance(message_result, Message):
-                    # 处理 Message 类型响应
+                    # Handle Message type response
                     response_text = ""
                     if hasattr(message_result, 'parts') and message_result.parts:
                         for part in message_result.parts:
                             if hasattr(part, 'text') and part.text:
                                 response_text += part.text
 
-                    # 推送响应信息
+                    # Push response information
                     response_data = MessageToJson(message_result, preserving_proto_field_name=True)
                     self._push_event("agent_response", {
                         "agent": agent_name,
@@ -142,7 +142,7 @@ class DynamicWorkflowEngine:
             if response_text is not None:
                 return response_text
             elif last_response is not None:
-                # 如果无法提取文本，至少返回最后一个响应对象
+                # If text cannot be extracted, at least return the last response object
                 return str(last_response)
             else:
                 raise RuntimeError("Agent completed but no response received")
@@ -201,11 +201,14 @@ class DynamicWorkflowEngine:
                 task.status = TaskStatus.SUCCESS
                 results[task.description] = raw_output
 
-                # 推送完整的PSOP状态
+                # Push complete PSOP status
                 try:
-                    psop_data = self.workflow.model_dump_json() if hasattr(self.workflow,
-                                                                           'model_dump_json') else self.workflow.model_dump()
-                except:
+                    psop_data = (
+                        self.workflow.model_dump_json()
+                        if hasattr(self.workflow, 'model_dump_json')
+                        else self.workflow.model_dump()
+                    )
+                except Exception:
                     psop_data = str(self.workflow)
 
                 self._push_event("psop_update", {
@@ -226,11 +229,14 @@ class DynamicWorkflowEngine:
                 results[task.skill] = {"error": error_msg}
                 logger.error(f"  >Task failed: {task.description} | Error: {error_msg}")
 
-                # 推送失败时的PSOP状态
+                # Push PSOP status on failure
                 try:
-                    psop_data = self.workflow.model_dump_json() if hasattr(self.workflow,
-                                                                           'model_dump_json') else self.workflow.model_dump()
-                except:
+                    psop_data = (
+                        self.workflow.model_dump_json()
+                        if hasattr(self.workflow, 'model_dump_json')
+                        else self.workflow.model_dump()
+                    )
+                except Exception:
                     psop_data = str(self.workflow)
 
                 self._push_event("psop_update", {
@@ -256,6 +262,11 @@ class DynamicWorkflowEngine:
                 text_res = text_res[:500] if len(text_res) > 500 else text_res
                 results_context.append(f"[{skill}]:执行成功 - 输出摘要：{text_res}")
         results_text = "\n".join(results_context)
+        next_conditions = json.dumps(
+            [{"step": c.step, "condition": c.condition} for c in (current_step.next or [])],
+            ensure_ascii=False,
+            indent=2,
+        )
         prompt_template = f"""
 # Role
 你是一个工作流逻辑控制器。你的任务是根据【任务执行结果】和【预设条件】，决定工作流的下一步走向。
@@ -268,7 +279,7 @@ class DynamicWorkflowEngine:
 {results_text}
 
 # Next Conditions (Required for Transition)
-{json.dumps([{"step": c.step, "condition": c.condition} for c in (current_step.next or [])], ensure_ascii=False, indent=2)}
+{next_conditions}
 
 # Decision Logic
 1. 分析上述【Execution Results】。
