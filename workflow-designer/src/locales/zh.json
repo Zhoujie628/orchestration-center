@@ -94,7 +94,12 @@
     "stage_planning": "正在编排工作流...",
     "stage_generating": "正在根据意图生成工作流...",
     "stage_finalizing": "正在构建预览...",
-    "stage_deleting": "正在删除工作流..."
+    "stage_deleting": "正在删除工作流...",
+    "templates": "模板市场",
+    "templates_hint": "点击模板即可一键导入为可执行工作流",
+    "import_btn": "点击导入",
+    "steps": "步",
+    "agents": "个Agent"
   },
   "workflow": {
     "title": "编排流程",
