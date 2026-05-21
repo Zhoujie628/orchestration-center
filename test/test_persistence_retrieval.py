@@ -639,6 +639,18 @@ def main():
         test_error_handling()
         print()
 
+        test_save_and_load_execution_record()
+        print()
+
+        test_load_nonexistent_execution_record()
+        print()
+
+        test_list_execution_records()
+        print()
+
+        test_delete_execution_record()
+        print()
+
         print("=" * 60)
         print("All tests passed! [OK]")
         print("=" * 60)
@@ -650,6 +662,89 @@ def main():
         return 1
 
     return 0
+
+
+def test_save_and_load_execution_record():
+    """Test saving and loading execution record"""
+    print("Testing save and load execution record...")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        storage = WorkflowStorage(storage_dir=temp_dir)
+        from orchestrate.core.model.execution_record import ExecutionRecord
+        from datetime import datetime
+
+        record = ExecutionRecord(
+            psop_id="psop-001",
+            psop_name="Test PSOP",
+            started_at=datetime.now(),
+            status="success",
+            execution_history=[{"step": "step1", "result": "ok"}],
+        )
+        exec_id = storage.save_execution_record(record)
+        assert exec_id == record.execution_id
+        print(f"  Saved execution record: {exec_id}")
+
+        loaded = storage.load_execution_record(exec_id)
+        assert loaded is not None
+        assert loaded.psop_id == "psop-001"
+        assert loaded.psop_name == "Test PSOP"
+        assert loaded.status == "success"
+        print("  Execution record load test passed [OK]")
+
+
+def test_load_nonexistent_execution_record():
+    """Test loading non-existent execution record returns None"""
+    print("Testing load non-existent execution record...")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        storage = WorkflowStorage(storage_dir=temp_dir)
+        result = storage.load_execution_record("nonexistent-id")
+        assert result is None
+        print("  Load non-existent execution record test passed [OK]")
+
+
+def test_list_execution_records():
+    """Test listing execution records"""
+    print("Testing list execution records...")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        storage = WorkflowStorage(storage_dir=temp_dir)
+        from orchestrate.core.model.execution_record import ExecutionRecord
+        from datetime import datetime
+
+        record1 = ExecutionRecord(psop_id="p1", psop_name="Workflow 1",
+                                  status="success", execution_history=[])
+        record2 = ExecutionRecord(psop_id="p2", psop_name="Workflow 2",
+                                  status="failed", execution_history=[{"s": 1}])
+
+        storage.save_execution_record(record1)
+        storage.save_execution_record(record2)
+
+        records = storage.list_execution_records()
+        assert len(records) == 2
+        summaries = {(r["psop_id"], r["psop_name"]) for r in records}
+        assert summaries == {("p1", "Workflow 1"), ("p2", "Workflow 2")}
+
+        for r in records:
+            assert "execution_id" in r
+            assert "status" in r
+        print("  List execution records test passed [OK]")
+
+
+def test_delete_execution_record():
+    """Test deleting execution record"""
+    print("Testing delete execution record...")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        storage = WorkflowStorage(storage_dir=temp_dir)
+        from orchestrate.core.model.execution_record import ExecutionRecord
+
+        record = ExecutionRecord(psop_id="p-del", psop_name="ToDelete",
+                                  status="success", execution_history=[])
+        exec_id = storage.save_execution_record(record)
+
+        assert storage.delete_execution_record("nonexistent") is False
+
+        assert storage.delete_execution_record(exec_id) is True
+        assert storage.load_execution_record(exec_id) is None
+        print("  Delete execution record test passed [OK]")
 
 
 if __name__ == "__main__":
