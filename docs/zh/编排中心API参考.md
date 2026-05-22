@@ -4,38 +4,58 @@
 
 ### 简介
 
-  编排中心是一个面向多智能体（Agent）协作的可视化编排平台，主要开放提供以下接口:
-  - **PDF解析**：上传PDF文件并解析指定章节，提取工作流信息。
-  - **工作流规划**：提交任务和步骤，获取规划后的PSOP工作流结果。
-  - **查询PSOP列表**：获取已保存的PSOP工作流列表。
-  - **查询指定PSOP**：根据ID获取单个PSOP工作流详情。
-  - **保存PSOP**：保存新的PSOP工作流。
-  - **删除PSOP**：删除指定的PSOP工作流。
-  - **查询AgentCard列表**：获取全量AgentCard列表。
-  - **意图生成PSOP**：根据自然语言意图生成PSOP工作流。
-  - **意图检索PSOP**：根据自然语言意图检索匹配的PSOP工作流。
-  - **SSE执行工作流**：启动PSOP执行并通过SSE实时推送进度。
+  编排中心是一个面向多智能体（Agent）协作的可视化编排平台，对外提供以下 RESTful API 接口，供其他系统集成调用：
+
+  - **SOP 编排**：上传 PDF 文件或提交自然语言 SOP 步骤，自动生成 PSOP 工作流。
+  - **意图编排**：提交自然语言任务意图，由 LLM 自主规划生成 PSOP 工作流。
+  - **自动编排+执行**：提交任务描述，自动检索匹配工作流并执行，无匹配则自动生成后执行（SSE 实时推送）。
+  - **执行指定工作流**：根据已知 PSOP ID 启动执行，通过 SSE 实时推送执行进度。
+  - **查询 Agent 列表**：获取所有可用 Agent 及其技能列表。
+  - **查询执行结果**：根据执行 ID 获取工作流执行记录详情。
+
+  所有接口基础路径为 **`/api/v1`**。
+
+### 响应格式
+
+  所有接口（除 SSE 流式接口外）统一返回以下 JSON 结构：
+
+  | 参数名称  | 类型     | 描述                                      |
+  |-----------|----------|-------------------------------------------|
+  | code      | integer  | HTTP 状态码，200 表示成功，201 表示创建成功 |
+  | message   | string   | 响应消息描述                              |
+  | status    | string   | 响应状态，成功为 `"success"`              |
+  | data      | object   | 响应数据，具体结构参见各接口              |
+
+  错误响应（HTTPException）格式：
+
+  | 参数名称 | 类型    | 描述         |
+  |----------|---------|--------------|
+  | detail   | string  | 错误描述信息 |
 
 ### 约束与限制
 
-  具体内容请参见各接口的接口约束。
+  - 各接口均受并发控制（Semaphore）与令牌桶限流（RateLimiter）双重保护，详见各接口约束。
+  - 服务端口默认为 **60000**。
 
-## PDF解析接口
+---
+
+## 1. SOP 编排接口
 
 - 典型场景
 
-    用户需要从PDF文档中提取工作流配置信息时，可通过该接口上传PDF文件并解析指定章节内容。
+    用户持有 PDF 格式的解决方案包文档，或直接输入自然语言 SOP 步骤描述，需要自动生成多 Agent 协作的 PSOP 工作流。
 
 - 功能描述
 
-    上传PDF文件并解析指定章节，提取工作流JSON数据。
+    接收 PDF 文件（解析 "5. Interaction Flow" 章节）或 JSON 格式的 SOP 步骤文本，结合可用 Agent 列表，由 LLM 生成 PSOP 工作流并自动保存。
 
 - 接口约束
 
-  - 上传文件格式仅支持PDF。
-  - 单次上传文件大小不得超过100MB。
-  - PDF文档需包含标题为"5. Interaction Flow"的章节。
-  - 单实例上该接口最大并发数为50。
+  - 文件上传模式：仅支持 PDF、TXT、MD 格式，文件名须匹配 `^[\w\-. ]{1,128}\.(pdf|txt|md)$`。
+  - 单文件不超过 100 MB。
+  - PDF 文件须以 `%PDF-` 开头（magic bytes 校验）。
+  - 单实例上该接口最大并发数由 `server.conf` 中 `FLOW_CTL_PLAN` 配置决定。
+  - 限流标识：`sop_orchestrate`，速率由 `FLOW_CTL_PLAN` 配置决定。
 
 - 调用方法
 
@@ -43,82 +63,115 @@
 
 - URI
 
-    */parse-pdf*
+    `/api/v1/orchestrate/sop`
 
 - 请求参数
 
-  <a id="表1-form-data参数列表"></a>**表1** form-data参数列表
+    **模式 A：文件上传（multipart/form-data）**
 
-    | 参数名称 | 是否必选 | 类型     | 值域       | 默认值 | 描述                |
-    |------|------|--------|----------|-----|-------------------|
-    | file | 是    | file   | PDF文件格式  | -   | 待解析的PDF文件。       |
+    | 参数名称 | 是否必选 | 类型   | 值域            | 默认值 | 描述                        |
+    |----------|----------|--------|-----------------|--------|-----------------------------|
+    | file     | 否       | file   | PDF/TXT/MD 文件  | -      | 待解析的解决方案包文件       |
+    | name     | 否       | string | -               | -      | 可选的工作流名称            |
+
+    **模式 B：JSON 请求体（application/json）**
+
+    | 参数名称    | 是否必选 | 类型   | 值域 | 默认值 | 描述                      |
+    |-------------|----------|--------|------|--------|---------------------------|
+    | sop_content | 是       | string | -    | -      | 自然语言 SOP 步骤（Markdown） |
+    | name        | 否       | string | -    | -      | 可选的工作流名称           |
+
+    > **优先级**：若同时提供文件与 JSON 请求体，文件优先。
 
 - 请求示例
 
-    ```json
-    POST /parse-pdf HTTP/1.1
-    Host: your-domain.com
+    **文件上传：**
+
+    ```
+    POST /api/v1/orchestrate/sop HTTP/1.1
+    Host: your-host:60000
     Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
 
     ------WebKitFormBoundary
-    Content-Disposition: form-data; name="file"; filename="workflow.pdf"
+    Content-Disposition: form-data; name="file"; filename="solution.pdf"
     Content-Type: application/pdf
 
     [PDF文件二进制数据]
+    ------WebKitFormBoundary
+    Content-Disposition: form-data; name="name"
+
+    我的工作流
     ------WebKitFormBoundary--
     ```
 
+    **JSON 请求体：**
+
+    ```json
+    POST /api/v1/orchestrate/sop HTTP/1.1
+    Host: your-host:60000
+    Content-Type: application/json
+
+    {
+        "sop_content": "## 节能流程\n1. 收集设备状态数据\n2. 分析能耗基线\n3. 执行节能策略",
+        "name": "节能评估"
+    }
+    ```
+
 - 响应参数
 
-    <a id="表2-响应参数列表"></a>**表2** 响应参数列表
+    | 参数名称 | 类型   | 描述                           |
+    |----------|--------|--------------------------------|
+    | code     | integer | 201 表示创建成功               |
+    | message  | string | 固定返回 `"PSOP generated and saved"` |
+    | status   | string | `"success"`                    |
+    | data     | object | 生成的 PSOP 工作流完整对象      |
 
-    | 参数名称    | 是否必选 | 类型     | 值域   | 默认值 | 描述              |
-    |---------|------|--------|------|-----|-----------------|
-    | status  | 是    | string | -    | -   | 响应状态，成功为"success"。 |
-    | message | 是    | string | -    | -   | 响应消息描述。          |
-    | content | 否    | string | -    | -   | 解析后的PreFlow JSON数据。 |
+    **PSOP 对象结构（data 字段）**: 参见 [附录 A：PSOP 数据结构](#附录-apsop-数据结构)。
 
-- 响应样例
+- 响应示例
 
-    解析成功：
     ```json
     {
-      "status": "success",
-      "message": "PDF文件解析成功",
-      "content": "{\"name\": \"工作流名称\", \"description\": \"工作流描述\", \"steps\": [...]}"
+        "code": 201,
+        "message": "PSOP generated and saved",
+        "status": "success",
+        "data": {
+            "id": "a1b2c3d4-...",
+            "name": "节能评估",
+            "description": "基于SOP生成的节能工作流",
+            "created_at": "2026-05-22T10:30:00.123456",
+            "steps": [ ... ],
+            "related_preflow": "preflow-uuid-...",
+            "user_intent": "用户原始SOP步骤文本前200字符",
+            "tags": []
+        }
     }
     ```
 
-    解析失败：
-    ```json
-    {
-      "status": "error",
-      "message": "PDF解析失败，未找到指定章节"
-    }
-    ```
+- 错误码
 
-- 状态码
+    | 状态码 | 说明                               |
+    |--------|------------------------------------|
+    | 400    | 文件名不合法、PDF 格式无效、SOP 内容为空、解析章节失败 |
+    | 413    | 文件超过 100 MB                     |
+    | 503    | 并发数已满，服务器繁忙              |
 
-  | 状态码 | 说明                         |
-  |--------|----------------------------|
-  | 200    | 解析成功。                      |
-  | 400    | 未提供文件、文件名为空、非PDF文件，或未找到指定章节。 |
-  | 500    | 解析失败，服务内部错误。                |
+---
 
-## 工作流规划接口
+## 2. 意图编排接口
 
 - 典型场景
 
-    用户需要根据任务描述和可用Agent信息生成工作流规划时，可通过该接口获取规划后的PSOP工作流结果。
+    用户仅有高层次的业务意图描述（如"帮我做一次全网节能优化"），无需提供具体步骤，由 LLM 自主规划生成工作流。
 
 - 功能描述
 
-    提交任务描述（PreFlow）和可用Agent信息，通过规划算法生成PSOP工作流JSON数据。
+    接收自然语言任务意图，结合可用 Agent 列表，由 LLM 自主规划并生成 PSOP 工作流，自动保存。
 
 - 接口约束
 
-  - 请求体大小不得超过1MB。
-  - 单实例上该接口最大并发数为50。
+  - 单实例上该接口最大并发数由 `server.conf` 中 `FLOW_CTL_GENERATE_PSOP` 配置决定。
+  - 限流标识：`intent_orchestrate`，速率由 `FLOW_CTL_GENERATE_PSOP` 配置决定。
 
 - 调用方法
 
@@ -126,386 +179,81 @@
 
 - URI
 
-    */plan*
+    `/api/v1/orchestrate/intent`
 
 - 请求参数
 
-  <a id="表3-body参数列表"></a>**表3** body参数列表
+    JSON 请求体（application/json）：
 
-    | 参数名称       | 是否必选 | 类型              | 值域 | 默认值 | 描述                          |
-    |------------|------|-----------------|----|-----|-----------------------------|
-    | preflow    | 是    | reference       | -  | -   | PreFlow对象，详细请参见[表4](#表4-preflow对象的参数列表)。 |
-    | agentCards | 是    | array_reference | -  | -   | 可用Agent列表，详细请参见[表5](#表5-agentcard对象的参数列表)。 |
-
-  <a id="表4-preflow对象的参数列表"></a>**表4** PreFlow对象的参数列表
-
-    | 参数名称        | 是否必选 | 类型     | 值域       | 默认值 | 描述                    |
-    |-------------|------|--------|----------|-----|-----------------------|
-    | name        | 是    | string | 1~100个字符 | -   | 工作流名称。                |
-    | description | 否    | string | 1~500个字符 | -   | 工作流描述。                |
-    | steps_md    | 是    | string | -        | -   | Markdown格式的步骤描述。      |
-
-  <a id="表5-agentcard对象的参数列表"></a>**表5** AgentCard对象的参数列表
-
-    | 参数名称                | 是否必选 | 类型              | 值域                   | 默认值 | 描述               |
-    |---------------------|------|-----------------|----------------------|-----|------------------|
-    | name                | 是    | string          | 1~100个字符              | -   | AgentCard名称。     |
-    | description         | 是    | string          | 1~1000个字符             | -   | AgentCard描述。     |
-    | version             | 是    | string          | 1~50个字符               | -   | AgentCard版本。     |
-    | provider            | 是    | reference       | -                    | -   | 提供商信息。           |
-    | skills              | 是    | array_reference | 最大数量：100个技能           | -   | 技能列表。            |
-    | capabilities        | 是    | reference       | -                    | -   | AgentCard能力项。    |
-    | supportedInterfaces | 是    | array_reference | 1~3个列表               | -   | 支持的协议。           |
+    | 参数名称 | 是否必选 | 类型   | 值域 | 默认值 | 描述                       |
+    |----------|----------|--------|------|--------|----------------------------|
+    | intent   | 是       | string | -    | -      | 自然语言任务意图描述        |
+    | name     | 否       | string | -    | -      | 可选的工作流名称            |
 
 - 请求示例
 
     ```json
-    POST /plan HTTP/1.1
-    Host: your-domain.com
+    POST /api/v1/orchestrate/intent HTTP/1.1
+    Host: your-host:60000
     Content-Type: application/json
+
     {
-      "preflow": {
-        "name": "RAN节能工作流",
-        "description": "RAN网络节能优化工作流",
-        "steps_md": "1. 探索意图目标\n2. 执行节能配置\n3. 生成效果报告"
-      },
-      "agentCards": [
-        {
-          "name": "RAN Energy Saving Agent",
-          "description": "负责RAN能效优化的自主闭环运行，包括意图探索、意图实现、效果评估与报告。",
-          "version": "1.0.0",
-          "provider": {
-            "organization": "Huawei",
-            "url": "https://www.huawei.com"
-          },
-          "skills": [
-            {
-              "id": "ran-es-intent-exploration",
-              "name": "RAN ES Intent Exploration",
-              "description": "评估并确定指定RAN ES意图目标的最佳可能性，考虑当前资源状况和系统能力。",
-              "tags": [
-                "wireless",
-                "energy-saving",
-                "intent"
-              ]
-            },
-            {
-              "id": "ran-es-intent-lifecycle-management",
-              "name": "RAN ES Intent Lifecycle Management",
-              "description": "管理RAN节能意图的生命周期，包括创建、修改、删除、激活、去激活意图，并执行数据采集、分析、解决方案制定与配置。",
-              "tags": [
-                "wireless",
-                "energy-saving",
-                "intent"
-              ]
-            },
-            {
-              "id": "ran-es-intent-reporting",
-              "name": "RAN ES Intent Reporting",
-              "description": "提供意图报告查询、订阅、通知功能，报告意图实现状态、达成值、推荐值及配置修改信息。",
-              "tags": [
-                "wireless",
-                "energy-saving",
-                "reporting"
-              ]
-            }
-          ],
-          "capabilities": {
-            "streaming": true,
-            "pushNotifications": false,
-            "extensions": []
-          },
-          "defaultInputModes": [
-            "text",
-            "json"
-          ],
-          "defaultOutputModes": [
-            "text",
-            "json"
-          ],
-          "supportedInterfaces": [
-            {
-              "protocolBinding": "GPRC",
-              "protocolVersion": "1.0.0",
-              "url": "http://127.0.0.1:5000/"
-            },
-            {
-              "protocolBinding": "HTTP+JSON",
-              "protocolVersion": "1.0.0",
-              "url": "http://127.0.0.1:5000/"
-            }
-          ]
-        }
-      ]
+        "intent": "帮我做一次全网节能优化",
+        "name": "全网节能优化"
     }
     ```
 
 - 响应参数
 
-    <a id="表6-响应参数列表"></a>**表6** 响应参数列表
+    | 参数名称 | 类型   | 描述                           |
+    |----------|--------|--------------------------------|
+    | code     | integer | 201 表示创建成功               |
+    | message  | string | 固定返回 `"PSOP generated and saved"` |
+    | status   | string | `"success"`                    |
+    | data     | object | 生成的 PSOP 工作流完整对象      |
 
-    | 参数名称   | 是否必选 | 类型     | 值域   | 默认值 | 描述                  |
-    |--------|------|--------|------|-----|---------------------|
-    | status | 是    | string | -    | -   | 响应状态，成功为"success"。 |
-    | data   | 否    | string | -    | -   | PSOP工作流JSON数据。     |
-
-- 响应样例
-
-    规划成功：
-    ```json
-    {
-      "status": "success",
-      "data": "{\"id\": \"psop-001\", \"name\": \"RAN节能工作流\", \"steps\": [...]}"
-    }
-    ```
-
-    规划失败：
-    ```json
-    {
-      "status": "error",
-      "message": "规划失败，无法匹配可用Agent"
-    }
-    ```
-
-- 状态码
-
-  | 状态码 | 说明               |
-  |--------|------------------|
-  | 200    | 规划成功。            |
-  | 400    | 请求参数校验失败。        |
-  | 500    | 规划失败，服务内部错误。     |
-
-## 查询PSOP列表
-
-- 典型场景
-
-    用户需要查看已保存的PSOP工作流列表时，可通过该接口获取工作流列表信息。
-
-- 功能描述
-
-    获取已保存的PSOP工作流列表，支持按类型筛选和数量限制。
-
-- 接口约束
-
-  - 返回结果默认按创建时间倒序排列。
-  - 单实例上该接口最大并发数为50。
-
-- 调用方法
-
-    GET
-
-- URI
-
-    */psops*
-
-- 请求参数
-
-  <a id="表7-query参数列表"></a>**表7** query参数列表
-
-    | 参数名称         | 是否必选 | 类型      | 值域                        | 默认值    | 描述                                     |
-    |------------|------|---------|---------------------------|--------|----------------------------------------|
-    | limit      | 否    | integer | 1~100                     | 10     | 返回结果数量限制。                              |
-    | workflow_type | 否    | string  | "all"、"psop"、"preflow" | "psop" | 工作流类型筛选。"all"返回全部类型，"psop"返回PSOP类型，"preflow"返回PreFlow类型。 |
-
-- 请求示例
-
-    - 查询默认PSOP列表
-
-      ```json
-      GET /psops HTTP/1.1
-      Host: your-domain.com
-      Content-Type: application/json
-      ```
-
-    - 查询全部类型工作流
-
-      ```json
-      GET /psops?limit=20&workflow_type=all HTTP/1.1
-      Host: your-domain.com
-      Content-Type: application/json
-      ```
-
-    - 查询PreFlow类型工作流
-
-      ```json
-      GET /psops?workflow_type=preflow HTTP/1.1
-      Host: your-domain.com
-      Content-Type: application/json
-      ```
-
-- 响应参数
-
-    <a id="表8-响应参数列表"></a>**表8** 响应参数列表
-
-    | 参数名称      | 是否必选 | 类型              | 值域 | 默认值 | 描述                                  |
-    |-----------|------|-----------------|----|-----|-------------------------------------|
-    | workflows | 是    | array_reference | -  | -   | 工作流列表，详细请参见[表9](#表9-psop对象的参数列表)。 |
-
-  <a id="表9-psop对象的参数列表"></a>**表9** PSOP对象的参数列表
-
-    | 参数名称        | 是否必选 | 类型              | 值域       | 默认值 | 描述         |
-    |-------------|------|-----------------|----------|-----|------------|
-    | id          | 是    | string          | -        | -   | 工作流唯一标识。   |
-    | name        | 是    | string          | 1~100个字符 | -   | 工作流名称。     |
-    | description | 否    | string          | 1~500个字符 | -   | 工作流描述。     |
-    | steps       | 是    | array_reference | -        | -   | 步骤列表。      |
-    | tags        | 否    | array of string | -        | -   | 标签列表。      |
-    | created_at  | 是    | string          | ISO时间格式  | -   | 创建时间。      |
-    | updated_at  | 是    | string          | ISO时间格式  | -   | 最后更新时间。    |
-
-- 响应样例
+- 响应示例
 
     ```json
     {
-      "workflows": [
-        {
-          "id": "psop-001",
-          "name": "RAN节能工作流",
-          "description": "RAN网络节能优化工作流",
-          "steps": [
-            {
-              "id": "step-1",
-              "name": "意图探索",
-              "agent_name": "RAN Energy Saving Agent",
-              "skill_id": "ran-es-intent-exploration"
-            },
-            {
-              "id": "step-2",
-              "name": "意图管理",
-              "agent_name": "RAN Energy Saving Agent",
-              "skill_id": "ran-es-intent-lifecycle-management"
-            }
-          ],
-          "tags": ["wireless", "energy-saving"],
-          "created_at": "2026-01-15T10:30:00Z",
-          "updated_at": "2026-01-15T10:30:00Z"
+        "code": 201,
+        "message": "PSOP generated and saved",
+        "status": "success",
+        "data": {
+            "id": "e5f6g7h8-...",
+            "name": "全网节能优化",
+            "description": null,
+            "created_at": "2026-05-22T10:31:00.123456",
+            "steps": [ ... ],
+            "tags": ["节能", "全网"]
         }
-      ]
     }
     ```
 
-- 状态码
+- 错误码
 
-  | 状态码 | 说明       |
-  |--------|----------|
-  | 200    | 查询成功。    |
-  | 500    | 查询失败，服务内部错误。 |
+    | 状态码 | 说明                  |
+    |--------|-----------------------|
+    | 404    | 无可用 Agent          |
+    | 503    | 并发数已满，服务器繁忙 |
 
-## 查询指定PSOP
+---
+
+## 3. 自动编排+执行接口
 
 - 典型场景
 
-    用户需要查看特定PSOP工作流的详细信息时，可通过该接口根据ID获取工作流详情。
+    用户直接提交任务需求，系统自动判定是否有匹配的已有工作流，有则直接执行，无则先生成再执行。适用于"一句话驱动"的端到端任务场景。
 
 - 功能描述
 
-    根据工作流ID精确查询单个PSOP工作流的完整详细信息。
+    接收任务描述文本，首先通过 LLM 检索匹配的已有 PSOP 工作流。若匹配成功，直接以 SSE 流执行；若无匹配，自动调用意图编排生成新的 PSOP，保存后立即执行。全程通过 SSE（Server-Sent Events）实时推送执行进度。
 
 - 接口约束
 
-  - 工作流ID必须存在。
-  - 单实例上该接口最大并发数为50。
-
-- 调用方法
-
-    GET
-
-- URI
-
-    */psops/{workflow_id}*
-
-- 请求参数
-
-  <a id="表10-path参数列表"></a>**表10** path参数列表
-
-    | 参数名称        | 是否必选 | 类型     | 值域 | 默认值 | 描述              |
-    |-------------|------|--------|----|-----|-----------------|
-    | workflow_id | 是    | string | -  | -   | PSOP工作流ID，唯一标识。 |
-
-- 请求示例
-
-    ```json
-    GET /psops/psop-001 HTTP/1.1
-    Host: your-domain.com
-    Content-Type: application/json
-    ```
-
-- 响应参数
-
-    <a id="表11-响应参数列表"></a>**表11** 响应参数列表
-
-    | 参数名称        | 是否必选 | 类型              | 值域       | 默认值 | 描述         |
-    |-------------|------|-----------------|----------|-----|------------|
-    | id          | 是    | string          | -        | -   | 工作流唯一标识。   |
-    | name        | 是    | string          | 1~100个字符 | -   | 工作流名称。     |
-    | description | 否    | string          | 1~500个字符 | -   | 工作流描述。     |
-    | steps       | 是    | array_reference | -        | -   | 步骤列表。      |
-    | tags        | 否    | array of string | -        | -   | 标签列表。      |
-    | created_at  | 是    | string          | ISO时间格式  | -   | 创建时间。      |
-    | updated_at  | 是    | string          | ISO时间格式  | -   | 最后更新时间。    |
-
-- 响应样例
-
-    查询成功：
-    ```json
-    {
-      "id": "psop-001",
-      "name": "RAN节能工作流",
-      "description": "RAN网络节能优化工作流",
-      "steps": [
-        {
-          "id": "step-1",
-          "name": "意图探索",
-          "agent_name": "RAN Energy Saving Agent",
-          "skill_id": "ran-es-intent-exploration",
-          "input": {},
-          "output": {}
-        },
-        {
-          "id": "step-2",
-          "name": "意图管理",
-          "agent_name": "RAN Energy Saving Agent",
-          "skill_id": "ran-es-intent-lifecycle-management",
-          "input": {},
-          "output": {}
-        }
-      ],
-      "tags": ["wireless", "energy-saving"],
-      "created_at": "2026-01-15T10:30:00Z",
-      "updated_at": "2026-01-15T10:30:00Z"
-    }
-    ```
-
-    查询失败：
-    ```json
-    {
-      "status": "error",
-      "message": "工作流不存在"
-    }
-    ```
-
-- 状态码
-
-  | 状态码 | 说明              |
-  |--------|-----------------|
-  | 200    | 查询成功。           |
-  | 404    | 查询失败，工作流不存在。    |
-  | 500    | 查询失败，服务内部错误。    |
-
-## 保存PSOP
-
-- 典型场景
-
-    用户需要保存新生成或修改后的PSOP工作流时，可通过该接口将工作流持久化存储。
-
-- 功能描述
-
-    保存PSOP工作流信息到数据库。如果工作流ID已存在则更新，否则创建新工作流。
-
-- 接口约束
-
-  - 请求体必须符合PSOP模型定义。
-  - 单实例上该接口最大并发数为50。
+  - 单实例上该接口最大并发数由 `server.conf` 中 `FLOW_CTL_START_PROCESS_STREAM` 配置决定。
+  - 限流标识：`ext_execute_auto`，速率由 `FLOW_CTL_START_PROCESS_STREAM` 配置决定。
+  - 响应为 SSE 流式连接，请确保客户端支持 `text/event-stream` 类型的长连接。
 
 - 调用方法
 
@@ -513,569 +261,336 @@
 
 - URI
 
-    */psops*
+    `/api/v1/orchestrate/execute`
 
 - 请求参数
 
-  <a id="表12-body参数列表"></a>**表12** body参数列表
+    JSON 请求体（application/json）：
 
-    | 参数名称        | 是否必选 | 类型              | 值域       | 默认值 | 描述                                       |
-    |-------------|------|-----------------|----------|-----|------------------------------------------|
-    | id          | 否    | string          | -        | 自动生成 | 工作流唯一标识，不提供时自动生成。                       |
-    | name        | 是    | string          | 1~100个字符 | -   | 工作流名称。                                   |
-    | description | 否    | string          | 1~500个字符 | -   | 工作流描述。                                   |
-    | steps       | 是    | array_reference | -        | -   | 步骤列表，详细请参见[表13](#表13-step对象的参数列表)。      |
-    | tags        | 否    | array of string | -        | -   | 标签列表，用于分类和检索。                            |
-
-  <a id="表13-step对象的参数列表"></a>**表13** Step对象的参数列表
-
-    | 参数名称       | 是否必选 | 类型       | 值域       | 默认值 | 描述              |
-    |------------|------|----------|----------|-----|-----------------|
-    | id         | 是    | string   | -        | -   | 步骤唯一标识。         |
-    | name       | 是    | string   | 1~100个字符 | -   | 步骤名称。           |
-    | agent_name | 是    | string   | -        | -   | 执行该步骤的Agent名称。  |
-    | skill_id   | 是    | string   | -        | -   | Agent技能ID。      |
-    | input      | 否    | object   | -        | -   | 步骤输入参数。         |
-    | output     | 否    | object   | -        | -   | 步骤输出参数。         |
+    | 参数名称 | 是否必选 | 类型   | 值域 | 默认值 | 描述                                   |
+    |----------|----------|--------|------|--------|----------------------------------------|
+    | task     | 是       | string | -    | -      | 任务描述，系统会先检索已有 PSOP，无匹配则自动生成 |
+    | name     | 否       | string | -    | -      | 可选的工作流名称（用于自动生成场景）     |
 
 - 请求示例
 
     ```json
-    POST /psops HTTP/1.1
-    Host: your-domain.com
+    POST /api/v1/orchestrate/execute HTTP/1.1
+    Host: your-host:60000
     Content-Type: application/json
+
     {
-      "name": "RAN节能工作流",
-      "description": "RAN网络节能优化工作流",
-      "steps": [
-        {
-          "id": "step-1",
-          "name": "意图探索",
-          "agent_name": "RAN Energy Saving Agent",
-          "skill_id": "ran-es-intent-exploration",
-          "input": {},
-          "output": {}
-        },
-        {
-          "id": "step-2",
-          "name": "意图管理",
-          "agent_name": "RAN Energy Saving Agent",
-          "skill_id": "ran-es-intent-lifecycle-management",
-          "input": {},
-          "output": {}
-        },
-        {
-          "id": "step-3",
-          "name": "效果报告",
-          "agent_name": "RAN Energy Saving Agent",
-          "skill_id": "ran-es-intent-reporting",
-          "input": {},
-          "output": {}
-        }
-      ],
-      "tags": ["wireless", "energy-saving"]
+        "task": "帮我做一次网络故障根因分析",
+        "name": "故障根因分析"
     }
     ```
 
-- 响应参数
+- 响应格式（SSE 事件流）
 
-    <a id="表14-响应参数列表"></a>**表14** 响应参数列表
+    响应为 `text/event-stream`，事件格式如下：
 
-    | 参数名称        | 是否必选 | 类型     | 值域       | 默认值 | 描述         |
-    |-------------|------|--------|----------|-----|------------|
-    | id          | 是    | string | -        | -   | 工作流唯一标识。   |
-    | name        | 是    | string | 1~100个字符 | -   | 工作流名称。     |
-    | message     | 是    | string | -        | -   | 操作结果消息。    |
-
-- 响应样例
-
-    保存成功：
-    ```json
-    {
-      "id": "psop-001",
-      "name": "RAN节能工作流",
-      "message": "工作流保存成功"
-    }
     ```
-
-    保存失败：
-    ```json
-    {
-      "status": "error",
-      "message": "工作流参数校验失败"
-    }
-    ```
-
-- 状态码
-
-  | 状态码 | 说明               |
-  |--------|------------------|
-  | 201    | 保存成功。            |
-  | 400    | 保存失败，参数校验失败。     |
-  | 500    | 保存失败，服务内部错误。     |
-
-## 删除PSOP
-
-- 典型场景
-
-    用户需要删除不再使用的PSOP工作流时，可通过该接口删除指定工作流。
-
-- 功能描述
-
-    根据工作流ID删除指定的PSOP工作流。删除后该工作流将无法恢复。
-
-- 接口约束
-
-  - 工作流ID必须存在。
-  - 删除操作不可逆，请谨慎操作。
-  - 单实例上该接口最大并发数为50。
-
-- 调用方法
-
-    DELETE
-
-- URI
-
-    */psops/{workflow_id}*
-
-- 请求参数
-
-  <a id="表15-path参数列表"></a>**表15** path参数列表
-
-    | 参数名称        | 是否必选 | 类型     | 值域 | 默认值 | 描述              |
-    |-------------|------|--------|----|-----|-----------------|
-    | workflow_id | 是    | string | -  | -   | PSOP工作流ID，唯一标识。 |
-
-- 请求示例
-
-    ```json
-    DELETE /psops/psop-001 HTTP/1.1
-    Host: your-domain.com
-    Content-Type: application/json
-    ```
-
-- 响应参数
-
-    无。
-
-- 响应样例
-
-    删除成功：无响应体。
-
-- 状态码
-
-  | 状态码 | 说明              |
-  |--------|-----------------|
-  | 200    | 删除成功。           |
-  | 404    | 删除失败，工作流不存在。    |
-  | 500    | 删除失败，服务内部错误。    |
-
-## 查询AgentCard列表
-
-- 典型场景
-
-    用户需要查看系统中所有可用Agent信息时，可通过该接口获取AgentCard列表。
-
-- 功能描述
-
-    获取编排中心管理的全量AgentCard列表，用于工作流规划时选择合适的Agent。
-
-- 接口约束
-
-  - 单实例上该接口最大并发数为50。
-
-- 调用方法
-
-    GET
-
-- URI
-
-    */agent-cards*
-
-- 请求参数
-
-    无。
-
-- 请求示例
-
-    ```json
-    GET /agent-cards HTTP/1.1
-    Host: your-domain.com
-    Content-Type: application/json
-    ```
-
-- 响应参数
-
-    <a id="表16-响应参数列表"></a>**表16** 响应参数列表
-
-    | 参数名称       | 是否必选 | 类型              | 值域 | 默认值 | 描述                                         |
-    |------------|------|-----------------|----|-----|--------------------------------------------|
-    | agentCards | 是    | array_reference | -  | -   | AgentCard列表，详细请参见[表5](#表5-agentcard对象的参数列表)。 |
-
-- 响应样例
-
-    ```json
-    {
-      "agentCards": [
-        {
-          "name": "RAN Energy Saving Agent",
-          "description": "负责RAN能效优化的自主闭环运行，包括意图探索、意图实现、效果评估与报告。",
-          "version": "1.0.0",
-          "provider": {
-            "organization": "Huawei",
-            "url": "https://www.huawei.com"
-          },
-          "skills": [
-            {
-              "id": "ran-es-intent-exploration",
-              "name": "RAN ES Intent Exploration",
-              "description": "评估并确定指定RAN ES意图目标的最佳可能性，考虑当前资源状况和系统能力。",
-              "tags": [
-                "wireless",
-                "energy-saving",
-                "intent"
-              ]
-            }
-          ],
-          "capabilities": {
-            "streaming": true,
-            "pushNotifications": false,
-            "extensions": []
-          },
-          "defaultInputModes": [
-            "text",
-            "json"
-          ],
-          "defaultOutputModes": [
-            "text",
-            "json"
-          ],
-          "supportedInterfaces": [
-            {
-              "protocolBinding": "GPRC",
-              "protocolVersion": "1.0.0",
-              "url": "http://127.0.0.1:5000/"
-            }
-          ]
-        }
-      ]
-    }
-    ```
-
-- 状态码
-
-  | 状态码 | 说明       |
-  |--------|----------|
-  | 200    | 查询成功。    |
-  | 500    | 查询失败，服务内部错误。 |
-
-## 意图生成PSOP
-
-- 典型场景
-
-    用户通过自然语言描述业务意图，需要系统自动生成对应的PSOP工作流时，可通过该接口实现意图到工作流的自动转换。
-
-- 功能描述
-
-    接收自然语言描述的业务意图，通过大模型理解用户需求，自动生成符合要求的PSOP工作流JSON数据。
-
-- 接口约束
-
-  - 单实例上该接口最大并发数为50。
-
-- 调用方法
-
-    POST
-
-- URI
-
-    */generate-from-intent*
-
-- 请求参数
-
-  <a id="表17-body参数列表"></a>**表17** body参数列表
-
-    | 参数名称         | 是否必选 | 类型     | 值域        | 默认值 | 描述                 |
-    |--------------|------|--------|-----------|-----|--------------------|
-    | user_intent  | 是    | string | -        | -   | 自然语言描述的业务意图。       |
-    | workflow_name | 否    | string | 1~100个字符  | -   | 工作流名称，不提供时自动生成。    |
-
-- 请求示例
-
-    ```json
-    POST /generate-from-intent HTTP/1.1
-    Host: your-domain.com
-    Content-Type: application/json
-    {
-      "user_intent": "我希望实现一个RAN网络节能优化的工作流，能够自动探索意图目标、配置节能策略并生成效果报告",
-      "workflow_name": "RAN节能工作流"
-    }
-    ```
-
-- 响应参数
-
-    <a id="表18-响应参数列表"></a>**表18** 响应参数列表
-
-    | 参数名称   | 是否必选 | 类型     | 值域   | 默认值 | 描述                  |
-    |--------|------|--------|------|-----|---------------------|
-    | status | 是    | string | -    | -   | 响应状态，成功为"success"。 |
-    | data   | 否    | object | -    | -   | 生成的PSOP工作流JSON对象。  |
-
-- 响应样例
-
-    生成成功：
-    ```json
-    {
-      "status": "success",
-      "data": {
-        "id": "psop-auto-001",
-        "name": "RAN节能工作流",
-        "description": "基于用户意图自动生成的RAN网络节能优化工作流",
-        "steps": [
-          {
-            "id": "step-1",
-            "name": "意图探索",
-            "agent_name": "RAN Energy Saving Agent",
-            "skill_id": "ran-es-intent-exploration"
-          },
-          {
-            "id": "step-2",
-            "name": "策略配置",
-            "agent_name": "RAN Energy Saving Agent",
-            "skill_id": "ran-es-intent-lifecycle-management"
-          },
-          {
-            "id": "step-3",
-            "name": "效果报告",
-            "agent_name": "RAN Energy Saving Agent",
-            "skill_id": "ran-es-intent-reporting"
-          }
-        ],
-        "tags": ["wireless", "energy-saving", "auto-generated"]
-      }
-    }
-    ```
-
-    生成失败：
-    ```json
-    {
-      "status": "error",
-      "message": "意图理解失败，请提供更详细的描述"
-    }
-    ```
-
-- 状态码
-
-  | 状态码 | 说明               |
-  |--------|------------------|
-  | 200    | 生成成功。            |
-  | 400    | 生成失败，参数校验失败。     |
-  | 500    | 生成失败，服务内部错误。     |
-
-## 意图检索PSOP
-
-- 典型场景
-
-    用户希望通过自然语言描述查找已存在的PSOP工作流时，可通过该接口实现语义化检索。
-
-- 功能描述
-
-    接收自然语言描述的业务意图，通过语义理解能力匹配系统中已保存的PSOP工作流，返回最相关的工作流列表。
-
-- 接口约束
-
-  - 返回最匹配的单个工作流，若无匹配则返回空。
-  - 单实例上该接口最大并发数为50。
-
-- 调用方法
-
-    POST
-
-- URI
-
-    */retrieve-by-intent*
-
-- 请求参数
-
-  <a id="表19-body参数列表"></a>**表19** body参数列表
-
-    | 参数名称        | 是否必选 | 类型     | 值域 | 默认值 | 描述            |
-    |-------------|------|--------|----|-----|---------------|
-    | user_intent | 是    | string | -  | -   | 自然语言描述的业务意图。 |
-
-- 请求示例
-
-    ```json
-    POST /retrieve-by-intent HTTP/1.1
-    Host: your-domain.com
-    Content-Type: application/json
-    {
-      "user_intent": "我需要一个关于RAN网络节能的工作流"
-    }
-    ```
-
-- 响应参数
-
-    <a id="表20-响应参数列表"></a>**表20** 响应参数列表
-
-    | 参数名称      | 是否必选 | 类型              | 值域 | 默认值 | 描述                                  |
-    |-----------|------|-----------------|----|-----|-------------------------------------|
-    | status    | 是    | string          | -  | -   | 响应状态，成功为"success"。                 |
-    | workflows | 否    | array_reference | -  | -   | 匹配的工作流列表，详细请参见[表9](#表9-psop对象的参数列表)。 |
-
-- 响应样例
-
-    检索成功：
-    ```json
-    {
-      "status": "success",
-      "workflows": [
-        {
-          "id": "psop-001",
-          "name": "RAN节能工作流",
-          "description": "RAN网络节能优化工作流",
-          "steps": [
-            {
-              "id": "step-1",
-              "name": "意图探索",
-              "agent_name": "RAN Energy Saving Agent",
-              "skill_id": "ran-es-intent-exploration"
-            }
-          ],
-          "tags": ["wireless", "energy-saving"],
-          "created_at": "2026-01-15T10:30:00Z",
-          "updated_at": "2026-01-15T10:30:00Z"
-        }
-      ]
-    }
-    ```
-
-    未找到匹配工作流：
-    ```json
-    {
-      "status": "success",
-      "workflows": []
-    }
-    ```
-
-- 状态码
-
-  | 状态码 | 说明            |
-  |--------|---------------|
-  | 200    | 检索成功。         |
-  | 400    | 检索失败，参数校验失败。 |
-  | 500    | 检索失败，服务内部错误。 |
-
-## SSE执行工作流
-
-- 典型场景
-
-    用户需要执行已保存的PSOP工作流并实时查看执行进度时，可通过该接口启动工作流并通过SSE接收实时进度更新。
-
-- 功能描述
-
-    启动指定的PSOP工作流执行，通过Server-Sent Events (SSE)实时推送工作流执行进度、Agent调用状态和执行结果。
-
-- 接口约束
-
-  - 工作流ID必须存在。
-  - 客户端需支持EventSource API或SSE协议。
-  - 单实例上该接口最大并发数为50。
-
-- 调用方法
-
-    GET
-
-- URI
-
-    */rest/start_process_stream*
-
-- 请求参数
-
-  <a id="表21-query参数列表"></a>**表21** query参数列表
-
-    | 参数名称    | 是否必选 | 类型     | 值域 | 默认值 | 描述            |
-    |---------|------|--------|----|-----|---------------|
-    | psop_id | 是    | string | -  | -   | PSOP工作流ID，唯一标识。 |
-
-- 请求示例
-
-    ```json
-    GET /rest/start_process_stream?psop_id=psop-001 HTTP/1.1
-    Host: your-domain.com
-    Accept: text/event-stream
-    Cache-Control: no-cache
-    Connection: keep-alive
-    ```
-
-- 响应参数
-
-  <a id="表22-sse事件类型列表"></a>**表22** SSE事件类型列表
-
-    | 事件类型           | 描述                          |
-    |----------------|-----------------------------|
-    | init           | 初始化事件，返回工作流基本信息。            |
-    | start          | 工作流开始执行事件。                  |
-    | agent_request  | Agent请求事件，包含Agent调用参数。      |
-    | agent_response | Agent响应事件，包含Agent执行结果。      |
-    | psop_update    | 工作流状态更新事件，包含当前步骤执行状态。       |
-    | complete       | 工作流执行完成事件，包含最终执行结果。         |
-    | error          | 执行错误事件，包含错误信息。              |
-    | close          | 连接关闭事件，SSE流结束。              |
-
-  <a id="表23-sse事件数据参数列表"></a>**表23** SSE事件数据参数列表
-
-    | 参数名称        | 是否必选 | 类型     | 值域   | 默认值 | 描述               |
-    |-------------|------|--------|------|-----|------------------|
-    | event       | 是    | string | -    | -   | 事件类型。            |
-    | data        | 是    | object | -    | -   | 事件数据，JSON格式。     |
-    | timestamp   | 是    | string | ISO时间格式 | -   | 事件发生时间戳。         |
-
-- 响应样例
-
-    SSE事件流示例：
-    ```
-    event: init
-    data: {"psop_id": "psop-001", "name": "RAN节能工作流", "total_steps": 3}
-    timestamp: 2026-01-15T10:30:00Z
-
-    event: start
-    data: {"message": "工作流开始执行"}
-    timestamp: 2026-01-15T10:30:01Z
-
-    event: agent_request
-    data: {"step_id": "step-1", "agent_name": "RAN Energy Saving Agent", "skill_id": "ran-es-intent-exploration", "input": {}}
-    timestamp: 2026-01-15T10:30:02Z
-
-    event: agent_response
-    data: {"step_id": "step-1", "output": {"result": "意图探索完成"}}
-    timestamp: 2026-01-15T10:30:05Z
-
-    event: psop_update
-    data: {"step_id": "step-1", "status": "completed", "progress": 33}
-    timestamp: 2026-01-15T10:30:05Z
-
-    event: complete
-    data: {"status": "success", "message": "工作流执行完成", "total_steps": 3, "completed_steps": 3}
-    timestamp: 2026-01-15T10:30:15Z
-
+    data: {"type": "init", "data": {...}}
+    data: {"type": "start", "data": {...}}
+    data: {"type": "agent_request", "data": {...}}
+    data: {"type": "agent_response", "data": {...}}
+    data: {"type": "psop_update", "data": {...}}
+    data: {"type": "complete", "data": {...}}
     event: close
-    data: {"message": "SSE连接关闭"}
-    timestamp: 2026-01-15T10:30:15Z
+    data: {}
     ```
 
-    执行失败示例：
+    **SSE 事件类型说明：**
+
+    | 事件类型       | 描述                                                    |
+    |----------------|---------------------------------------------------------|
+    | init           | 执行引擎初始化，包含 `psop_id`                           |
+    | start          | 执行开始通知                                            |
+    | agent_request  | Agent 任务下发事件，包含 `task_id`、`agent`、`description` |
+    | agent_response | Agent 执行结果返回事件，包含 `task_id`、`status`、`result` |
+    | psop_update    | PSOP 工作流步骤状态更新，包含 `step_name`、`status`       |
+    | complete       | 所有步骤执行完成，包含 `execution_history` 汇总           |
+    | error          | 执行失败，包含 `error` 描述                              |
+    | close          | SSE 流结束信号                                          |
+
+    每个事件 JSON 包含 `type`（事件类型）、`data`（事件数据）、`timestamp`（时间戳）三个字段。
+
+    执行完成后，系统自动保存 `ExecutionRecord` 执行记录，可通过 [查询执行结果接口](#6-查询执行结果接口) 获取详情。
+
+- 响应示例
+
     ```
-    event: error
-    data: {"error_code": "AGENT_TIMEOUT", "message": "Agent响应超时", "step_id": "step-2"}
-    timestamp: 2026-01-15T10:30:20Z
+    data: {"type":"init","data":{"psop_id":"a1b2c3d4-...","message":"Initializing execution engine"},"timestamp":12345.67}
+    data: {"type":"start","data":{"psop_id":"a1b2c3d4-...","message":"Execution started"},"timestamp":12345.68}
+    data: {"type":"agent_request","data":{"task_id":"task-001","agent":"RAN Energy Saver","skill":"analyze_energy","description":"分析基站节能数据"},"timestamp":12345.70}
+    data: {"type":"agent_response","data":{"task_id":"task-001","status":"success","result":{"details":"节能分析完成"}},"timestamp":12346.50}
+    data: {"type":"psop_update","data":{"step_name":"step1","status":"completed"},"timestamp":12346.51}
+    data: {"type":"complete","data":{"psop_id":"a1b2c3d4-...","execution_history":[...]},"timestamp":12347.00}
+    event: close
+    data: {}
     ```
 
-- 状态码
+- 错误码
 
-  | 状态码 | 说明                    |
-  |--------|-----------------------|
-  | 200    | SSE连接建立成功，开始推送事件流。    |
-  | 400    | 参数校验失败，缺少psop_id或格式错误。 |
-  | 404    | 工作流不存在。               |
-  | 500    | 执行失败，服务内部错误。          |
+    | 状态码 | 说明                              |
+    |--------|-----------------------------------|
+    | 500    | 自动生成 PSOP 失败                 |
+    | 503    | 并发数已满，服务器繁忙             |
+
+    > 执行过程中的运行时错误通过 SSE `error` 事件推送，不会体现在 HTTP 状态码上。
+
+---
+
+## 4. 执行指定工作流接口
+
+- 典型场景
+
+    调用方已知道目标 PSOP 的 ID（例如从数据库中查询获得），希望直接执行该工作流，无需检索匹配。
+
+- 功能描述
+
+    根据 PSOP ID 查找工作流，以 SSE 流方式启动执行，实时推送执行进度。
+
+- 接口约束
+
+  - 单实例上该接口最大并发数由 `server.conf` 中 `FLOW_CTL_START_PROCESS_STREAM` 配置决定。
+  - 限流标识：`ext_execute_by_id`，速率由 `FLOW_CTL_START_PROCESS_STREAM` 配置决定。
+  - 响应为 SSE 流式连接。
+
+- 调用方法
+
+    GET
+
+- URI
+
+    `/api/v1/orchestrate/execute/{psop_id}`
+
+- 请求参数
+
+    | 参数名称     | 是否必选 | 类型   | 位置   | 默认值 | 描述                                           |
+    |--------------|----------|--------|--------|--------|------------------------------------------------|
+    | psop_id      | 是       | string | path   | -      | PSOP 工作流 ID                                  |
+    | user_intent  | 否       | string | query  | -      | 运行时用户意图，用于 Agent 上下文注入，执行时传入 |
+
+- 请求示例
+
+    ```
+    GET /api/v1/orchestrate/execute/a1b2c3d4-e5f6-7890-abcd-ef1234567890?user_intent=帮我查基站节能率 HTTP/1.1
+    Host: your-host:60000
+    ```
+
+- 响应格式（SSE 事件流）
+
+    与 [自动编排+执行接口](#3-自动编排执行接口) 相同的 SSE 事件格式。
+
+- 错误码
+
+    | 状态码 | 说明                  |
+    |--------|-----------------------|
+    | 404    | 指定 PSOP 不存在      |
+    | 503    | 并发数已满，服务器繁忙 |
+
+---
+
+## 5. 查询 Agent 列表接口
+
+- 典型场景
+
+    调用方需要了解当前可用的 Agent 及其技能，以便构造合适的任务描述。
+
+- 功能描述
+
+    从 Agent Registry 获取所有已注册的 Agent 卡片列表（含 Agent 名称、描述、技能列表等元信息）。
+
+- 接口约束
+
+  - 限流标识：`list_agents`，速率由 `FLOW_CTL_AGENT_CARDS` 配置决定。
+
+- 调用方法
+
+    GET
+
+- URI
+
+    `/api/v1/agents`
+
+- 请求参数
+
+    无。
+
+- 请求示例
+
+    ```
+    GET /api/v1/agents HTTP/1.1
+    Host: your-host:60000
+    ```
+
+- 响应参数
+
+    | 参数名称 | 类型   | 描述                   |
+    |----------|--------|------------------------|
+    | code     | integer | 200 表示成功           |
+    | message  | string | 固定返回 `"success"`   |
+    | status   | string | `"success"`            |
+    | data     | array  | AgentCard 对象列表，每个元素包含 Agent 的 `name`、`description`、`skills`、`url` 等字段 |
+
+- 响应示例
+
+    ```json
+    {
+        "code": 200,
+        "message": "success",
+        "status": "success",
+        "data": [
+            {
+                "name": "RAN Energy Saver",
+                "description": "无线接入网节能优化Agent",
+                "skills": [
+                    {
+                        "name": "analyze_energy",
+                        "description": "分析基站能耗数据"
+                    }
+                ],
+                "url": "http://agent-host:9001/"
+            }
+        ]
+    }
+    ```
+
+---
+
+## 6. 查询执行结果接口
+
+- 典型场景
+
+    工作流执行完成后（或执行中断后），调用方需要查询某次执行的完整记录，包括步骤级执行历史、Agent 交互事件、最终状态等。
+
+- 功能描述
+
+    根据执行 ID 获取执行记录详情，包含执行状态、步骤历史、Agent 交互事件、完成时间、错误信息（如有）等。
+
+- 接口约束
+
+  - 限流标识：`get_execution`，速率由 `FLOW_CTL_ONE_PSOP` 配置决定。
+
+- 调用方法
+
+    GET
+
+- URI
+
+    `/api/v1/executions/{execution_id}`
+
+- 请求参数
+
+    | 参数名称      | 是否必选 | 类型   | 位置 | 默认值 | 描述           |
+    |---------------|----------|--------|------|--------|----------------|
+    | execution_id  | 是       | string | path | -      | 执行记录 ID     |
+
+- 请求示例
+
+    ```
+    GET /api/v1/executions/exec-uuid-12345678 HTTP/1.1
+    Host: your-host:60000
+    ```
+
+- 响应参数
+
+    | 参数名称 | 类型   | 描述                                          |
+    |----------|--------|-----------------------------------------------|
+    | code     | integer | 200 表示成功                                  |
+    | message  | string | 固定返回 `"success"`                          |
+    | status   | string | `"success"`                                   |
+    | data     | object | ExecutionRecord 执行记录对象                   |
+
+    **ExecutionRecord 对象结构（data 字段）**：参见 [附录 B：ExecutionRecord 数据结构](#附录-bexecutionrecord-数据结构)。
+
+- 响应示例
+
+    ```json
+    {
+        "code": 200,
+        "message": "success",
+        "status": "success",
+        "data": {
+            "execution_id": "exec-uuid-12345678",
+            "psop_id": "a1b2c3d4-...",
+            "psop_name": "节能评估",
+            "started_at": "2026-05-22T10:30:00.000000",
+            "completed_at": "2026-05-22T10:31:30.000000",
+            "status": "success",
+            "execution_history": [ ... ],
+            "final_psop": { ... },
+            "events": [ ... ],
+            "error": null
+        }
+    }
+    ```
+
+- 错误码
+
+    | 状态码 | 说明                      |
+    |--------|---------------------------|
+    | 404    | 指定执行记录不存在         |
+
+---
+
+## 附录
+
+### 附录 A：PSOP 数据结构
+
+| 字段名          | 类型             | 描述                                                        |
+|-----------------|------------------|-------------------------------------------------------------|
+| id              | string (UUID)    | 工作流唯一标识                                                |
+| name            | string           | 工作流名称                                                    |
+| description     | string \| null   | 工作流简要描述                                                |
+| created_at      | string (ISO8601) | 创建时间戳                                                    |
+| steps           | array[Step]      | 工作流步骤列表（见下方 Step 结构）                             |
+| related_preflow | string \| null   | 关联的 PreFlow ID（由 SOP 编排生成时填充）                     |
+| user_intent     | string \| null   | 生成该工作流的原始用户意图                                    |
+| tags            | array[string]    | 标签列表，用于分类和检索                                      |
+
+**Step 结构：**
+
+| 字段名      | 类型                   | 描述                                                              |
+|-------------|------------------------|-------------------------------------------------------------------|
+| name        | string                 | 步骤标识（如 `"step1"`）                                          |
+| type        | string                 | 步骤成功条件：`"AllSuccess"`（全部子任务成功）或 `"AnySuccess"`（任一子任务成功） |
+| subtasks    | array[Task]            | 子任务列表，子任务间无依赖，可并行执行                            |
+| next        | array[JumpCondition] \| null | 跳转条件列表，指向下一步骤；空值表示无条件顺序执行              |
+| layer       | integer                | 编排层级：0 = 执行层（叶子 Agent），1+ = 聚合层                  |
+| context_from | array[string] \| null  | 上下文来源步骤列表，`["*"]` 表示包含所有先前步骤的输出；为 null 且 layer > 0 时自动从图拓扑推导 |
+
+**Task 结构：**
+
+| 字段名      | 类型   | 描述                               |
+|-------------|--------|------------------------------------|
+| task_id     | string | 唯一任务标识 (UUID)                |
+| description | string | 任务描述                           |
+| agent       | string | 执行该任务的 Agent 名称            |
+| skill       | string | 执行该任务所需的技能名称           |
+| status      | string | 任务状态：`"pending"` / `"running"` / `"success"` / `"failed"` |
+
+**JumpCondition 结构：**
+
+| 字段名    | 类型   | 描述                 |
+|-----------|--------|----------------------|
+| step      | string | 目标步骤名称         |
+| condition | string | 跳转条件描述         |
+
+---
+
+### 附录 B：ExecutionRecord 数据结构
+
+| 字段名            | 类型             | 描述                                                    |
+|-------------------|------------------|---------------------------------------------------------|
+| execution_id      | string (UUID)    | 执行记录唯一标识                                          |
+| psop_id           | string           | 执行的 PSOP 工作流 ID                                    |
+| psop_name         | string           | 执行的 PSOP 工作流名称                                    |
+| started_at        | string (ISO8601) | 执行开始时间                                              |
+| completed_at      | string \| null   | 执行完成时间（失败时仍会记录）                            |
+| status            | string           | 执行状态：`"running"` / `"success"` / `"failed"` / `"stopped"` |
+| execution_history | array[object]    | 步骤级执行历史，每项包含 `step_name`、`subtask`、`status`、`result` |
+| final_psop        | object \| null   | 执行完成时带任务状态的最终 PSOP 快照                       |
+| events            | array[object]    | Agent 交互事件记录（`agent_request` / `agent_response` 事件） |
+| error             | string \| null   | 执行失败时的错误信息                                      |
