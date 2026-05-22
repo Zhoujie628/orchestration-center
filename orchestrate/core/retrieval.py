@@ -176,11 +176,10 @@ class WorkflowRetrieval:
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON format: {e}")
 
-    def retrieve_psop_by_intent(self, user_intent: str) -> Optional[PSOP]:
-        logger.info(f"[Retrieval] retrieve_psop_by_intent: intent='{user_intent[:100]}...'")
+    def _retrieve_names_by_intent(self, user_intent: str, top_n: int = 1) -> List[str]:
         summaries = self._list_psop_summaries()
         if not summaries:
-            return None
+            return []
 
         psop_list = [{
             "name": s.name,
@@ -190,19 +189,44 @@ class WorkflowRetrieval:
 
         psop_list_str = json.dumps(psop_list, ensure_ascii=False, indent=2)
         llm = get_llm_instance()
-        prompt = get_retrieve_psop_prompt(user_intent, psop_list_str)
+        prompt = get_retrieve_psop_prompt(user_intent, psop_list_str, top_n)
 
         try:
             _, llm_res = llm.ask_llm(prompt)
-            selected_name = self._parse_json_response(llm_res)
+            selected_names = self._parse_json_response(llm_res)
 
-            if not selected_name:
+            if not isinstance(selected_names, list):
+                raise ValueError(f"Expected a JSON array of names, got: {type(selected_names)}")
+
+            return selected_names[:top_n]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve PSOP by intent: {e}")
+
+    def retrieve_psop_by_intent(self, user_intent: str) -> Optional[PSOP]:
+        logger.info(f"[Retrieval] retrieve_psop_by_intent: intent='{user_intent[:100]}...'")
+        try:
+            names = self._retrieve_names_by_intent(user_intent, top_n=1)
+            if not names:
                 return None
 
-            for info in psop_list:
-                if info["name"] == selected_name:
-                    return self._load_psop_by_id(info["id"])
-
+            summaries = self._list_psop_summaries()
+            name_to_id = {s.name: s.workflow_id for s in summaries}
+            psop_id = name_to_id.get(names[0])
+            if psop_id:
+                return self._load_psop_by_id(psop_id)
             return None
         except Exception as e:
             raise Exception(f"Failed to retrieve PSOP by intent: {e}")
+
+    def retrieve_psop_by_intent_topn(
+        self, user_intent: str, top_n: int = 5
+    ) -> List[WorkflowSearchResult]:
+        logger.info(f"[Retrieval] retrieve_psop_by_intent_topn: intent='{user_intent[:100]}...', top_n={top_n}")
+        try:
+            names = self._retrieve_names_by_intent(user_intent, top_n)
+            name_to_summary = {s.name: s for s in self._list_psop_summaries()}
+            results = [name_to_summary[name] for name in names if name in name_to_summary]
+            logger.info(f"[Retrieval] TopN returned {len(results)} result(s) for intent")
+            return results[:top_n]
+        except Exception as e:
+            raise Exception(f"Failed to retrieve PSOP topN by intent: {e}")

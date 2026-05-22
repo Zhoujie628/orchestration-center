@@ -17,23 +17,23 @@
 External API Module
 
 Public-facing API for other systems to integrate with the Orchestration Center.
-Provides SOP-based orchestration, intent-based orchestration, and workflow execution.
+Provides SOP-based orchestration, intent-based orchestration, workflow search, and workflow execution.
 
 Endpoints:
-  POST /api/v1/orchestrate/sop           — SOP-based orchestration (text or PDF upload)
+  POST /api/v1/orchestrate/sop           — SOP-based orchestration (JSON text or PDF/TXT/MD file upload)
   POST /api/v1/orchestrate/intent        — Intent-based orchestration
+  POST /api/v1/orchestrate/search        — Search/retrieve workflows by natural language intent
   POST /api/v1/orchestrate/execute       — Auto-orchestrate + execute (SSE)
   GET  /api/v1/orchestrate/execute/{id}  — Execute a known PSOP (SSE)
-  GET  /api/v1/agents                    — List available agents
   GET  /api/v1/executions/{id}           — Get execution result
 """
 
-import json
+import os
 import re
-from typing import Any, List, Optional
+import tempfile
+from typing import Any, Optional
 
 import anyio
-from a2a.types import AgentCard
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile, Depends
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -46,7 +46,6 @@ from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP
 from orchestrate.core.psop_generator import PsopGenerator
 from orchestrate.core.retrieval import WorkflowRetrieval
-from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
 from orchestrate.server.sse_executor import run_psop_sse
 from orchestrate.server.response_utils import ok, created, get_agent_cards
 from orchestrate.server.middleware import RateLimiter
@@ -74,7 +73,7 @@ class SOPOrchestrateRequest(BaseModel):
 
 
 class IntentOrchestrateRequest(BaseModel):
-    intent: str = Field(..., description="Natural language intent or task description")
+    intent: str = Field(..., min_length=1, description="Natural language intent or task description")
     name: Optional[str] = Field(None, description="Optional workflow name")
 
 
@@ -83,11 +82,16 @@ class ExecuteRequest(BaseModel):
     name: Optional[str] = Field(None, description="Optional workflow name for auto-generation")
 
 
+class SearchRequest(BaseModel):
+    intent: str = Field(..., description="Natural language intent to search for matching workflows")
+    top_n: Optional[int] = Field(5, description="Maximum number of results to return", ge=1, le=20)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. SOP-based orchestration
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@router.post("/orchestrate/sop")
+@router.post("/orchestrate/sop", status_code=201)
 async def orchestrate_sop(
     request: Request,
     file: Optional[UploadFile] = File(None),
@@ -129,16 +133,39 @@ async def orchestrate_sop(
             content = await file.read()
             if len(content) > MAX_FILE_SIZE_BYTES:
                 raise HTTPException(status_code=413, detail="File too large")
-            if filename.lower().endswith('.pdf') and not content.startswith(b'%PDF-'):
-                raise HTTPException(status_code=400, detail="Not a valid PDF file")
-            await file.seek(0)
-            parser = SolutionPackageParser()
-            try:
-                preflow = parser.parse_pdf_chapter(file.file, "5. Interaction Flow")
-                sop_text = preflow.steps_md
-                workflow_name = workflow_name or preflow.name
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
+
+            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+
+            if ext == 'pdf':
+                if not content.startswith(b'%PDF-'):
+                    raise HTTPException(status_code=400, detail="Not a valid PDF file")
+                tmp_file_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+                        tmp_file_path = tmp.name
+                        tmp.write(content)
+                    parser = SolutionPackageParser()
+                    pre_md = parser.parse_pdf_chapter(tmp_file_path, "5. Interaction Flow")
+                    if not pre_md:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Chapter '5. Interaction Flow' not found in PDF"
+                        )
+                    sop_text = pre_md
+                    workflow_name = workflow_name or filename
+                except HTTPException:
+                    raise
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=f"PDF parsing failed: {e}")
+                except Exception as e:
+                    logger.error(f"PDF parsing failed: {e}")
+                    raise HTTPException(status_code=500, detail=f"PDF parsing failed: {e}")
+                finally:
+                    if tmp_file_path and os.path.exists(tmp_file_path):
+                        os.unlink(tmp_file_path)
+            else:
+                sop_text = content.decode('utf-8', errors='replace')
+                workflow_name = workflow_name or filename.rsplit('.', 1)[0]
         elif body:
             sop_text = body.sop_content
             workflow_name = workflow_name or body.name
@@ -169,7 +196,7 @@ async def orchestrate_sop(
 # 2. Intent-based orchestration
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@router.post("/orchestrate/intent")
+@router.post("/orchestrate/intent", status_code=201)
 async def orchestrate_intent(
     request: Request,
     body: IntentOrchestrateRequest,
@@ -200,7 +227,31 @@ async def orchestrate_intent(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 3. Auto-orchestrate + execute (composite)
+# 3. Search/retrieve workflows
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/orchestrate/search")
+async def search_workflows(
+    request: Request,
+    body: SearchRequest,
+    _: Any = Depends(RateLimiter(config, "retrieve_by_intent"))
+):
+    """
+    Search for matching workflows by natural language intent.
+
+    Returns a ranked list of the top N most relevant PSOP workflows
+    (summary only: id, name, description, tags, created_at, user_intent).
+    """
+    try:
+        retrieval = WorkflowRetrieval(get_workflow_storage())
+        results = retrieval.retrieve_psop_by_intent_topn(body.intent, body.top_n or 5)
+        return ok(data=[r.to_dict() for r in results], message=f"Found {len(results)} matching workflow(s)")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. Auto-orchestrate + execute (composite)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/orchestrate/execute")
@@ -248,7 +299,7 @@ async def execute_workflow(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 4. Execute known PSOP
+# 5. Execute known PSOP
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/orchestrate/execute/{psop_id}")
@@ -277,24 +328,6 @@ async def execute_psop_by_id(
     finally:
         if acquired:
             execute_semaphore.release()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 5. List available agents
-# ═══════════════════════════════════════════════════════════════════════════════
-
-@router.get("/agents")
-async def list_agents(
-    _: Any = Depends(RateLimiter(config, "list_agents"))
-):
-    """
-    List all available agents with their skills.
-
-    Returns agent inventory from the agent registry.
-    """
-    factory = AgentRegistryClientFactory()
-    agents = factory.create_from_env().list_exact()
-    return ok(data=agents)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

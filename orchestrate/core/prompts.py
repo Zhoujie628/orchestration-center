@@ -427,9 +427,9 @@ Output:
 """
 
 
-def get_retrieve_psop_prompt(user_intent: str, psop_list: str) -> str:
-    return f"""As a senior IT operations expert, select the most suitable existing PSOP workflow
-for the given user intent.
+def get_retrieve_psop_prompt(user_intent: str, psop_list: str, top_n: int = 1) -> str:
+    return f"""As a senior IT operations expert, select the top {top_n} most suitable existing PSOP workflow(s)
+for the given user intent, ordered by relevance.
 
 ## User Intent
 {user_intent}
@@ -441,18 +441,19 @@ for the given user intent.
 1. **Intent Match**: Evaluate how well each PSOP's name and description align with the user intent.
 2. **Functional Coverage**: Assess whether the PSOP's capabilities cover the user's requirements.
 3. **Domain Relevance**: Consider the IT operations domain specialization match.
-4. **Best Fit**: Select the single most appropriate PSOP.
+4. **Relevance Ordering**: Order results from most to least relevant.
 
 ## Output Format
-Output only the matched PSOP name, wrapped in ```json``` markers.
+Output a JSON array of matched PSOP names, wrapped in ```json``` markers.
+If fewer than {top_n} PSOPs are relevant, include only the relevant ones.
 
 ## Output Example
 ```json
-"Server Outage Diagnosis and Recovery"
+["Server Outage Diagnosis and Recovery", "Network Fault Analysis"]
 ```
 
 ## Important Notes
-1. Output only the PSOP name; do not include any explanatory text.
-2. If no suitable PSOP is found, output an empty string: "".
-3. Ensure the selected PSOP name matches the list exactly (character for character).
-"""
+1. Output only the JSON array; do not include any explanatory text.
+2. If no suitable PSOP is found, output an empty array: [].
+3. Ensure each selected PSOP name matches the list exactly (character for character).
+4. Return at most {top_n} name(s)."""
