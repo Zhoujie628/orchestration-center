@@ -106,14 +106,14 @@ class AgentRegistryClient:
         Exact search. All parameters optional.
         :return: List of matching AgentCard instances
         """
-        parms = {}
+        params = {}
         if name:
-            parms['name'] = name
+            params['name'] = name
         if organization:
-            parms['organization'] = organization
+            params['organization'] = organization
         if provider:
-            parms['provider'] = provider
-        resp = self._request('GET', f'/rest/v1/registry-center/agent-cards/', params=parms)
+            params['provider'] = provider
+        resp = self._request('GET', f'/rest/v1/registry-center/agent-cards/', params=params)
         return resp.json().get("agentCards", [])
 
     def search_by_task(self, task: str) -> List[dict]:

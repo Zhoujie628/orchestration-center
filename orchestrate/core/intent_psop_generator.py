@@ -152,24 +152,3 @@ class IntentPsopGenerator(PsopGenerator):
         except Exception as e:
             logger.error(f"Unexpected error during intent-based PSOP generation: {e}")
             raise IntentWorkflowGeneratorError(f"Failed to generate PSOP from intent: {e}") from e
-
-    def generate_psop_workflow_with_intent(
-            self,
-            user_intent: str,
-            agent_cards: List[AgentCard],
-            workflow_name: Optional[str] = None
-    ) -> PSOP:
-        """Alias for generate_psop_from_intent for consistency with parent class.
-
-        This method provides the same interface as PsopGenerator.generate_psop_workflow
-        but accepts natural language intent instead of PreFlow.
-
-        Args:
-            user_intent: Natural language description of the business intent
-            agent_cards: List of available agents with their skills
-            workflow_name: Optional name for the generated workflow
-
-        Returns:
-            Complete PSOP workflow ready for execution
-        """
-        return self.generate_psop_from_intent(user_intent, agent_cards, workflow_name)

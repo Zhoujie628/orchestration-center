@@ -15,6 +15,8 @@
 
 import json
 
+from loguru import logger
+
 from database.utils.db_connection import create_connection
 from database.utils.query_execution import execute_query
 from orchestrate.core.model.execution_record import ExecutionRecord
@@ -27,7 +29,9 @@ def db_save_execution_record(record: ExecutionRecord) -> str:
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                """
     conn = create_connection()
-    execute_query(conn, save_sql, (
+    if conn is None:
+        raise RuntimeError("Unable to connect to database")
+    _, error = execute_query(conn, save_sql, (
         record.execution_id,
         record.psop_id,
         record.psop_name,
@@ -38,6 +42,10 @@ def db_save_execution_record(record: ExecutionRecord) -> str:
         record.model_dump_json(),
     ))
     conn.close()
+    if error:
+        logger.error(f"[DB] Failed to save execution record (id={record.execution_id}): {error}")
+        raise RuntimeError(f"Failed to save execution record: {error}")
+    logger.info(f"[DB] Execution record saved (id={record.execution_id}, psop='{record.psop_name}', status={record.status})")
     return record.execution_id
 
 
@@ -48,8 +56,13 @@ def db_list_execution_records():
                 FROM execution_records ORDER BY started_at DESC
                 """
     conn = create_connection()
-    rows, _ = execute_query(conn, query_sql)
+    if conn is None:
+        return []
+    rows, error = execute_query(conn, query_sql)
     conn.close()
+    if error:
+        logger.error(f"[DB] Failed to list execution records: {error}")
+        return []
     result = []
     for row in rows:
         summary = {
@@ -68,22 +81,36 @@ def db_list_execution_records():
         except Exception:
             pass
         result.append(summary)
+    logger.debug(f"[DB] Listed {len(result)} execution record(s)")
     return result
 
 
 def db_get_execution_record(execution_id: str):
     query_sql = "SELECT record_content FROM execution_records WHERE execution_id = %s"
     conn = create_connection()
-    results, _ = execute_query(conn, query_sql, (execution_id,))
+    if conn is None:
+        return None
+    results, error = execute_query(conn, query_sql, (execution_id,))
     conn.close()
+    if error:
+        logger.error(f"[DB] Failed to load execution record (id={execution_id}): {error}")
+        return None
     if results and len(results) > 0:
+        logger.debug(f"[DB] Execution record loaded (id={execution_id})")
         return ExecutionRecord.model_validate(json.loads(results[0][0]))
+    logger.warning(f"[DB] Execution record not found (id={execution_id})")
     return None
 
 
 def db_delete_execution_record(execution_id: str) -> bool:
     delete_sql = "DELETE FROM execution_records WHERE execution_id = %s"
     conn = create_connection()
+    if conn is None:
+        return False
     _, error = execute_query(conn, delete_sql, (execution_id,))
     conn.close()
-    return error is None
+    if error:
+        logger.error(f"[DB] Failed to delete execution record (id={execution_id}): {error}")
+        return False
+    logger.info(f"[DB] Execution record deleted (id={execution_id})")
+    return True

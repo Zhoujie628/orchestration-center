@@ -16,6 +16,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Type
 
+from loguru import logger
+
 from common.custom.interface_type import InterfaceType
 from common.util.config_util import get_conf
 from orchestrate.core.workflow_search_result import WorkflowSearchResult
@@ -51,6 +53,8 @@ class GetAllPsopsHandler(BaseHandler):
                     description=psop.description,
                     tags=psop.tags,
                     created_at=psop.created_at,
+                    user_intent=psop.user_intent,
+                    related_preflow=psop.related_preflow,
                 ))
         return results
 
@@ -111,10 +115,10 @@ class HandlerRegistry:
         """
         persistence_mode = get_conf().get("persistence_mode", "file")
         if persistence_mode.lower() != "file" and interface_type.value in cls._registry:
-            # If a user-registered class exists, instantiate and return it
+            logger.debug(f"[Registry] Dispatching '{interface_type.value}' → DB handler (mode={persistence_mode})")
             return cls._registry[interface_type.value]()
         else:
-            # Otherwise, return the corresponding default implementation
+            logger.debug(f"[Registry] Dispatching '{interface_type.value}' → file handler (mode={persistence_mode})")
             default_map = {
                 "save_psop": SavePsopHandler,
                 "get_all_psop": GetAllPsopsHandler,

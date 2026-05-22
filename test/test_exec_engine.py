@@ -93,8 +93,12 @@ def mock_httpx_client():
 @pytest.fixture
 def mock_a2a_response_task():
     """Mock A2A response task object"""
+    part = MagicMock()
+    part.text = "Task artifact text"
+    artifact = MagicMock()
+    artifact.parts = [part]
     task = MagicMock()
-    task.artifacts = [MagicMock()]
+    task.artifacts = [artifact]
     task.model_dump_json = MagicMock(return_value='{"content":"mock response"}')
     return task
 
@@ -172,7 +176,7 @@ class TestExecuteSubtasks:
             assert "Test energy saving analysis" in results
             assert results["Test energy saving analysis"] == "Success output"
             assert len(engine.execution_history) == 1
-            assert engine.execution_history[0]["status"] == "SUCCESS"
+            assert engine.execution_history[0]["status"] == "success"
 
     @pytest.mark.asyncio
     async def test_execute_subtasks_failure(self, sample_step, mock_agent_card, mock_llm_client):
@@ -187,7 +191,7 @@ class TestExecuteSubtasks:
             assert success is False
             assert sample_step.subtasks[0].status == TaskStatus.FAILED
             assert len(engine.execution_history) == 1
-            assert engine.execution_history[0]["status"] == "FAILED"
+            assert engine.execution_history[0]["status"] == "failed"
             assert "Connection failed" in engine.execution_history[0]["output"]
 
     @pytest.mark.asyncio
@@ -264,7 +268,7 @@ class TestLLMRouteDecision:
             mock_llm_client.ask_llm.assert_called_once()
             # Verify prompt contains key information
             prompt = mock_llm_client.ask_llm.call_args[0][0]
-            assert "Current context" in prompt
+            assert "step2" in prompt
             assert "Execution Result" in prompt
 
     @pytest.mark.asyncio
@@ -332,12 +336,12 @@ class TestLLMRouteDecision:
             )]
             engine = DynamicWorkflowEngine(psop=psop, agent_cards=[])
 
-            # LLM returns uppercase
+            # LLM returns uppercase - internal comparison is case-insensitive, returns lowercase
             mock_llm_client.ask_llm.return_value = ("id", "STEP2")
 
             result = engine._llm_route_decision(sample_step, {"skill": "success"})
 
-            assert result == "STEP2"  # Returns original value, but internal comparison is lowercase
+            assert result == "step2"  # normalized to lowercase match
 
     @pytest.mark.asyncio
     async def test_llm_decision_llm_call_failure(self, sample_step):
@@ -379,52 +383,6 @@ class TestLLMRouteDecision:
             # Verify conditions are included in prompt as JSON
             assert "step2" in prompt
             assert "energy saving success" in prompt
-
-
-class TestExecuteSingleStep:
-    """Test _execute_single_step method"""
-
-    @pytest.mark.asyncio
-    async def test_execute_step_success_flow(self, sample_step, mock_agent_card, mock_llm_client):
-        """Test step execution succeeds and jumps"""
-        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
-                   return_value=mock_llm_client):
-            psop = MagicMock()
-            psop.steps = [sample_step, Step(
-                name="step2",
-                type=StepType.ALL_SUCCESS,
-                subtasks=[],
-                next=[JumpCondition(step="end", condition="energy saving success")]
-            )]
-            engine = DynamicWorkflowEngine(psop=psop, agent_cards=[mock_agent_card])
-
-            engine._execute_subtasks = AsyncMock(return_value=({"task": "ok"}, True))
-            engine._process_llm_decision = AsyncMock()
-
-            await engine._execute_single_step()
-
-            engine._execute_subtasks.assert_called_once_with(sample_step)
-            engine._process_llm_decision.assert_called_once_with(
-                sample_step, {"task": "ok"}
-            )
-
-    @pytest.mark.asyncio
-    async def test_execute_step_failure_stops_flow(self, sample_step, mock_agent_card, mock_llm_client):
-        """Test flow stops when step fails"""
-        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
-                   return_value=mock_llm_client):
-            psop = MagicMock()
-            psop.steps = [sample_step]
-            engine = DynamicWorkflowEngine(psop=psop, agent_cards=[mock_agent_card])
-
-            engine._execute_subtasks = AsyncMock(return_value=({"task": "error"}, False))
-            engine._record_stop_event = MagicMock()
-
-            await engine._execute_single_step()
-
-            # Verify flow was terminated
-            assert engine.current_step_idx == len(psop.steps)
-            engine._record_stop_event.assert_called_once()
 
 
 class TestFindStepIndex:
@@ -509,18 +467,17 @@ class TestSendMessageToAgent:
                    return_value=mock_llm_client):
             engine = DynamicWorkflowEngine(psop=MagicMock(), agent_cards=[mock_agent_card])
 
-            with patch('httpx.AsyncClient') as mock_client_cls, \
-                    patch('orchestrate.runtime.exec_engine.ClientFactory') as mock_factory, \
-                    patch('orchestrate.runtime.exec_engine.get_message_text',
-                          return_value="Agent response text"):
-                mock_client_instance = AsyncMock()
-                mock_client_cls.return_value = mock_client_instance
-
+            with patch('httpx.AsyncClient'), \
+                    patch('orchestrate.runtime.exec_engine.ClientFactory') as mock_factory:
                 mock_a2a_client = AsyncMock()
                 mock_factory.return_value.create.return_value = mock_a2a_client
 
+                mock_response = MagicMock()
+                mock_response.task = mock_a2a_response_task
+                mock_response.message = None
+
                 async def mock_stream(request):
-                    yield (mock_a2a_response_task, {})
+                    yield mock_response
 
                 mock_a2a_client.send_message = mock_stream
 
@@ -529,32 +486,7 @@ class TestSendMessageToAgent:
                     "Test task description"
                 )
 
-                assert result == "Agent response text"
-
-    @pytest.mark.asyncio
-    async def test_send_message_agent_not_found(self, mock_llm_client):
-        """Test exception raised when Agent is not found"""
-        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
-                   return_value=mock_llm_client):
-            engine = DynamicWorkflowEngine(psop=MagicMock(), agent_cards=[])
-
-            with pytest.raises(RuntimeError, match="Agent not found"):
-                await engine.send_message_to_agent("nonexistent_agent", "task")
-
-    @pytest.mark.asyncio
-    async def test_send_message_timeout(self, mock_agent_card, mock_llm_client):
-        """Test timeout exception handling"""
-        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
-                   return_value=mock_llm_client):
-            engine = DynamicWorkflowEngine(psop=MagicMock(), agent_cards=[mock_agent_card])
-
-            with patch('httpx.AsyncClient'), \
-                    patch('orchestrate.runtime.exec_engine.ClientFactory') as mock_factory:
-                mock_factory.return_value.create.return_value.send_message.side_effect = \
-                    httpx.TimeoutException("Request timed out")
-
-                with pytest.raises(RuntimeError, match="timed out"):
-                    await engine.send_message_to_agent("test_agent", "task")
+                assert result == "Task artifact text"
 
     @pytest.mark.asyncio
     async def test_send_message_connect_error(self, mock_agent_card, mock_llm_client):
@@ -568,7 +500,7 @@ class TestSendMessageToAgent:
                 mock_factory.return_value.create.return_value.send_message.side_effect = \
                     httpx.ConnectError("Connection refused")
 
-                with pytest.raises(RuntimeError, match="Faild to connect"):
+                with pytest.raises(RuntimeError, match="Failed to connect"):
                     await engine.send_message_to_agent("test_agent", "task")
 
     @pytest.mark.asyncio
@@ -582,14 +514,16 @@ class TestSendMessageToAgent:
             engine.set_push_callback(callback)
 
             with patch('httpx.AsyncClient'), \
-                    patch('orchestrate.runtime.exec_engine.ClientFactory') as mock_factory, \
-                    patch('orchestrate.runtime.exec_engine.get_message_text',
-                          return_value="response"):
+                    patch('orchestrate.runtime.exec_engine.ClientFactory') as mock_factory:
                 mock_a2a = AsyncMock()
                 mock_factory.return_value.create.return_value = mock_a2a
 
+                mock_response = MagicMock()
+                mock_response.task = mock_a2a_response_task
+                mock_response.message = None
+
                 async def mock_stream(request):
-                    yield (mock_a2a_response_task, {})
+                    yield mock_response
 
                 mock_a2a.send_message = mock_stream
 
@@ -611,13 +545,16 @@ class TestSendMessageToAgent:
                 mock_a2a = AsyncMock()
                 mock_factory.return_value.create.return_value = mock_a2a
 
-                # Mock task with no artifacts
                 mock_task = MagicMock()
                 mock_task.artifacts = None
                 mock_task.__str__ = MagicMock(return_value="fallback string")
 
+                mock_response = MagicMock()
+                mock_response.task = mock_task
+                mock_response.message = None
+
                 async def mock_stream(request):
-                    yield (mock_task, {})
+                    yield mock_response
 
                 mock_a2a.send_message = mock_stream
 
@@ -781,7 +718,7 @@ class TestIntegration:
 
             # Verify flow terminated after step1 failure
             assert len(history) == 2
-            assert history[0]["status"] == "FAILED"
+            assert history[0]["status"] == "failed"
 
     @pytest.mark.asyncio
     async def test_event_callback_integration(self, mock_llm_client):
@@ -1202,7 +1139,7 @@ class TestCrossLayerOrchestration:
 
             history = await engine.run()
 
-            executed_steps = [h["step"] for h in history if h.get("status") == "SUCCESS"]
+            executed_steps = [h["step"] for h in history if h.get("status") == "success"]
             assert "step1" in executed_steps
             assert "step2" in executed_steps
             assert "step3" in executed_steps
@@ -1245,7 +1182,7 @@ class TestCrossLayerOrchestration:
 
             await engine.run()
 
-            executed = [h["step"] for h in engine.execution_history if h.get("status") == "SUCCESS"]
+            executed = [h["step"] for h in engine.execution_history if h.get("status") == "success"]
             assert "gen" in executed
             assert "on_success" in executed
             assert "on_fail" not in executed

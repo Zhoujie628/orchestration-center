@@ -58,7 +58,7 @@ class Step(BaseModel):
     type: StepType = Field(
         StepType.ALL_SUCCESS,
         description="Step success condition - "
-        "AllSuccess (all subtasks succeed) or AndSuccess (any subtask succeeds)",
+        "AllSuccess (all subtasks succeed) or AnySuccess (any subtask succeeds)",
         examples=[StepType.ALL_SUCCESS, StepType.ANY_SUCCESS],
     )
     subtasks: List[Task] = Field(..., description="List of subtasks within the step"

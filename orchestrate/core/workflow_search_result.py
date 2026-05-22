@@ -20,7 +20,9 @@ from datetime import datetime
 class WorkflowSearchResult:
     def __init__(self, workflow_id: str, workflow_type: str, name: str,
                  description: Optional[str], tags: Optional[List[str]],
-                 created_at: datetime, score: float = 1.0):
+                 created_at: datetime, score: float = 1.0,
+                 user_intent: Optional[str] = None,
+                 related_preflow: Optional[str] = None):
         self.workflow_id = workflow_id
         self.workflow_type = workflow_type
         self.name = name
@@ -28,6 +30,8 @@ class WorkflowSearchResult:
         self.tags = tags or []
         self.created_at = created_at
         self.score = score
+        self.user_intent = user_intent
+        self.related_preflow = related_preflow
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -37,5 +41,7 @@ class WorkflowSearchResult:
             "description": self.description,
             "tags": self.tags,
             "created_at": self.created_at.isoformat(),
-            "score": self.score
+            "score": self.score,
+            "user_intent": self.user_intent,
+            "related_preflow": self.related_preflow,
         }

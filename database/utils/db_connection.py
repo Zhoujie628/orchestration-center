@@ -55,7 +55,7 @@ def create_database_if_not_exists():
         database_name = conn_info.get('database', "orchestration_center")
         cursor.execute(
             sql.SQL("SELECT 1 FROM pg_database WHERE datname = {}").format(
-                sql.Identifier(database_name)
+                sql.Literal(database_name)
             )
         )
         exists = cursor.fetchone()
@@ -80,6 +80,7 @@ def create_connection():
         if not create_database_if_not_exists():
             return None
         conn = psycopg2.connect(**conn_info)
+        logger.info(f"Connected to database '{conn_info.get('database', 'unknown')}' on {conn_info.get('host', 'localhost')}:{conn_info.get('port', 5432)}")
         return conn
     except Exception as e:
         logger.error(f"Unable to connect to database: {e}")

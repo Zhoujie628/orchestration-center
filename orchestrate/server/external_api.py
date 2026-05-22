@@ -119,8 +119,8 @@ async def orchestrate_sop(
             try:
                 raw_body = await request.json()
                 body = SOPOrchestrateRequest.model_validate(raw_body)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"JSON body parsing skipped (form upload assumed): {e}")
 
         if file:
             filename = file.filename or ""
@@ -134,7 +134,7 @@ async def orchestrate_sop(
             await file.seek(0)
             parser = SolutionPackageParser()
             try:
-                preflow = parser.parse_pdf(file.file, filename)
+                preflow = parser.parse_pdf_chapter(file.file, "5. Interaction Flow")
                 sop_text = preflow.steps_md
                 workflow_name = workflow_name or preflow.name
             except ValueError as e:

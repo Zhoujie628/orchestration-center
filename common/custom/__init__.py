@@ -16,8 +16,8 @@
 from common.custom.custom_handle import (
     CustomSavePsopHandler,
     CustomDeletePsopHandler,
-    CustomGetAllPsopsPsopHandler,
-    CustomGetPsopPsopHandler,
+    CustomGetAllPsopsHandler,
+    CustomGetPsopHandler,
     CustomSaveExecutionRecordHandler,
     CustomListExecutionRecordsHandler,
     CustomGetExecutionRecordHandler,
@@ -28,8 +28,8 @@ from common.custom.interface_type import InterfaceType
 
 HandlerRegistry.register(InterfaceType.SAVE_PSOP, CustomSavePsopHandler)
 HandlerRegistry.register(InterfaceType.DELETE_PSOP, CustomDeletePsopHandler)
-HandlerRegistry.register(InterfaceType.GET_ALL_PSOP, CustomGetAllPsopsPsopHandler)
-HandlerRegistry.register(InterfaceType.GET_PSOP_BY_ID, CustomGetPsopPsopHandler)
+HandlerRegistry.register(InterfaceType.GET_ALL_PSOP, CustomGetAllPsopsHandler)
+HandlerRegistry.register(InterfaceType.GET_PSOP_BY_ID, CustomGetPsopHandler)
 HandlerRegistry.register(InterfaceType.SAVE_EXECUTION_RECORD, CustomSaveExecutionRecordHandler)
 HandlerRegistry.register(InterfaceType.LIST_EXECUTION_RECORDS, CustomListExecutionRecordsHandler)
 HandlerRegistry.register(InterfaceType.GET_EXECUTION_RECORD, CustomGetExecutionRecordHandler)

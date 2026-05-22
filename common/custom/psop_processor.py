@@ -15,6 +15,8 @@
 
 import json
 
+from loguru import logger
+
 from database.utils.db_connection import create_connection
 from database.utils.query_execution import execute_query
 from orchestrate.core.model.psop import PSOP
@@ -27,24 +29,41 @@ def custom_save_psop(psop):
                VALUES (%s, %s, %s, %s)
                """
     conn = create_connection()
-    execute_query(conn, save_sql, (psop.id, psop.name, psop.description, psop.model_dump_json()))
+    if conn is None:
+        raise RuntimeError("Unable to connect to database")
+    _, error = execute_query(conn, save_sql, (psop.id, psop.name, psop.description, psop.model_dump_json()))
     conn.close()
+    if error:
+        logger.error(f"[DB] Failed to save PSOP '{psop.name}' (id={psop.id}): {error}")
+        raise RuntimeError(f"Failed to save PSOP: {error}")
+    logger.info(f"[DB] PSOP saved: '{psop.name}' (id={psop.id})")
     return psop.id
 
 
 def custom_delete_psop(workflow_id):
     delete_sql = "DELETE FROM psop WHERE id = %s"
     conn = create_connection()
+    if conn is None:
+        return False
     result, error = execute_query(conn, delete_sql, (workflow_id,))
     conn.close()
-    return True if error is None else False
+    if error:
+        logger.error(f"[DB] Failed to delete PSOP (id={workflow_id}): {error}")
+        return False
+    logger.info(f"[DB] PSOP deleted (id={workflow_id})")
+    return True
 
 
 def get_all_psops():
     query_sql = "SELECT psop_content FROM psop"
     conn = create_connection()
-    psops, _ = execute_query(conn, query_sql)
+    if conn is None:
+        return []
+    psops, error = execute_query(conn, query_sql)
     conn.close()
+    if error:
+        logger.error(f"[DB] Failed to list PSOPs: {error}")
+        return []
     result = []
     for row in psops:
         psop = PSOP.model_validate(json.loads(row[0]))
@@ -55,16 +74,26 @@ def get_all_psops():
             description=psop.description,
             tags=psop.tags,
             created_at=psop.created_at,
+            user_intent=psop.user_intent,
+            related_preflow=psop.related_preflow,
         ))
+    logger.debug(f"[DB] Listed {len(result)} PSOP(s)")
     return result
 
 
 def get_psop_by_id(psop_id):
-    quert_sql = "SELECT psop_content FROM psop WHERE id = %s"
+    query_sql = "SELECT psop_content FROM psop WHERE id = %s"
     conn = create_connection()
-    results, _ = execute_query(conn, quert_sql, (psop_id,))
+    if conn is None:
+        return None
+    results, error = execute_query(conn, query_sql, (psop_id,))
     conn.close()
+    if error:
+        logger.error(f"[DB] Failed to load PSOP (id={psop_id}): {error}")
+        return None
     if len(results) != 0:
+        logger.debug(f"[DB] PSOP loaded (id={psop_id})")
         return PSOP.model_validate(json.loads(results[0][0]))
     else:
+        logger.warning(f"[DB] PSOP not found (id={psop_id})")
         return None

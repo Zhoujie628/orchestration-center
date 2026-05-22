@@ -16,9 +16,12 @@
 from loguru import logger
 
 
-def execute_query(conn,query, params=None):
+def execute_query(conn, query, params=None):
+    if conn is None:
+        logger.error("Database connection is None")
+        return None, RuntimeError("No database connection")
+    query = query.strip()
     cur = conn.cursor()
-    query.strip()
     try:
         cur.execute(query, params)
         if query.upper().strip().startswith("SELECT"):

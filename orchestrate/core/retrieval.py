@@ -18,6 +18,8 @@ import re
 from datetime import timezone
 from typing import Optional, List
 
+from loguru import logger
+
 from common.custom import HandlerRegistry, InterfaceType
 from common.llm import get_llm_instance
 from orchestrate.core.model.preflow import PreFlow
@@ -31,28 +33,33 @@ class WorkflowRetrieval:
     def __init__(self, storage: WorkflowStorage):
         self.storage = storage
 
+    def _list_psop_summaries(self) -> List[WorkflowSearchResult]:
+        handler = HandlerRegistry.get_handler(InterfaceType.GET_ALL_PSOP)
+        return handler.handle()
+
+    def _load_psop_by_id(self, workflow_id: str) -> Optional[PSOP]:
+        handler = HandlerRegistry.get_handler(InterfaceType.GET_PSOP_BY_ID)
+        return handler.handle(workflow_id)
+
     def get_psop_by_id(self, workflow_id: str) -> Optional[PSOP]:
-        query_handle = HandlerRegistry.get_handler(InterfaceType.GET_PSOP_BY_ID)
-        return query_handle.handle(workflow_id)
+        result = self._load_psop_by_id(workflow_id)
+        if result:
+            logger.debug(f"[Retrieval] Loaded PSOP by id: {workflow_id}")
+        else:
+            logger.debug(f"[Retrieval] PSOP not found by id: {workflow_id}")
+        return result
 
     def get_preflow_by_id(self, workflow_id: str) -> Optional[PreFlow]:
         return self.storage.load_preflow(workflow_id)
 
     def search_by_name(self, name_pattern: str, workflow_type: str = "all") -> List[WorkflowSearchResult]:
+        logger.debug(f"[Retrieval] search_by_name: pattern='{name_pattern}', type={workflow_type}")
         results = []
         name_lower = name_pattern.lower()
         if workflow_type in ("all", "psop"):
-            for wf_id in self.storage.list_psops():
-                psop = self.storage.load_psop(wf_id)
-                if psop and name_lower in psop.name.lower():
-                    results.append(WorkflowSearchResult(
-                        workflow_id=psop.id,
-                        workflow_type="psop",
-                        name=psop.name,
-                        description=psop.description,
-                        tags=psop.tags,
-                        created_at=psop.created_at
-                    ))
+            for summary in self._list_psop_summaries():
+                if name_lower in summary.name.lower():
+                    results.append(summary)
         if workflow_type in ("all", "preflow"):
             for wf_id in self.storage.list_preflows():
                 preflow = self.storage.load_preflow(wf_id)
@@ -63,7 +70,7 @@ class WorkflowRetrieval:
                         name=preflow.name,
                         description=preflow.description,
                         tags=preflow.tags,
-                        created_at=preflow.created_at
+                        created_at=preflow.created_at,
                     ))
         return results
 
@@ -72,27 +79,19 @@ class WorkflowRetrieval:
         results = []
         search_tags_lower = [t.lower() for t in tags]
 
-        def matches_tags(workflow_tags: Optional[List[str]]) -> bool:
-            if not workflow_tags:
+        def matches_tags(wf_tags: Optional[List[str]]) -> bool:
+            if not wf_tags:
                 return False
-            workflow_tags_lower = [t.lower() for t in workflow_tags]
+            wf_lower = [t.lower() for t in wf_tags]
             if match_all:
-                return all(st in workflow_tags_lower for st in search_tags_lower)
+                return all(st in wf_lower for st in search_tags_lower)
             else:
-                return any(st in workflow_tags_lower for st in search_tags_lower)
+                return any(st in wf_lower for st in search_tags_lower)
 
         if workflow_type in ("all", "psop"):
-            for wf_id in self.storage.list_psops():
-                psop = self.storage.load_psop(wf_id)
-                if psop and matches_tags(psop.tags):
-                    results.append(WorkflowSearchResult(
-                        workflow_id=psop.id,
-                        workflow_type="psop",
-                        name=psop.name,
-                        description=psop.description,
-                        tags=psop.tags,
-                        created_at=psop.created_at
-                    ))
+            for summary in self._list_psop_summaries():
+                if matches_tags(summary.tags):
+                    results.append(summary)
         if workflow_type in ("all", "preflow"):
             for wf_id in self.storage.list_preflows():
                 preflow = self.storage.load_preflow(wf_id)
@@ -103,7 +102,7 @@ class WorkflowRetrieval:
                         name=preflow.name,
                         description=preflow.description,
                         tags=preflow.tags,
-                        created_at=preflow.created_at
+                        created_at=preflow.created_at,
                     ))
         return results
 
@@ -111,17 +110,9 @@ class WorkflowRetrieval:
         results = []
         keyword_lower = keyword.lower()
         if workflow_type in ("all", "psop"):
-            for wf_id in self.storage.list_psops():
-                psop = self.storage.load_psop(wf_id)
-                if psop and psop.description and keyword_lower in psop.description.lower():
-                    results.append(WorkflowSearchResult(
-                        workflow_id=psop.id,
-                        workflow_type="psop",
-                        name=psop.name,
-                        description=psop.description,
-                        tags=psop.tags,
-                        created_at=psop.created_at
-                    ))
+            for summary in self._list_psop_summaries():
+                if summary.description and keyword_lower in summary.description.lower():
+                    results.append(summary)
         if workflow_type in ("all", "preflow"):
             for wf_id in self.storage.list_preflows():
                 preflow = self.storage.load_preflow(wf_id)
@@ -132,23 +123,24 @@ class WorkflowRetrieval:
                         name=preflow.name,
                         description=preflow.description,
                         tags=preflow.tags,
-                        created_at=preflow.created_at
+                        created_at=preflow.created_at,
                     ))
         return results
 
     def get_psop_by_preflow(self, preflow_id: str) -> List[PSOP]:
+        logger.debug(f"[Retrieval] get_psop_by_preflow: preflow_id={preflow_id}")
         results = []
-        for wf_id in self.storage.list_preflows():
-            psop = self.storage.load_psop(wf_id)
-            if psop and psop.related_preflow == preflow_id:
-                results.append(psop)
+        for summary in self._list_psop_summaries():
+            if summary.related_preflow == preflow_id:
+                psop = self._load_psop_by_id(summary.workflow_id)
+                if psop:
+                    results.append(psop)
         return results
 
     def list_recent_workflows(self, limit: int = 10, workflow_type: str = "all") -> List[WorkflowSearchResult]:
         results = []
         if workflow_type in ("all", "psop"):
-            query_handle = HandlerRegistry.get_handler(InterfaceType.GET_ALL_PSOP)
-            results.extend(query_handle.handle())
+            results.extend(self._list_psop_summaries())
         if workflow_type in ("all", "preflow"):
             for wf_id in self.storage.list_preflows():
                 preflow = self.storage.load_preflow(wf_id)
@@ -159,9 +151,9 @@ class WorkflowRetrieval:
                         name=preflow.name,
                         description=preflow.description,
                         tags=preflow.tags,
-                        created_at=preflow.created_at
+                        created_at=preflow.created_at,
                     ))
-        # Use timestamp for sorting to avoid offset-naive and offset-aware datetime comparison errors
+
         def _sort_key(x):
             if x.created_at.tzinfo:
                 return x.created_at.timestamp()
@@ -171,19 +163,6 @@ class WorkflowRetrieval:
         return results[:limit]
 
     def _parse_json_response(self, llm_response: str) -> str:
-        """Parse JSON response from LLM output.
-
-        Extracts JSON from code blocks in LLM responses.
-
-        Args:
-            llm_response: Raw LLM response string containing JSON code blocks
-
-        Returns:
-            Parsed string value from JSON
-
-        Raises:
-            ValueError: If no JSON code block found, empty content, or invalid JSON
-        """
         matches = re.findall(r'```json(.*?)```', llm_response, re.DOTALL)
         if not matches:
             raise ValueError("No JSON code block found in LLM answer")
@@ -198,55 +177,32 @@ class WorkflowRetrieval:
             raise ValueError(f"Invalid JSON format: {e}")
 
     def retrieve_psop_by_intent(self, user_intent: str) -> Optional[PSOP]:
-        """Retrieve the most suitable PSOP based on user's natural language intent.
-
-        Uses LLM to analyze user intent and select the most appropriate PSOP
-        from all available PSOPs based on their names and descriptions.
-
-        Args:
-            user_intent: Natural language description of user's intent
-
-        Returns:
-            The most suitable PSOP object, or None if no suitable PSOP found
-
-        Raises:
-            Exception: If LLM API call fails or parsing fails
-        """
-        # Retrieve all PSOP data
-        psop_list = []
-        for wf_id in self.storage.list_psops():
-            psop = self.storage.load_psop(wf_id)
-            if psop:
-                psop_list.append({
-                    "name": psop.name,
-                    "user_intent": psop.user_intent or "",
-                    "id": psop.id
-                })
-
-        if not psop_list:
+        logger.info(f"[Retrieval] retrieve_psop_by_intent: intent='{user_intent[:100]}...'")
+        summaries = self._list_psop_summaries()
+        if not summaries:
             return None
 
-        # Prepare PSOP list as JSON string
-        psop_list_str = json.dumps(psop_list, ensure_ascii=False, indent=2)
+        psop_list = [{
+            "name": s.name,
+            "user_intent": s.user_intent or "",
+            "id": s.workflow_id
+        } for s in summaries]
 
-        # Get LLM instance and invoke
+        psop_list_str = json.dumps(psop_list, ensure_ascii=False, indent=2)
         llm = get_llm_instance()
         prompt = get_retrieve_psop_prompt(user_intent, psop_list_str)
 
         try:
             _, llm_res = llm.ask_llm(prompt)
-            selected_psop_name = self._parse_json_response(llm_res)
+            selected_name = self._parse_json_response(llm_res)
 
-            # If LLM returns empty string, no suitable PSOP was found
-            if not selected_psop_name:
+            if not selected_name:
                 return None
 
-            # Find the PSOP object matching the selected name
-            for psop_info in psop_list:
-                if psop_info["name"] == selected_psop_name:
-                    return self.storage.load_psop(psop_info["id"])
+            for info in psop_list:
+                if info["name"] == selected_name:
+                    return self._load_psop_by_id(info["id"])
 
             return None
-
         except Exception as e:
             raise Exception(f"Failed to retrieve PSOP by intent: {e}")

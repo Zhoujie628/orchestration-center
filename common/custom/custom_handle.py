@@ -21,43 +21,52 @@ from common.custom.execution_record_processor import (
     db_get_execution_record,
     db_delete_execution_record,
 )
+from loguru import logger
 
 
 class CustomSavePsopHandler(BaseHandler):
     def handle(self, *args, **kwargs):
+        logger.debug("[DB] CustomSavePsopHandler invoked")
         return custom_save_psop(*args)
 
 
 class CustomDeletePsopHandler(BaseHandler):
     def handle(self, *args, **kwargs):
+        logger.debug("[DB] CustomDeletePsopHandler invoked")
         return custom_delete_psop(*args)
 
 
-class CustomGetAllPsopsPsopHandler(BaseHandler):
+class CustomGetAllPsopsHandler(BaseHandler):
     def handle(self, *args, **kwargs):
+        logger.debug("[DB] CustomGetAllPsopsHandler invoked")
         return get_all_psops()
 
 
-class CustomGetPsopPsopHandler(BaseHandler):
+class CustomGetPsopHandler(BaseHandler):
     def handle(self, *args, **kwargs):
+        logger.debug("[DB] CustomGetPsopHandler invoked")
         return get_psop_by_id(*args)
 
 
 class CustomSaveExecutionRecordHandler(BaseHandler):
     def handle(self, *args, **kwargs):
+        logger.debug("[DB] CustomSaveExecutionRecordHandler invoked")
         return db_save_execution_record(*args)
 
 
 class CustomListExecutionRecordsHandler(BaseHandler):
     def handle(self, *args, **kwargs):
+        logger.debug("[DB] CustomListExecutionRecordsHandler invoked")
         return db_list_execution_records()
 
 
 class CustomGetExecutionRecordHandler(BaseHandler):
     def handle(self, *args, **kwargs):
+        logger.debug("[DB] CustomGetExecutionRecordHandler invoked")
         return db_get_execution_record(*args)
 
 
 class CustomDeleteExecutionRecordHandler(BaseHandler):
     def handle(self, *args, **kwargs):
+        logger.debug("[DB] CustomDeleteExecutionRecordHandler invoked")
         return db_delete_execution_record(*args)

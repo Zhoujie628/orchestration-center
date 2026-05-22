@@ -263,7 +263,7 @@ class DynamicWorkflowEngine:
         except httpx.TimeoutException as e:
             raise RuntimeError(f"Agent call timed out") from e
         except httpx.ConnectError as e:
-            raise RuntimeError(f"Faild to connect to Agent : {e}") from e
+            raise RuntimeError(f"Failed to connect to Agent : {e}") from e
         except Exception as e:
             logger.error(f"Communicate with agent failed : {e}", exc_info=True)
             raise
@@ -329,7 +329,7 @@ class DynamicWorkflowEngine:
                 task.status = TaskStatus.FAILED
                 overall_success = False
                 error_msg = f"Agent call failed : {str(e)}"
-                results[task.skill] = {"error": error_msg}
+                results[task.description] = {"error": error_msg}
                 logger.error(f"  >Task failed: {task.description} | Error: {error_msg}")
 
                 # Push PSOP status on failure
