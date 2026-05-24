@@ -16,7 +16,7 @@
 import copy
 import json
 import time as _time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, cast
 
 import httpx
 from loguru import logger
@@ -66,8 +66,8 @@ class GenericLLM:
         try:
             body = self._render_body(prompt=prompt)
             data = self._do_request(body)
-            answer = self._extract(data, 'answer') or ''
-            reasoning = self._extract(data, 'reasoning') or ''
+            answer = cast(str, self._extract(data, 'answer') or '')
+            reasoning = cast(str, self._extract(data, 'reasoning') or '')
             duration = _time.time() - start
             logger.info(f"ask llm cost {duration:.2f}s")
             return reasoning, answer
@@ -76,20 +76,34 @@ class GenericLLM:
             return '', ''
 
     def embed(self, prompt: str) -> List[float]:
-        body = self._render_body(prompt=prompt)
-        data = self._do_request(body)
-        result = self._extract(data, 'embedding')
-        if result is None:
-            raise ValueError(f"Unable to extract embedding from response: {data}")
-        return result
+        start = _time.time()
+        try:
+            body = self._render_body(prompt=prompt)
+            data = self._do_request(body)
+            result = self._extract(data, 'embedding')
+            if result is None:
+                raise ValueError(f"Unable to extract embedding from response: {data}")
+            duration = _time.time() - start
+            logger.info(f"embed cost {duration:.2f}s")
+            return cast(List[float], result)
+        except Exception as e:
+            logger.error(f"embed exception {e}")
+            return []
 
     def rerank(self, query: str, documents: List[str]) -> List[Dict[str, Any]]:
-        body = self._render_body(query=query, documents=documents)
-        data = self._do_request(body)
-        result = self._extract(data, 'results')
-        if result is None:
-            raise ValueError(f"Unable to parse reranker response: {data}")
-        return result
+        start = _time.time()
+        try:
+            body = self._render_body(query=query, documents=documents)
+            data = self._do_request(body)
+            result = self._extract(data, 'results')
+            if result is None:
+                raise ValueError(f"Unable to parse reranker response: {data}")
+            duration = _time.time() - start
+            logger.info(f"rerank cost {duration:.2f}s")
+            return cast(List[Dict[str, Any]], result)
+        except Exception as e:
+            logger.error(f"rerank exception {e}")
+            return []
 
     # -- internal --
 

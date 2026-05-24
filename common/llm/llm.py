@@ -42,3 +42,24 @@ def get_embed_instance():
 
 def get_rerank_instance():
     return _get_instance("rerank")
+
+if __name__ == "__main__":
+    # Test Chat model
+    llm = get_llm_instance()
+    assert llm is not None, "LLM get instance faild"
+    print(f"current Chat model: {llm.to_dict()}")
+    result, reasoning = llm.ask_llm("what's the weather today？")
+    print(result)
+    print(reasoning)
+
+    # Test Embedding model
+    emb = get_embed_instance()
+    print(f"current Embedding model: {emb.to_dict()}")
+    embed_vector = emb.embed("what is the current document")
+    print(embed_vector)
+
+    # Test Reranker model
+    rerank = get_rerank_instance()
+    print(f"current Reranker model: {rerank.to_dict()}")
+    rerank_result = rerank.rerank("ABC", ["ABCD", "BCDE"])
+    print(rerank_result)

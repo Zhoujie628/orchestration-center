@@ -357,7 +357,7 @@ class TestEmbed:
             result = llm.embed("test text")
             assert result == [0.1, 0.2, 0.3]
 
-    def test_missing_embedding_raises(self):
+    def test_missing_embedding_returns_empty(self):
         with patch('common.llm.provider.generic_llm.httpx.Client') as mock_client_class:
             mock_client = MagicMock()
             mock_response = MagicMock()
@@ -367,8 +367,18 @@ class TestEmbed:
             mock_client_class.return_value = mock_client
 
             llm = GenericLLM(EMBED_CONFIG)
-            with pytest.raises(ValueError, match="Unable to extract embedding"):
-                llm.embed("test")
+            result = llm.embed("test")
+            assert result == []
+
+    def test_network_error_returns_empty(self):
+        with patch('common.llm.provider.generic_llm.httpx.Client') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.post.side_effect = Exception("connection refused")
+            mock_client_class.return_value = mock_client
+
+            llm = GenericLLM(EMBED_CONFIG)
+            result = llm.embed("test")
+            assert result == []
 
 
 class TestRerank:
@@ -402,7 +412,7 @@ class TestRerank:
             assert sent_body["query"] == "my query"
             assert sent_body["documents"] == ["d1", "d2"]
 
-    def test_missing_results_raises(self):
+    def test_missing_results_returns_empty(self):
         with patch('common.llm.provider.generic_llm.httpx.Client') as mock_client_class:
             mock_client = MagicMock()
             mock_response = MagicMock()
@@ -412,8 +422,18 @@ class TestRerank:
             mock_client_class.return_value = mock_client
 
             llm = GenericLLM(RERANK_CONFIG)
-            with pytest.raises(ValueError, match="Unable to parse reranker"):
-                llm.rerank("q", ["d"])
+            result = llm.rerank("q", ["d"])
+            assert result == []
+
+    def test_network_error_returns_empty(self):
+        with patch('common.llm.provider.generic_llm.httpx.Client') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.post.side_effect = Exception("connection refused")
+            mock_client_class.return_value = mock_client
+
+            llm = GenericLLM(RERANK_CONFIG)
+            result = llm.rerank("q", ["d"])
+            assert result == []
 
 
 class TestInstanceReuse:

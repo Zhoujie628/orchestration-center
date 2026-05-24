@@ -19,7 +19,7 @@
   "embed": {
     "description": "Embedding model for vector similarity",
     "model": "bge-m3",
-    "url": "http://AOC_HOST:PORT/aoc/openapi/YOUR_EMBED_ENDPOINT",
+    "url": "http://127.0.0.1:3021/aoc/openapi/YOUR_EMBED_ENDPOINT",
     "api_key": "dummy",
     "enable_thinking": false,
     "auth": {
@@ -46,7 +46,7 @@
   "rerank": {
     "description": "Reranker model for result reordering",
     "model": "bge-reranker-v2-m3",
-    "url": "http://AOC_HOST:PORT/aoc/openapi/interface/bge-reranker-v2-m3",
+    "url": "http://127.0.0.1:3021/aoc/openapi/interface/bge-reranker-v2-m3",
     "api_key": "dummy",
     "enable_thinking": false,
     "auth": {
