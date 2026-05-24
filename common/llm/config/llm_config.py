@@ -47,7 +47,7 @@ class ModelConfig:
 
 
 def _load_raw_config() -> Dict[str, Dict[str, Any]]:
-    return read_config_as_json("../../../config/llm_config.json")
+    return read_config_as_json("../../config/llm_config.json")
 
 
 _raw_config = _load_raw_config()
