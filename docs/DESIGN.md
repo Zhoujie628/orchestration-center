@@ -4,7 +4,7 @@
 
 ## 1. 系统架构总览
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │                    workflow-designer                      │
 │                React 18 + Vite + Tailwind                  │
@@ -56,7 +56,7 @@
 
 ### 2.1 核心模型关系
 
-```
+```text
 PreFlow (人工SOP模板)
   │  id, name, description, created_at, steps_md (markdown), tags
   │
@@ -92,7 +92,7 @@ ExecutionRecord (执行记录)
 
 ### 3.1 `DynamicWorkflowEngine` 控制流
 
-```
+```text
 run()
  ├─ 找到初始步骤 (layer=0, 无前驱)
  ├─ while pending:
@@ -128,7 +128,7 @@ run()
 
 ### 4.1 双模存储架构
 
-```
+```text
                    HandlerRegistry
                    ┌─────────────┐
                    │ _registry   │ (class dict)
@@ -258,7 +258,7 @@ run()
 
 ### 6.3 编排中心核心流程
 
-```
+```text
 模板点击 → 进入编辑器 → 编辑画布 → 点保存
                                     ↓
                           弹窗输入名称+描述 → 落盘
@@ -272,7 +272,7 @@ PDF上传 → 解析章节 → PSOP生成 → 预览 → 可进入编辑
 
 ### 6.4 执行中心核心流程
 
-```
+```text
 输入意图 → 检索匹配 → [单选: 直接预览] / [多选: 弹窗选择]
                          ↓
                    点击播放 → SSE 流式执行
@@ -286,7 +286,7 @@ PDF上传 → 解析章节 → PSOP生成 → 预览 → 可进入编辑
 
 ### 7.1 配置文件
 
-```
+```text
 etc/conf/server.conf       (基础配置, key=value 行)
 etc/conf/server.properties (覆盖配置, 更高优先级, 持久化用户设置)
 etc/conf/db_config.json    (PostgreSQL 连接)

@@ -388,7 +388,7 @@
 
 - 返回参数（data 字段）
 
-  详见 [PSOP 数据结构](#附录a-psop-数据结构)。
+  详见 [PSOP 数据结构](#附录-a-psop-数据结构)。
 
 - 错误码
 
@@ -541,7 +541,7 @@ for line in resp.iter_lines(decode_unicode=True):
 
     每个事件 JSON 包含 `type`（事件类型）、`data`（事件数据）、`timestamp`（时间戳）三个字段。
 
-    执行完成后，系统自动保存 `ExecutionRecord` 执行记录，可通过 [查询执行结果接口](#6-查询执行结果接口) 获取详情。
+    执行完成后，系统自动保存 `ExecutionRecord` 执行记录，可通过 [查询执行结果详情](#7-查询执行结果详情) 获取详情。
 
 - 响应示例
 

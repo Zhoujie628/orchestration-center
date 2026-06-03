@@ -1,5 +1,4 @@
 <!--
-!/usr/bin/env python3
 Copyright (c) 2026 Huawei Technologies Co., Ltd.
 All Rights Reserved.
 
@@ -16,187 +15,168 @@ All Rights Reserved.
    under the License.
 -->
 
-# A2A-T 多智能体编排中心
+# A2A-T Multi-Agent Orchestration Center
+
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python"></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-20.19+-green.svg" alt="Node.js"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-orange.svg" alt="License"></a>
+</p>
+
+<p align="center">
+  <strong>A visual orchestration platform for multi-agent collaboration via the A2A-T protocol.</strong>
+  <br>
+  基于 A2A-T 协议的多智能体可视化编排平台。
+</p>
+
+<p align="center">
+  <a href="./README_zh.md">中文</a>
+</p>
+
+---
 
 ## Overview
 
-### 项目定位
+The Orchestration Center is a visual platform for designing and executing multi-agent workflows. It provides a **drag-and-drop workflow designer**, an **async execution engine**, and **A2A-T negotiation** integration — enabling teams to build, manage, and run complex agent collaboration flows without writing code.
 
-编排中心是一个面向多智能体（Agent）协作的可视化编排平台，支持通过图形化工作流设计器定义Agent之间的调用关系与执行流程。后端基于Python框架解析流程并驱动Agent协同工作，帮助用户高效构建、管理和运行复杂的Agent协作流程。
+**Use cases:** Telecom network assurance workflows, RAN energy-saving orchestration, SPN fault handling pipelines, enterprise multi-agent automation.
 
-### 核心能力
+<img src="docs/images/workflow.png" width="700" alt="Orchestration Center Architecture">
 
-| 能力 | 说明                                                              |
-|------|-----------------------------------------------------------------|
-| **可视化编排** | 提供图形化工作流设计器，通过拖拽和连线即可完成Agent协作流程设计，无需编写代码                       |
-| **多模式生成** | 支持PDF导入、手动编排、自然语言生成三种工作流创建方式，适配不同用户习惯                           |
-| **A2A-T协商集成** | 集成a2a-t-sdk的fulfillment协商能力，支持Agent间协商交互，协商上下文通过Task.metadata携带 |
-| **智能检索** | 基于自然语言意图检索历史工作流，快速复用已有流程                                        |
-| **实时流式执行** | 通过SSE技术实时推送执行进度，便于前端展示和问题定位                                     |
+## Features
 
-### 技术架构
-
-| 层级 | 技术 |
-|------|------|
-| 后端框架 | Python + FastAPI + uvicorn |
-| 前端框架 | Node.js + React |
-| SDK集成 | a2a-t-sdk（协商能力）、a2a-sdk（协议实现） |
-| 数据存储 | PostgreSQL / File |
-| 消息推送 | SSE (Server-Sent Events) |
-
-### 目录结构
-
-```
-orchestration-center/
-├── orchestrate/              # 核心编排模块
-│   ├── core/                 # 核心模型（PSOP、PreFlow）
-│   ├── runtime/              # 执行引擎（DynamicWorkflowEngine）
-│   ├── server/               # REST API服务（内部+对外）
-│   ├── registry_client/      # 注册中心客户端
-│   ├── agentcard_loader.py   # AgentCard加载器
-│   └── solution_package/     # SolutionPackage解析
-├── samples/                  # 示例Agent
-│   ├── agents/               # Agent实现（集成A2A-T协商）
-│   ├── start_agents_server.py # 启动示例Agent
-│   └── agentcard/            # AgentCard定义
-├── workflow-designer/        # 前端可视化设计器（React+Vite）
-├── common/                   # 公共模块
-│   ├── a2at_config.py        # A2A-T SDK配置生成
-│   ├── config/               # 配置文件（llm_config.json等）
-│   ├── custom/               # 可插拔Handler注册
-│   ├── llm/                  # LLM抽象层
-│   ├── log/                  # 日志模块
-│   ├── util/                 # 工具函数
-│   └── negotiation_utils.py  # 协商工具函数
-├── database/                 # PostgreSQL支持（可选）
-├── bin/                      # 启动/停止脚本
-├── scripts/                  # 测试脚本
-├── test/                     # 单元测试
-├── tests/                    # 集成测试
-├── etc/                      # SSL证书、服务配置
-├── data/                     # 本地数据存储
-├── docs/                     # 文档（API参考、用户指南等）
-├── .github/                  # CI/CD流水线
-└── AGENTS.md                 # Agent卡片目录（开发指南）
-```
-
-### 核心依赖
-
-| 依赖 | 版本 | 用途 |
-|------|------|------|
-| a2a-t-sdk | &gt;=0.1.1 | Agent协商能力（fulfillment协商） |
-| a2a-sdk | latest | A2A协议实现 |
-| fastapi | &gt;=0.135.1 | REST API框架 |
-| pydantic | &gt;=2.12.5 | 数据模型验证 |
-| openai | &gt;=2.26.0 | LLM调用 |
-| uvicorn | &gt;=0.42 | ASGI服务器 |
-
----
+| Category | Capability |
+|----------|------------|
+| **Visual Designer** | React Flow-based drag-and-drop workflow builder with automatic Dagre layout |
+| **Multi-Mode Creation** | PDF document import, manual drag-and-drop, and natural-language-to-workflow via LLM |
+| **A2A-T Negotiation** | Fulfillment negotiation between agents via a2a-t-sdk, context carried in Task.metadata |
+| **Execution Engine** | `DynamicWorkflowEngine` — async DAG traversal, parallel A2A calls, conditional LLM routing, SSE streaming |
+| **Semantic Search** | Natural-language retrieval of previously built workflows |
+| **Dual API Layer** | Internal API (`/rest/v1/orchestrate/*`) for the frontend + External API (`/api/v1/*`) for third-party integration |
+| **SSE Streaming** | Real-time execution progress via 8 event types (init, start, agent_request, agent_response, complete, error, etc.) |
+| **Pluggable Storage** | File-based JSON (default) or PostgreSQL persistence via HandlerRegistry |
+| **Template Marketplace** | Pre-built workflow templates for telecom scenarios (live broadcast, energy saving, fault handling) |
+| **Sample Agents** | 8+ sample A2A agents with negotiation support for testing and demonstration |
 
 ## Quick Start
 
-### 环境要求
+### Prerequisites
 
-| 环境 | 版本要求        |
-|------|-------------|
-| Node.js | &gt;= 20.19 |
-| Python | &gt;= 3.12  |
+| Component | Requirement |
+|-----------|-------------|
+| Python | 3.12+ |
+| Node.js | 20.19+ |
 
-### 安装步骤
-
-#### Windows
+### Install & Run
 
 ```bash
-# 1. 创建虚拟环境
-python -m venv .venv
+# Clone the repository
+git clone https://gitcode.com/OpenAN/orchestration-center.git
+cd orchestration-center
 
-# 2. 激活虚拟环境
-.\.venv\Scripts\activate
-
-# 3. 安装依赖
+# Backend setup
+python3 -m venv .venv
+source .venv/bin/activate      # Linux
+# .venv\Scripts\activate       # Windows
 pip install -r requirements.txt
 
-# 4. 启动后端服务
+# Start backend (port 60000)
 python -m orchestrate.start
 
-# 5. 启动前端服务
+# Frontend setup (separate terminal)
 cd workflow-designer
 npm install --force
-npm run dev
+npm run dev                     # port 3003
 
-# 6. （可选）启动示例Agent
+# (Optional) Start sample agents
 cd ..
 python -m samples.start_agents_server
 ```
 
-#### Linux
+### Verify
+
+| Service | Check |
+|---------|-------|
+| Backend | `Uvicorn running on http://127.0.0.1:60000` |
+| Frontend | Open `http://localhost:3003` in browser |
+| Sample Agents | Agent startup messages in console |
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph frontend["Frontend"]
+        wd["Workflow Designer<br/>React 18 + Vite + Tailwind<br/>Port 3003"]
+    end
+
+    subgraph backend["Orchestration Backend (Port 60000)"]
+        direction TB
+        api["Dual API Layer<br/>Internal /rest/v1/orchestrate/*<br/>External /api/v1/*"]
+        domain["Core Domain<br/>PSOP Generator · Intent Generator<br/>Semantic Search · Publisher"]
+        engine["DynamicWorkflowEngine<br/>DAG Traversal · Parallel A2A Calls<br/>LLM Routing · SSE Push"]
+    end
+
+    subgraph storage["Storage"]
+        direction LR
+        file[("File JSON")]
+        pg[("PostgreSQL")]
+    end
+
+    subgraph agents["A2A Agents"]
+        direction LR
+        a1["Agent A"]
+        a2["Agent B"]
+        a3["Agent C..."]
+    end
+
+    wd -->|"REST / SSE"| api
+    api --> domain
+    domain --> engine
+    engine --> file
+    engine --> pg
+    engine -->|"A2A Protocol<br/>+ A2A-T Negotiation"| a1
+    engine --> a2
+    engine --> a3
+
+    style backend fill:#e1f5fe,stroke:#0288d1
+    style frontend fill:#e8f5e9,stroke:#388e3c
+    style storage fill:#f3e5f5,stroke:#7b1fa2
+    style agents fill:#fff3e0,stroke:#f57c00
+```
+
+## API Overview
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/solution-package/import` | Import a solution package (PDF) |
+| `POST` | `/api/v1/psops/auto-orchestrate` | Auto-generate workflow from description |
+| `POST` | `/api/v1/psops` | Create a PSOP workflow |
+| `GET` | `/api/v1/psops` | List all workflows |
+| `GET` | `/api/v1/psops/{psop_id}` | Get workflow detail |
+| `PUT` | `/api/v1/psops/{psop_id}` | Update a workflow |
+| `DELETE` | `/api/v1/psops/{psop_id}` | Delete a workflow |
+| `POST` | `/api/v1/psops/{psop_id}/execute` | Execute a workflow (SSE streaming) |
+| `GET` | `/api/v1/psops/{psop_id}/executions` | Query execution history |
+| `POST` | `/api/v1/retrieve` | Semantic search workflows |
+| `POST` | `/api/v1/psops/publish` | Publish a workflow version |
+
+Full API specification: [API Reference](docs/en/Orchestration%20Center%20API%20Reference.md)
+
+## Configuration
+
+| Config File | Purpose |
+|-------------|---------|
+| `etc/conf/server.conf` | Server IP, port, TLS certificates, persistence mode, registry URL |
+| `etc/conf/server.properties` | TLS versions, ciphers, rate limiting, connection limits |
+| `etc/conf/db_config.json` | PostgreSQL connection settings |
+| `common/config/llm_config.json` | LLM/embed/rerank model endpoints |
+| `common/config/README_en.md` | LLM configuration guide |
+
+## A2A-T SDK Integration
+
+This project integrates a2a-t-sdk for agent fulfillment negotiation:
 
 ```bash
-# 1. 创建虚拟环境
-python3 -m venv .venv
-
-# 2. 激活虚拟环境
-source .venv/bin/activate
-
-# 3. 安装依赖
-pip install -r requirements.txt
-
-# 4. 启动后端服务（后台运行）
-nohup python -m orchestrate.start > orchestrate.log 2>&1 &
-
-# 5. 启动前端服务
-cd workflow-designer
-npm install --force
-npm run dev
-
-# 6. （可选）启动示例Agent
-cd ..
-python -m samples.start_agents_server
-```
-
-### 验证启动成功
-
-| 服务 | 验证方式 |
-|------|----------|
-| 后端服务 | 看到日志输出 `Uvicorn running on http://127.0.0.1:60000` |
-| 前端服务 | 浏览器访问 `http://localhost:3003` |
-| 示例Agent | 看到日志输出各Agent启动信息 |
-
----
-
-## A2A-T SDK集成
-
-本项目集成了a2a-t-sdk的协商能力，支持Agent间fulfillment协商交互。
-
-### 协商流程
-
-```
-编排端 → 发送任务 → Agent端
-                    ↓
-              A2ATServer.start_negotiation()
-                    ↓
-              发起fulfillment协商
-                    ↓
-              协商上下文通过Task.metadata携带
-                    ↓
-编排端 → 解析metadata中的negotiationContext
-                    ↓
-              支持多轮协商交互
-```
-
-### 协商能力说明
-
-| 组件 | 功能 |
-|------|------|
-| `A2ATServer` | Agent端协商服务，发起/接收/继续协商 |
-| `A2ATClient` | 编排端协商客户端，生成任务提示词 |
-| `NegotiationType.FULFILLMENT` | 当前支持的协商类型（任务执行协商） |
-
-### 配置说明
-
-协商配置由 `common/a2at_config.py` 从 `common/config/llm_config.json` 自动生成：
-
-```env
 A2AT_LLM_PROVIDER=deepseek
 A2AT_LLM_MODEL=deepseek-chat
 A2AT_LLM_API_KEY=<your-api-key>
@@ -204,50 +184,22 @@ A2AT_LLM_BASE_URL=https://api.deepseek.com
 A2AT_NEGOTIATION_STATE_STORE_TYPE=in_memory
 ```
 
-### 协商相关代码
+Configuration is auto-generated by `common/a2at_config.py` from `common/config/llm_config.json`.
 
-| 文件路径 | 说明 |
-|----------|------|
-| `samples/agents/negotiation_base_agent.py` | 协商Agent基类 |
-| `common/negotiation_utils.py` | 协商工具函数 |
-| `orchestrate/runtime/exec_engine.py` | 执行引擎（协商上下文解析） |
-| `orchestrate/agentcard_loader.py` | AgentCard加载器 |
+## Documentation
 
----
+| Document | Language | Description |
+|----------|----------|-------------|
+| [User Guide](docs/en/Orchestration%20Center%20User%20Guide.md) | EN | Features, scenarios, quick start, FAQ |
+| [User Guide](docs/zh/用户指南.md) | 中文 | 特性介绍、使用场景、快速入门、FAQ |
+| [API Reference](docs/en/Orchestration%20Center%20API%20Reference.md) | EN | Full REST API specification |
+| [API Reference](docs/zh/编排中心API参考.md) | 中文 | 完整 REST API 规范 |
+| [Developer Guide](docs/en/Orchestration%20Center%20Development%20Guide.md) | EN | Custom handlers, LLM module, extension |
+| [Developer Guide](docs/zh/开发指南.md) | 中文 | 自定义处理器、LLM 模块、扩展开发 |
+| [Design Doc](docs/DESIGN.md) | 中文 | System architecture and design |
+| [Frontend README](workflow-designer/README.md) | EN | Workflow Designer setup and tech stack |
+| [LLM Config](common/config/README_en.md) | EN | LLM configuration reference |
 
-## 启动前配置（可选）
+## License
 
-### IP端口配置
-
-本项目默认在 `127.0.0.1:60000` 上开放端口侦听，可按需修改。
-
-配置文件：`{安装目录}/etc/conf/server.conf`
-
-```properties
-ip=127.0.0.1
-port=60000
-```
-
-### 证书配置
-
-如需启用HTTPS，配置SSL证书：
-
-```properties
-ssl_certfile=etc/ssl/server.cer
-ssl_keyfile=etc/ssl/server_key.pem
-ssl_keyfile_password=etc/ssl/cert_pwd
-ssl_ca_certs=etc/ssl/trust.cer
-verify_client=true
-enable_https=true
-```
-
-如不需要证书校验，设置 `enable_https=false`。
-
-### 数据持久化配置
-
-```properties
-persistence_mode=postgresql  # 或 file
-```
-
-- `postgresql`：需配置 `{安装目录}/etc/conf/db_config.json`
-- `file`：数据保存在 `{安装目录}/data` 目录
+This project is licensed under the **Apache License 2.0**. See [LICENSE](LICENSE) for details.

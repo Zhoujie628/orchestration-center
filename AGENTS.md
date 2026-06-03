@@ -43,6 +43,7 @@ pytest tests/test_external_apis.py -v -s
 ```
 
 **Run a single test:**
+
 ```powershell
 pytest test/test_exec_engine.py::TestDynamicWorkflowEngine::test_linear_execution -v
 ```
@@ -50,31 +51,36 @@ pytest test/test_exec_engine.py::TestDynamicWorkflowEngine::test_linear_executio
 ## Architecture notes
 
 ### Entrypoints (all run via `-m`)
+
 - `python -m orchestrate.start` — backend server
 - `python -m samples.start_agents_server` — 8 sample A2A agents
 
 ### Two API layers in one FastAPI app
+
 - **Internal** — `/rest/v1/orchestrate/*` — consumed by the React frontend
 - **External** — `/api/v1/*` — public-facing API
 - Legacy routes for backward-compatible redirects also exist
 
 ### Config system (non-standard)
+
 Config is loaded by `common/util/config_util.py:get_conf()`. It reads `etc/conf/server.conf` then `etc/conf/server.properties` (second file overrides), parsing `key=value` lines. **All keys are lowercased**. No env-var or structured-config library is used.
 
 Key config keys: `ip`, `port`, `enable_https`, `persistence_mode`, `agent_registry_url`, `forwarded_allow_ips`.
 
 ### Persistence mode
+
 `persistence_mode=file` (default) → file-based JSON storage under `data/workflow_storage/`.
 `persistence_mode=postgresql` → auto-creates DB tables on startup via `database/utils/table_creation.py`, reads connection from `etc/conf/db_config.json`.
 
 The `WorkflowStorage` singleton is accessed via `get_workflow_storage()` (uses `@lru_cache(maxsize=1)`).
 
 ### A2A-T SDK config
+
 `.env` for the a2a-t-sdk is auto-generated from `common/config/llm_config.json` via `common/a2at_config.py`.
 
 ## Repo layout (what matters)
 
-```
+```text
 orchestrate/           # Core backend: models, runtime engine, server, registry client
   core/model/          # PSOP, PreFlow, ExecutionRecord (Pydantic)
   core/psop_generator.py   # LLM-driven PreFlow → PSOP

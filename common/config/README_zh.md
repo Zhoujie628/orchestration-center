@@ -140,4 +140,4 @@ rerank = get_rerank_instance()
 results = rerank.rerank("查询", ["候选1", "候选2"])
 ```
 
-> 详细配置指南见 `docs/zh/开发指南.md` 附录 D。
+> 详细配置指南见 [编排中心开发指南](../../docs/zh/开发指南.md)。

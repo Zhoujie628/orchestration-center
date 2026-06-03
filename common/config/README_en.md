@@ -140,4 +140,4 @@ rerank = get_rerank_instance()
 results = rerank.rerank("query", ["candidate1", "candidate2"])
 ```
 
-> For detailed configuration guide, see `docs/zh/开发指南.md` Appendix D.
+> For detailed configuration guide, see [Orchestration Center Development Guide](../../docs/en/Orchestration%20Center%20Development%20Guide.md).
