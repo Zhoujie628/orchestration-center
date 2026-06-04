@@ -465,7 +465,7 @@ for the given user intent, ordered by relevance.
 {psop_list}
 
 ## Selection Criteria
-1. **Intent Match**: Evaluate how well each PSOP's name and description align with the user intent.
+1. **Intent Match**: Evaluate how well each PSOP's name, description, user_intent, tags, and tasks align with the user intent.
 2. **Functional Coverage**: Assess whether the PSOP's capabilities cover the user's requirements.
 3. **Domain Relevance**: Consider the IT operations domain specialization match.
 4. **Relevance Ordering**: Order results from most to least relevant.

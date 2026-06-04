@@ -42,6 +42,7 @@ class WorkflowRetrieval:
         for wf_id in self.storage.list_psops():
             psop = self.storage.load_psop(wf_id)
             if psop:
+                tasks_summary = self._build_tasks_summary(psop)
                 results.append(WorkflowSearchResult(
                     workflow_id=psop.id,
                     workflow_type="psop",
@@ -51,8 +52,21 @@ class WorkflowRetrieval:
                     created_at=psop.created_at,
                     user_intent=psop.user_intent,
                     related_preflow=psop.related_preflow,
+                    tasks_summary=tasks_summary,
                 ))
         return results
+
+    @staticmethod
+    def _build_tasks_summary(psop: PSOP) -> Optional[str]:
+        task_descriptions = []
+        for step in psop.steps[:8]:
+            for task in step.subtasks[:3]:
+                desc = (task.description or "").strip()
+                if desc:
+                    task_descriptions.append(f"[{step.name}] {desc}")
+        if not task_descriptions:
+            return None
+        return "; ".join(task_descriptions[:12])
 
     def _load_psop_by_id(self, workflow_id: str) -> Optional[PSOP]:
         if self._db_mode:
@@ -201,7 +215,10 @@ class WorkflowRetrieval:
 
         psop_list = [{
             "name": s.name,
+            "description": s.description or "",
+            "tags": s.tags or [],
             "user_intent": s.user_intent or "",
+            "tasks": s.tasks_summary or "",
             "id": s.workflow_id
         } for s in summaries]
 

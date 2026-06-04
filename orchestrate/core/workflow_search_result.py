@@ -29,6 +29,7 @@ class WorkflowSearchResult(BaseModel):
     score: float = Field(default=1.0, description="Search relevance score")
     user_intent: Optional[str] = Field(None, description="User intent text")
     related_preflow: Optional[str] = Field(None, description="Related PreFlow ID")
+    tasks_summary: Optional[str] = Field(None, description="Concise summary of steps/tasks in the workflow")
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump()

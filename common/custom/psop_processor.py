@@ -67,6 +67,18 @@ def custom_delete_psop(workflow_id):
         conn.close()
 
 
+def _build_tasks_summary(psop: PSOP) -> str:
+    task_descriptions = []
+    for step in psop.steps[:8]:
+        for task in step.subtasks[:3]:
+            desc = (task.description or "").strip()
+            if desc:
+                task_descriptions.append(f"[{step.name}] {desc}")
+    if not task_descriptions:
+        return ""
+    return "; ".join(task_descriptions[:12])
+
+
 def get_all_psops():
     query_sql = "SELECT psop_content FROM psop"
     conn = create_connection()
@@ -89,6 +101,7 @@ def get_all_psops():
                 created_at=psop.created_at,
                 user_intent=psop.user_intent,
                 related_preflow=psop.related_preflow,
+                tasks_summary=_build_tasks_summary(psop),
             ))
         logger.debug(f"[DB] Listed {len(result)} PSOP(s)")
         return result
