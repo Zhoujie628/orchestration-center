@@ -1,12 +1,12 @@
-# PSOP Orchestration Center API 文档
+# PSOP 编排中心 API 文档
 
-> **DEPRECATED**: This document describes the legacy API surface. The current API has been split into:
-> - **Frontend API**: `/rest/v1/orchestrate/*` (defined in `orchestrate/server/frontend_support_server.py`)
-> - **External API**: `/api/v1/*` (defined in `orchestrate/server/external_api.py`)
-> - **Startup command**: `python -m orchestrate.start` (not `python -m framework.server.frontend_support_server`)
+> **已废弃**: 本文档描述的是旧版 API 接口。当前 API 已拆分为：
+> - **前端 API**: `/rest/v1/orchestrate/*`（定义于 `orchestrate/server/frontend_support_server.py`）
+> - **对外 API**: `/api/v1/*`（定义于 `orchestrate/server/external_api.py`）
+> - **启动命令**: `python -m orchestrate.start`（非 `python -m framework.server.frontend_support_server`）
 >
-> Refer to `docs/zh/编排中心API参考.md` for the current external API documentation.
-> The routes described below may still work via legacy compatibility aliases but have been superseded.
+> 当前对外 API 文档请参见 `docs/zh/编排中心API参考.md`。
+> 以下路由可能通过兼容别名仍然可用，但已被替代。
 
 ## 概述
 

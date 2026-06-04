@@ -195,7 +195,7 @@ A2AT_NEGOTIATION_STATE_STORE_TYPE=in_memory
 | [前端 README](workflow-designer/README.md) | 工作流设计器技术栈与开发 |
 | [LLM 配置](common/config/README_zh.md) | LLM 配置文件说明 |
 
-> English documentation is available under [docs/en/](docs/en/).
+> 英文文档请参见 [docs/en/](docs/en/)。
 
 ## 许可证
 

@@ -1,6 +1,6 @@
 {
   "nav": {
-    "title": "OpenAN Orchestration Center",
+    "title": "Agent to Agent for Telecom Orchestration Center",
     "tabs": {
       "agents": "Agent库",
       "orchestration": "编排中心",
@@ -30,15 +30,15 @@
     "terminate": "终止执行",
     "execute_btn": "执行工作流",
     "engine_status": "系统状态",
-    "ready": "ready",
+    "ready": "就绪",
     "processing_input": "正在处理输入...",
     "ai_planned": "规划序列",
     "workflow_label": "工作流预览",
     "interface_label": "工作流预览",
     "ai_gen": "自然语言编排",
-    "native": "preflow",
+    "native": "原生编排",
     "generating_wf": "正在生成工作流...",
-    "standby": "ready",
+    "standby": "待命",
     "interaction": "交互",
     "sync": "同步滚动",
     "idle": "无记录",
@@ -69,7 +69,7 @@
   "orchestration": {
     "title": "编排中心",
     "list_label": "核心运维流",
-    "method_import": "SolutionPackage 导入",
+    "method_import": "解决方案包导入",
     "method_graph": "图形化编排",
     "method_ai": "自然语言编排",
     "edit_mode": "编辑模式",
@@ -97,7 +97,7 @@
     "incorrect_content": "无法解析json文件，请检查文件内容。",
     "delete_workflow_title": "删除工作流",
     "delete_workflow_confirm": "确定要删除该工作流吗？此操作无法撤销。",
-    "stage_parsing": "正在解析SolutionPackage...",
+    "stage_parsing": "正在解析解决方案包...",
     "stage_planning": "正在编排工作流...",
     "stage_generating": "正在根据意图生成工作流...",
     "stage_finalizing": "正在构建预览...",
@@ -189,7 +189,7 @@
     },
     "validate": {
       "empty": "画布不能为空",
-      "invalidAgent": "workflow校验失败，请更新workflow",
+      "invalidAgent": "工作流校验失败，请更新工作流",
       "noSkill": "节点 [{{id}}] 未选择技能",
       "noEdge": "节点 [{{id}}] 缺少输出连线",
       "noEnd": "流程缺少结束节点",

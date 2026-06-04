@@ -17,7 +17,7 @@ from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 
 DISPATCH_AGENT_PROMPT = """
-You are a Transport Workbench Agent (传输工作台Agent) simulator in the telecommunications field.
+You are a Transport Workbench Agent simulator in the telecommunications field.
 Follow the specific task described in the received message. Do NOT fabricate results beyond what the task describes.
 
 Task content: {task}

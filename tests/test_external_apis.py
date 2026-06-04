@@ -14,7 +14,7 @@
 #    under the License.
 
 """
-编排中心对外 API 集成测试（真实调用，无 Mock）
+编排中心对外 API 集成测试（真实调用，无模拟）
 
 基于权威文档：docs/zh/编排中心API参考.md
 
