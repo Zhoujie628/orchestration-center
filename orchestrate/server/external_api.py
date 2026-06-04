@@ -260,7 +260,7 @@ async def get_psop(
         raise
     except Exception as e:
         logger.error(f"Failed to get PSOP: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get PSOP")
+        raise HTTPException(status_code=500, detail=f"Failed to get PSOP: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

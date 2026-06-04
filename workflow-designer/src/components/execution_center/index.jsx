@@ -296,7 +296,7 @@ const LogEntry = React.memo(({ event, isDark, t, isSelected }) => {
         };
 
         const negotiationMarkers = /^\[NEGOTIATION_(RESOLUTION|REQUEST|CONTEXT)\]/;
-        const contextJsonPattern = /^\{\s*"negotiation(?:Type|Id)"\s*:/;
+        const contextJsonPattern = /^\s*\{\s*"negotiation(?:Type|Id)"\s*:/;
 
         const allText = Array.from(new Set(findText(parsed)))
             .filter(t => {
@@ -348,9 +348,9 @@ const LogEntry = React.memo(({ event, isDark, t, isSelected }) => {
                     {isNegotiation ? <MessageSquare size={15} className="opacity-80" /> : <Bot size={15} className="opacity-80" />}
                     <span className="text-[12.5px] font-black uppercase tracking-widest font-mono">
                         {isNegotiationFailed
-                            ? 'Negotiation Failed'
+                            ? t('execution.negotiation_failed')
                             : (isNegotiation
-                                ? (event.type === 'negotiation_request' ? 'Negotiation Request' : 'Negotiation Resolved')
+                                ? (event.type === 'negotiation_request' ? t('execution.negotiation_request') : t('execution.negotiation_resolved'))
                                 : event.data.agent)}
                     </span>
                 </div>

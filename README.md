@@ -146,19 +146,38 @@ flowchart TB
 
 ## API Overview
 
+### External API (`/api/v1/*`)
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/v1/solution-package/import` | Import a solution package (PDF) |
-| `POST` | `/api/v1/psops/auto-orchestrate` | Auto-generate workflow from description |
-| `POST` | `/api/v1/psops` | Create a PSOP workflow |
-| `GET` | `/api/v1/psops` | List all workflows |
-| `GET` | `/api/v1/psops/{psop_id}` | Get workflow detail |
-| `PUT` | `/api/v1/psops/{psop_id}` | Update a workflow |
-| `DELETE` | `/api/v1/psops/{psop_id}` | Delete a workflow |
-| `POST` | `/api/v1/psops/{psop_id}/execute` | Execute a workflow (SSE streaming) |
-| `GET` | `/api/v1/psops/{psop_id}/executions` | Query execution history |
-| `POST` | `/api/v1/retrieve` | Semantic search workflows |
-| `POST` | `/api/v1/psops/publish` | Publish a workflow version |
+| `POST` | `/api/v1/orchestrate/sop` | SOP-based workflow orchestration (JSON text or file upload) |
+| `POST` | `/api/v1/orchestrate/intent` | Intent-based workflow orchestration |
+| `GET` | `/api/v1/orchestrate/psop/{id}` | Get PSOP workflow detail |
+| `POST` | `/api/v1/orchestrate/search` | Search workflows by natural language intent |
+| `POST` | `/api/v1/orchestrate/execute` | Auto-orchestrate + execute (SSE streaming) |
+| `GET` | `/api/v1/orchestrate/execute/{id}` | Execute a known PSOP (SSE streaming) |
+| `GET` | `/api/v1/executions` | List execution records |
+| `GET` | `/api/v1/executions/{id}` | Get execution result |
+
+### Internal API (`/rest/v1/orchestrate/*`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/workflows` | List workflows |
+| `GET` | `/workflows/{id}` | Get workflow detail |
+| `POST` | `/workflows` | Create workflow |
+| `DELETE` | `/workflows/{id}` | Delete workflow |
+| `POST` | `/generate-from-preflow` | Generate PSOP from PreFlow |
+| `POST` | `/generate-from-intent` | Generate PSOP from intent |
+| `POST` | `/retrieve-by-intent` | Retrieve workflow by intent |
+| `POST` | `/retrieve-topn-by-intent` | Retrieve top-N workflows by intent |
+| `GET` | `/agent-cards` | List available agent cards |
+| `GET` | `/templates` | List workflow templates |
+| `POST` | `/templates/{id}/import` | Import workflow from template |
+| `GET` | `/execute` | Start workflow execution (SSE) |
+| `GET` | `/execution-records` | List execution records |
+| `GET` | `/execution-records/{id}` | Get execution record detail |
+| `DELETE` | `/execution-records/{id}` | Delete execution record |
 
 Full API specification: [API Reference](docs/en/Orchestration%20Center%20API%20Reference.md)
 

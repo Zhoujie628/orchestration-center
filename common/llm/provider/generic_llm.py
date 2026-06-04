@@ -52,7 +52,8 @@ class GenericLLM:
                 f"Available: {list(AUTH_STRATEGIES.keys())}"
             )
 
-        self._client = httpx.Client(verify=False, timeout=60.0)
+        self._verify_ssl = config.get('verify_ssl', config.get('verify', True))
+        self._client = httpx.Client(verify=self._verify_ssl, timeout=60.0)
 
     def to_dict(self):
         return {

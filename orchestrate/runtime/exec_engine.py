@@ -14,6 +14,7 @@
 #    under the License.
 
 import asyncio
+import atexit
 import json
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -41,6 +42,10 @@ class DynamicWorkflowEngine:
     _MAX_CONTEXT_TOKENS_ESTIMATE = 6000
     _llm_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="llm_")
     _NEGOTIATION_MAX_ROUNDS = 3
+
+    @classmethod
+    def _shutdown_executor(cls):
+        cls._llm_executor.shutdown(wait=True)
 
     def __init__(self, psop: PSOP, agent_cards, runtime_intent: str = None, a2at_env_path: Path = None, lang: str = None):
         self.workflow = psop
@@ -93,7 +98,8 @@ class DynamicWorkflowEngine:
                 pass
         try:
             serialized = json.dumps(log_data, indent=4, ensure_ascii=False, default=str)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to serialize push event data: {e}")
             serialized = str(log_data)
         logger.info(f"push {event_type}:\n{serialized}")
         if self.push_callback:
@@ -253,7 +259,8 @@ class DynamicWorkflowEngine:
             # Push request information
             try:
                 request_data = request.model_dump_json() if hasattr(request, 'model_dump_json') else str(request)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Failed to serialize agent request for event push: {e}")
                 request_data = str(request)
 
             self._push_event("agent_request", {
@@ -631,7 +638,8 @@ Do NOT add any prefix markers like "Clarification:". {lang_hint}"""
                 if hasattr(self.workflow, 'model_dump_json')
                 else self.workflow.model_dump()
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to serialize PSOP for event push: {e}")
             psop_data = str(self.workflow)
         self._push_event("psop_update", {"psop": psop_data})
 
@@ -647,9 +655,9 @@ Do NOT add any prefix markers like "Clarification:". {lang_hint}"""
 
     def _get_all_predecessors(self, step_name: str) -> List[str]:
         ancestors = set()
-        queue = [step_name]
+        queue = deque([step_name])
         while queue:
-            current = queue.pop(0)
+            current = queue.popleft()
             for s in self.workflow.steps:
                 if s.next:
                     for jc in s.next:
@@ -772,3 +780,5 @@ Step type: {current_step.type.value}
 
     def _find_step_index(self, step_name: str) -> Optional[int]:
         return self._step_index.get(step_name)
+
+atexit.register(DynamicWorkflowEngine._shutdown_executor)

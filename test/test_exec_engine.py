@@ -1260,3 +1260,210 @@ class TestCrossLayerOrchestration:
             assert ancestors == []
             ancestors = engine._get_all_predecessors("step1")
             assert ancestors == []
+
+
+class TestNegotiationFlow:
+    """Test negotiation lifecycle: INPUT_REQUIRED handling, events, and max rounds."""
+
+    @pytest.fixture
+    def mock_input_required_task(self):
+        """Mock a2a task with INPUT_REQUIRED status and negotiation metadata."""
+        status = MagicMock()
+        status.state = 6  # TASK_STATE_INPUT_REQUIRED enum value
+        task = MagicMock()
+        task.status = status
+        task.metadata = {
+            "negotiationConcern": "I need more information about the target",
+            "negotiationContext": {
+                "negotiationType": "fulfillment",
+                "negotiationId": "neg-001",
+                "role": "client",
+                "round": "1",
+                "status": "in-progress",
+                "extra": {},
+            },
+        }
+        task.artifacts = []
+        task.model_dump_json = MagicMock(return_value='{}')
+        return task
+
+    @pytest.fixture
+    def mock_completed_task(self):
+        """Mock a2a task with COMPLETED status."""
+        status = MagicMock()
+        status.state = 1  # TASK_STATE_COMPLETED enum value
+        part = MagicMock()
+        part.text = "Analysis complete: target identified"
+        artifact = MagicMock()
+        artifact.parts = [part]
+        task = MagicMock()
+        task.status = status
+        task.artifacts = [artifact]
+        task.metadata = None
+        task.model_dump_json = MagicMock(return_value='{}')
+        return task
+
+    _mock_a2at_patch = patch(
+        'orchestrate.runtime.exec_engine.A2ATClient',
+    )
+
+    @classmethod
+    def _make_mock_a2at(cls, needs_response=True):
+        """Build a mock A2ATClient that returns plausible negotiation results."""
+        mock = MagicMock()
+        prompt_result = MagicMock()
+        prompt_result.success = False
+        prompt_result.prompt_text = None
+        mock.generate_task_prompt.return_value = prompt_result
+        mock.receive_negotiation.return_value = {
+            "needResponse": needs_response,
+            "message": "Acknowledged",
+        }
+        mock.continue_negotiation.return_value = {
+            "negotiationContext": {
+                "negotiationType": "fulfillment",
+                "negotiationId": "neg-001",
+                "round": 1,
+            },
+        }
+        return mock
+
+    @pytest.mark.asyncio
+    async def test_negotiation_max_rounds_raises_error(
+        self, mock_agent_card, mock_llm_client, mock_input_required_task
+    ):
+        """Agent returns INPUT_REQUIRED 3+ times → RuntimeError raised after max rounds."""
+        mock_a2at = self._make_mock_a2at()
+        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
+                   return_value=mock_llm_client):
+            with self._mock_a2at_patch as MockA2AT:
+                MockA2AT.return_value = mock_a2at
+                engine = DynamicWorkflowEngine(
+                    psop=MagicMock(), agent_cards=[mock_agent_card],
+                    a2at_env_path=MagicMock()
+                )
+
+            with patch('httpx.AsyncClient'), \
+                    patch('orchestrate.runtime.exec_engine.ClientFactory') as mock_factory:
+                mock_a2a = AsyncMock()
+                mock_factory.return_value.create.return_value = mock_a2a
+
+                class MockInputRequiredResponse:
+                    task = mock_input_required_task
+                    message = None
+
+                async def mock_stream(request):
+                    yield MockInputRequiredResponse()
+
+                mock_a2a.send_message = mock_stream
+
+                with pytest.raises(RuntimeError, match="did not converge"):
+                    await engine.send_message_to_agent("test_agent", "test task")
+
+    @pytest.mark.asyncio
+    async def test_negotiation_request_event_pushed(
+        self, mock_agent_card, mock_llm_client, mock_input_required_task
+    ):
+        """INPUT_REQUIRED response → negotiation_request event is pushed."""
+        mock_a2at = self._make_mock_a2at()
+        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
+                   return_value=mock_llm_client):
+            with self._mock_a2at_patch as MockA2AT:
+                MockA2AT.return_value = mock_a2at
+                engine = DynamicWorkflowEngine(
+                    psop=MagicMock(), agent_cards=[mock_agent_card],
+                    a2at_env_path=MagicMock()
+                )
+                callback = MagicMock()
+                engine.set_push_callback(callback)
+
+            with patch('httpx.AsyncClient'), \
+                    patch('orchestrate.runtime.exec_engine.ClientFactory') as mock_factory:
+                mock_a2a = AsyncMock()
+                mock_factory.return_value.create.return_value = mock_a2a
+
+                class MockInputRequiredResponse:
+                    task = mock_input_required_task
+                    message = None
+
+                async def mock_stream(request):
+                    yield MockInputRequiredResponse()
+
+                mock_a2a.send_message = mock_stream
+
+                with pytest.raises(RuntimeError):
+                    await engine.send_message_to_agent("test_agent", "test task")
+
+                event_types = [call_args[0][0] for call_args in callback.call_args_list]
+                assert "negotiation_request" in event_types, \
+                    f"Expected negotiation_request in events, got: {event_types}"
+
+    @pytest.mark.asyncio
+    async def test_negotiation_failed_event_pushed(
+        self, mock_agent_card, mock_llm_client, mock_input_required_task
+    ):
+        """Max rounds exceeded → negotiation_failed event is pushed before error."""
+        mock_a2at = self._make_mock_a2at()
+        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
+                   return_value=mock_llm_client):
+            with self._mock_a2at_patch as MockA2AT:
+                MockA2AT.return_value = mock_a2at
+                engine = DynamicWorkflowEngine(
+                    psop=MagicMock(), agent_cards=[mock_agent_card],
+                    a2at_env_path=MagicMock()
+                )
+                callback = MagicMock()
+                engine.set_push_callback(callback)
+
+            with patch('httpx.AsyncClient'), \
+                    patch('orchestrate.runtime.exec_engine.ClientFactory') as mock_factory:
+                mock_a2a = AsyncMock()
+                mock_factory.return_value.create.return_value = mock_a2a
+
+                class MockInputRequiredResponse:
+                    task = mock_input_required_task
+                    message = None
+
+                async def mock_stream(request):
+                    yield MockInputRequiredResponse()
+
+                mock_a2a.send_message = mock_stream
+
+                with pytest.raises(RuntimeError):
+                    await engine.send_message_to_agent("test_agent", "test task")
+
+                event_types = [call_args[0][0] for call_args in callback.call_args_list]
+                assert "negotiation_failed" in event_types, \
+                    f"Expected negotiation_failed in events, got: {event_types}"
+
+    @pytest.mark.asyncio
+    async def test_agent_returns_completed_no_negotiation(
+        self, mock_agent_card, mock_llm_client, mock_completed_task
+    ):
+        """Agent returns COMPLETED directly → no negotiation events, response used as-is."""
+        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
+                   return_value=mock_llm_client):
+            engine = DynamicWorkflowEngine(psop=MagicMock(), agent_cards=[mock_agent_card])
+            callback = MagicMock()
+            engine.set_push_callback(callback)
+
+            with patch('httpx.AsyncClient'), \
+                    patch('orchestrate.runtime.exec_engine.ClientFactory') as mock_factory:
+                mock_a2a = AsyncMock()
+                mock_factory.return_value.create.return_value = mock_a2a
+
+                class MockCompletedResponse:
+                    task = mock_completed_task
+                    message = None
+
+                async def mock_stream(request):
+                    yield MockCompletedResponse()
+
+                mock_a2a.send_message = mock_stream
+
+                result = await engine.send_message_to_agent("test_agent", "test task")
+
+                assert result == "Analysis complete: target identified"
+                event_types = [call_args[0][0] for call_args in callback.call_args_list]
+                assert "negotiation_request" not in event_types
+                assert "negotiation_failed" not in event_types
