@@ -1,6 +1,6 @@
 # LLM 配置文件（llm_config.json）说明
 
-LLM 模块采用**配置驱动**架构，接入新模型只需编辑 `common/config/llm_config.json`，无需编写 Python 代码。
+LLM 模块采用配置驱动架构，接入新模型通过编辑 `common/config/llm_config.json` 完成，无需编写 Python 代码。
 
 ## 文件结构
 
@@ -12,7 +12,7 @@ LLM 模块采用**配置驱动**架构，接入新模型只需编辑 `common/con
 }
 ```
 
-每个能力 key（`chat`、`embed`、`rerank`）配置一个模型实例，按需配置即可。
+每个能力 key（`chat`、`embed`、`rerank`）配置一个模型实例，按需配置。
 
 ## 通用字段
 

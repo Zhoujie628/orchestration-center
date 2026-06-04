@@ -253,7 +253,7 @@ run()
 | 标签页 | 组件 | 功能 |
 |--------|------|------|
 | Agent 注册中心 | `registry_center/` | 浏览已注册 Agent 的详细信息（描述、技能、能力等） |
-| 编排中心 | `orchestration_center/` | 三种方式创建工作流：PDF 导入 / 拖拽编排 / AI 生成；模板市场一键导入；工作流管理（CRUD + 版本发布） |
+| 编排中心 | `orchestration_center/` | 三种方式创建工作流：PDF 导入 / 拖拽编排 / AI 生成；模板市场导入；工作流管理（CRUD + 版本发布） |
 | 执行中心 | `execution_center/` | 意图检索 → 匹配工作流 → SSE 实时执行 → 事件日志 |
 
 ### 6.3 编排中心核心流程
@@ -316,7 +316,7 @@ etc/conf/llm_config.json   (LLM 提供商配置)
 ## 8. 关键设计决策
 
 1. **分层上下文传播**（`layer` + `context_from`）——Layer 0 步骤独立执行，Layer >= 1 步骤通过 `context_from` 声明依赖的前驱步骤，引擎自动收集上游输出注入为上下文。`context_from: ["*"]` 表示接收所有前驱（含间接）输出。
-2. **插件式存储**（`HandlerRegistry`）——通过 `InterfaceType` 枚举 + `persistence_mode` 配置分发操作到 file 或 PostgreSQL handler，新增存储后端只需实现 handler 接口并注册。
+2. **插件式存储**（`HandlerRegistry`）——通过 `InterfaceType` 枚举 + `persistence_mode` 配置分发操作到 file 或 PostgreSQL handler，新增存储后端实现 handler 接口并注册即可。
 3. **PSOP DAG 模型**——`Step` 包含 `subtasks`（并行任务列表）、`type`（`ALL_SUCCESS` / `ANY_SUCCESS` 执行模式）、`next`（条件跳转列表）。`JumpCondition` 支持声明式转发和 LLM 动态路由两种方式。
 4. **SSE 流式推送**——执行引擎通过 `push_callback` 将事件写入 `asyncio.Queue`，SSE 端点消费队列并 yield 为 `text/event-stream`。执行记录保存完整 `events` 数组，支持事后回放。
 5. **Prompt 工程**——PSOP 生成、意图检索、LLM 路由决策均使用结构化 JSON schema 约束输出格式，配合 few-shot 示例减少自由格式偏差。
