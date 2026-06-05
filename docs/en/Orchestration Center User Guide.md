@@ -48,7 +48,7 @@ The following REST API endpoints are exposed externally:
 
 ### 1.4 Implementation Principles
 
-For the core workflow of the Orchestration Center, see: [OpenAN Quick Start, Section 3.3 Core Process Verification](https://gitcode.com/OpenAN/docs/blob/main/zh/OpenAN%E5%BF%AB%E9%80%9F%E5%85%A5%E9%97%A8.md#33-%E6%A0%B8%E5%BF%83%E6%B5%81%E7%A8%8B%E9%AA%8C%E8%AF%81).
+For the core workflow of the Orchestration Center, see: [OpenAN Quick Start, Section 3.1.4  Core Process Verification](https://gitcode.com/OpenAN/docs/blob/main/en/quick_start.md#314-core-flow-verification).
 
 ### 1.5 Relationship with Related Features
 
@@ -67,7 +67,7 @@ For the core workflow of the Orchestration Center, see: [OpenAN Quick Start, Sec
 
 #### 2.2.1 **Start the Registry Center Service**
 
-   All Agent information displayed on the UI is retrieved from the Registry Center. For details, see the [Registry Center User Guide](https://gitcode.com/OpenAN/registry-center/blob/main/docs/zh/%E7%94%A8%E6%88%B7%E6%8C%87%E5%8D%97.md).
+   All Agent information displayed on the UI is retrieved from the Registry Center. For details, see the [Registry Center User Guide](https://gitcode.com/OpenAN/registry-center/blob/main/docs/en/Registry%20Center%20User%20Guide.md).
 
 #### 2.2.2 **Start the Orchestration Center Backend Service**
 
