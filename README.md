@@ -2,6 +2,8 @@
 Copyright (c) 2026 Huawei Technologies Co., Ltd.
 All Rights Reserved.
 
+SPDX-License-Identifier: Apache-2.0
+
    Licensed under the Apache License, Version 2.0 (the "License"); you may
    not use this file except in compliance with the License. You may obtain
    a copy of the License at
@@ -45,7 +47,7 @@ The Orchestration Center is a visual platform for designing and executing multi-
 sequenceDiagram
     actor User as User
     participant FE as Workflow Designer<br/>(React :3003)
-    participant BE as Backend :60000<br/>(FastAPI)
+    participant BE as Backend :5001<br/>(FastAPI)
     participant LLM as LLM
     participant Reg as Agent Registry
     participant Agt as A2A Agents
@@ -165,7 +167,7 @@ source .venv/bin/activate      # Linux
 # .venv\Scripts\activate       # Windows
 pip install -r requirements.txt
 
-# Start backend (port 60000)
+# Start backend (port 5001)
 python -m orchestrate.start
 
 # Frontend setup (separate terminal)
@@ -182,7 +184,7 @@ python -m samples.start_agents_server
 
 | Service | Check |
 |---------|-------|
-| Backend | `Uvicorn running on http://127.0.0.1:60000` |
+| Backend | `Uvicorn running on http://127.0.0.1:5001` |
 | Frontend | Open `http://localhost:3003` in browser |
 | Sample Agents | Agent startup messages in console |
 
@@ -194,7 +196,7 @@ flowchart TB
         wd["Workflow Designer<br/>React 18 + Vite + Tailwind<br/>Port 3003"]
     end
 
-    subgraph backend["Orchestration Backend (Port 60000)"]
+    subgraph backend["Orchestration Backend (Port 5001)"]
         direction TB
         api["Dual API Layer<br/>Internal /rest/v1/orchestrate/*<br/>External /api/v1/*"]
         domain["Core Domain<br/>PSOP Generator · Intent Generator<br/>Semantic Search · Publisher"]

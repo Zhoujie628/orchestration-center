@@ -1,9 +1,26 @@
+// Copyright (c) 2026 Huawei Technologies Co., Ltd.
+// All Rights Reserved.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0 (the "License"); you may
+//    not use this file except in compliance with the License. You may obtain
+//    a copy of the License at
+//
+//         http://www.apache.org/licenses/LICENSE-2.0
+//
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+//    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+//    License for the specific language governing permissions and limitations
+//    under the License.
 import {useTranslation} from "react-i18next";
 import {useEffect, useState} from "react";
 import Header from "@/components/common/header/index.jsx";
 import AgentRegistry from "./components/registry_center/index.jsx";
 import OrchestrationCenter from "@/components/orchestration_center/index.jsx";
 import ExecutionCenter from "@/components/execution_center/index.jsx";
+import SkillCenter from "@/components/skill_center/index.jsx";
 import {ErrorBoundary} from "@/components/common/error_boundary/index.jsx";
 
 const MainContainer = () => {
@@ -70,6 +87,10 @@ const MainContainer = () => {
 
                 <div className={`h-full w-full ${activeTab === 'execution' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>
                     <ErrorBoundary><ExecutionCenter isDark={isDark}/></ErrorBoundary>
+                </div>
+
+                <div className={`h-full w-full ${activeTab === 'skills' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>
+                    <ErrorBoundary><SkillCenter isDark={isDark}/></ErrorBoundary>
                 </div>
             </main>
         </div>

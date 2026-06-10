@@ -1,10 +1,11 @@
 {
   "nav": {
-    "title": "OpenAN Orchestration Center",
+    "title": "Agent to Agent for Telecom Orchestration Center",
     "tabs": {
       "agents": "Registry Center",
       "orchestration": "Orchestration Center",
-      "execution": "Execution Center"
+      "execution": "Execution Center",
+      "skills": "Skill Center"
     }
   },
   "execution": {
@@ -64,7 +65,38 @@
     "loading": "Loading...",
     "load_history_failed": "Failed to load history record",
     "delete_record_title": "Delete Execution Record",
-    "delete_record_confirm": "Are you sure you want to delete this execution record? This action cannot be undone."
+    "delete_record_confirm": "Are you sure you want to delete this execution record? This action cannot be undone.",
+    "sub_menu_execution": "Workflow Execution",
+    "sub_menu_statistics": "Execution Statistics",
+    "statistics_title": "Execution Statistics",
+    "time_day": "Day",
+    "time_week": "Week",
+    "time_month": "Month",
+    "frequency_ranking": "Execution Frequency Ranking",
+    "status_distribution": "Status Distribution",
+    "monthly_trend": "Monthly Trend",
+    "status_success": "Success",
+    "status_failed": "Failed",
+    "status_running": "Running",
+    "no_data": "No data available",
+    "search_fuzzy": "Fuzzy",
+    "search_exact": "Exact",
+    "filters": "Filters",
+    "search_by_name": "Search by workflow name...",
+    "clear_filters": "Clear",
+    "filter_workflow_id": "Workflow ID",
+    "filter_workflow_id_placeholder": "Enter workflow ID...",
+    "filter_status": "Status",
+    "filter_status_all": "All",
+    "filter_status_success": "Success",
+    "filter_status_failed": "Failed",
+    "filter_status_running": "Running",
+    "filter_date_from": "From Date",
+    "filter_date_to": "To Date",
+    "filter_tags": "Tags",
+    "summary_title": "Execution Summary",
+    "summary_placeholder": "Summary content coming soon",
+    "summary_hint": "Waiting for backend API integration"
   },
   "orchestration": {
     "title": "Orchestration",
@@ -205,6 +237,13 @@
     "title": "Registry center",
     "search_placeholder": "Search by agent name, capability or toolstack...",
     "units": "UNITS",
+    "online": "online",
+    "skills_count": "skills",
+    "no_agents": "No agents found",
+    "tab_all": "All",
+    "tab_service": "Service Layer",
+    "tab_network": "Network Layer",
+    "tab_vendor": "Vendor",
     "description_label": "FUNCTIONAL SPECIFICATION",
     "prompt_label": "CORE LOGIC (PROMPT)",
     "tool_label": "TOOLSTACK BINDING",
@@ -222,6 +261,9 @@
     "switch_to_gui": "Switch to GUI"
   },
   "agent_profile": {
+    "basic": "Basic Properties",
+    "advanced": "Advanced Properties",
+    "organization": "Organization",
     "description": "Description",
     "supported_interfaces": "Supported Interfaces",
     "skills": "Skills",
@@ -281,5 +323,29 @@
   },
   "error": {
     "parse_failed": "Failed to parse dropped agent template."
+  },
+  "skills": {
+    "title": "Skill Center",
+    "total_skills": "skills",
+    "tab_all": "All",
+    "tab_service": "ServiceLayer",
+    "tab_common": "Common Skills",
+    "search_placeholder": "Search by skill name or description...",
+    "no_skills": "No matching skills found",
+    "description": "Description",
+    "vendor": "Vendor",
+    "support_level": "Support Level",
+    "tags": "Tags",
+    "versions": "versions",
+    "ver": "ver",
+    "version_history": "Version History",
+    "created": "Created",
+    "updated": "Updated",
+    "status_active": "Active",
+    "status_deprecated": "Deprecated",
+    "status_archived": "Archived",
+    "risk_low": "Low Risk",
+    "risk_medium": "Medium Risk",
+    "risk_high": "High Risk"
   }
 }

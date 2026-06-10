@@ -19,7 +19,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-# Start backend (port 60000)
+# Start backend (port 5001)
 python -m orchestrate.start
 
 # Start frontend (port 3003, from workflow-designer/)
@@ -106,15 +106,27 @@ data/workflow_storage/ # File-based persistence (PSOP, PreFlow, execution record
 - **Frontend is JS/JSX, not TypeScript**.
 - **All Python code is run as modules** (`python -m`, not `python file.py`). Imports use absolute paths rooted at repo root.
 - **Sample agents must be running** for workflow execution to succeed (they provide the actual A2A agent endpoints).
-- **Workflow designer expects backend at `http://127.0.0.1:60000`** (hardcoded in `workflow-designer/src/service/api.js`).
+- **Workflow designer expects backend at `http://127.0.0.1:5001`** (hardcoded in `workflow-designer/src/service/api.js`).
 - **CI/CD** configured in `.github/workflows/ci.yml` — runs pytest (unit) and ESLint (frontend).
 - **License headers required** on all source files (Apache 2.0, Huawei copyright).
+
+## Merge workflow (GitCode)
+
+**IMPORTANT: Always follow this merge principle:**
+
+1. **Commit to fork first** — All changes must be committed to the personal fork (`guofei6_/orchestration-center`) before creating a PR.
+2. **Create PR to upstream** — Submit PR from fork to upstream (`OpenAN/orchestration-center`).
+3. **Never push directly to upstream** — Always use the fork → PR → merge workflow.
+
+**Local-only files (do NOT commit):**
+- `workflow-designer/src/service/api.js` — Contains local debug configuration (API endpoint). Keep local modifications for development, do not include in commits.
+- `etc/conf/server.conf` — Local server configuration. Revert any local changes before committing.
 
 ## Key commands reference
 
 ```powershell
 # Backend
-python -m orchestrate.start              # Start server (HTTP on :60000)
+python -m orchestrate.start              # Start server (HTTP on :5001)
 python -m samples.start_agents_server    # Start sample agents
 
 # Frontend (cd workflow-designer)

@@ -1,10 +1,28 @@
+// Copyright (c) 2026 Huawei Technologies Co., Ltd.
+// All Rights Reserved.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0 (the "License"); you may
+//    not use this file except in compliance with the License. You may obtain
+//    a copy of the License at
+//
+//         http://www.apache.org/licenses/LICENSE-2.0
+//
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+//    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+//    License for the specific language governing permissions and limitations
+//    under the License.
 import {useState} from "react";
 import {defaultIp, defaultPort, defaultGateway} from "@/service/api.js";
 import {Server, X, Globe, Terminal, Save, Link2, LayoutGrid, Network} from "lucide-react";
 
 const SettingsModal = ({isOpen, onClose, t}) => {
     const getInitialConfig = () => {
-        const defaults = {mode: 'ip', ip: defaultIp, port: defaultPort, nginxUrl: defaultGateway};
+        const port = window.location.port;
+        const autoMode = (!port || port === '80' || port === '443') ? 'nginx' : 'ip';
+        const defaults = {mode: autoMode, ip: defaultIp, port: defaultPort, nginxUrl: defaultGateway};
         const saved = localStorage.getItem('server_config');
         if (!saved) return defaults;
 
@@ -92,7 +110,7 @@ const SettingsModal = ({isOpen, onClose, t}) => {
                                     <input type={"text"} value={config.port}
                                            onChange={(e) => setConfig({...config, port: e.target.value})}
                                            className={"w-full pl-10 pr-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 rounded-xl font-bold focus:ring-4 focus:ring-blue-500/10 outline-none transition-all dark:text-white"}
-                                           placeholder={"5000"}/>
+                                           placeholder={defaultPort}/>
                                     <Terminal size={16} className={"absolute left-3.5 top-3.5 text-zinc-400"}/>
                                 </div>
                             </div>

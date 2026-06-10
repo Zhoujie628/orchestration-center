@@ -1,10 +1,11 @@
 {
   "nav": {
-    "title": "Agent to Agent for Telecom Orchestration Center",
+    "title": "A2A-T编排中心",
     "tabs": {
       "agents": "Agent库",
       "orchestration": "编排中心",
-      "execution": "工作流执行"
+      "execution": "工作流执行",
+      "skills": "技能中心"
     }
   },
   "execution": {
@@ -64,7 +65,38 @@
     "loading": "加载中...",
     "load_history_failed": "加载历史记录失败",
     "delete_record_title": "删除执行记录",
-    "delete_record_confirm": "确定要删除该执行记录吗？此操作无法撤销。"
+    "delete_record_confirm": "确定要删除该执行记录吗？此操作无法撤销。",
+    "sub_menu_execution": "工作流执行",
+    "sub_menu_statistics": "执行统计",
+    "statistics_title": "执行统计",
+    "time_day": "日",
+    "time_week": "周",
+    "time_month": "月",
+    "frequency_ranking": "执行频次排名",
+    "status_distribution": "状态分布",
+    "monthly_trend": "月度趋势",
+    "status_success": "成功",
+    "status_failed": "失败",
+    "status_running": "运行中",
+    "no_data": "暂无数据",
+    "search_fuzzy": "模糊搜索",
+    "search_exact": "精确搜索",
+    "filters": "筛选",
+    "search_by_name": "按工作流名称搜索...",
+    "clear_filters": "清除",
+    "filter_workflow_id": "工作流ID",
+    "filter_workflow_id_placeholder": "输入工作流ID...",
+    "filter_status": "状态",
+    "filter_status_all": "全部",
+    "filter_status_success": "成功",
+    "filter_status_failed": "失败",
+    "filter_status_running": "运行中",
+    "filter_date_from": "开始日期",
+    "filter_date_to": "结束日期",
+    "filter_tags": "标签",
+    "summary_title": "执行总结",
+    "summary_placeholder": "总结内容即将上线",
+    "summary_hint": "等待后端接口对接"
   },
   "orchestration": {
     "title": "编排中心",
@@ -204,6 +236,13 @@
     "title": "Agent库",
     "search_placeholder": "搜索智能体名称或功能...",
     "units": "个",
+    "online": "在线",
+    "skills_count": "个技能",
+    "no_agents": "未找到智能体",
+    "tab_all": "全部",
+    "tab_service": "服务层",
+    "tab_network": "网络层",
+    "tab_vendor": "厂商",
     "description_label": "智能体描述",
     "prompt_label": "核心逻辑 (Prompt)",
     "tool_label": "工具",
@@ -221,6 +260,9 @@
     "switch_to_gui": "切换到图形视图"
   },
   "agent_profile": {
+    "basic": "基础属性",
+    "advanced": "高级属性",
+    "organization": "所属组织",
     "description": "描述",
     "supported_interfaces": "支持的接口",
     "skills": "技能",
@@ -280,5 +322,29 @@
   },
   "error": {
     "parse_failed": "解析拖拽的 Agent 模板失败。"
+  },
+  "skills": {
+    "title": "技能中心",
+    "total_skills": "个技能",
+    "tab_all": "全部",
+    "tab_service": "服务层",
+    "tab_common": "公共技能",
+    "search_placeholder": "搜索技能名称或描述...",
+    "no_skills": "未找到匹配的技能",
+    "description": "描述",
+    "vendor": "供应商",
+    "support_level": "支持级别",
+    "tags": "标签",
+    "versions": "个版本",
+    "ver": "版本",
+    "version_history": "版本历史",
+    "created": "创建时间",
+    "updated": "更新时间",
+    "status_active": "活跃",
+    "status_deprecated": "已弃用",
+    "status_archived": "已归档",
+    "risk_low": "低风险",
+    "risk_medium": "中风险",
+    "risk_high": "高风险"
   }
 }

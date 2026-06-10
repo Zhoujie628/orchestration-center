@@ -1,22 +1,49 @@
+// Copyright (c) 2026 Huawei Technologies Co., Ltd.
+// All Rights Reserved.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0 (the "License"); you may
+//    not use this file except in compliance with the License. You may obtain
+//    a copy of the License at
+//
+//         http://www.apache.org/licenses/LICENSE-2.0
+//
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+//    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+//    License for the specific language governing permissions and limitations
+//    under the License.
 import axios from "axios";
 
 const STORAGE_KEY = 'server_config';
 export const defaultIp = '127.0.0.1';
-export const defaultPort = '60000';
-export const defaultGateway = 'http://127.0.0.1/orchestration';
+export const defaultPort = '5001';
+export const defaultGateway = '/api/orchestrate';
 
 const trimTrailingSlash = (url) => url.replace(/\/$/, '');
+
+const isStandardPort = () => {
+    const p = window.location.port;
+    return !p || p === '80' || p === '443';
+};
 
 export const getBaseUrl = () => {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
-        const config = saved ? JSON.parse(saved) : {};
-        if (config.mode === 'nginx') {
+        if (saved) {
+            const config = JSON.parse(saved);
+            if (config.mode === 'ip') {
+                const ip = config.ip || defaultIp;
+                const port = config.port || defaultPort;
+                return `http://${ip}:${port}`;
+            }
             return trimTrailingSlash(config.nginxUrl || config.gatewayUrl || defaultGateway);
         }
-        const ip = config.ip || defaultIp;
-        const port = config.port || defaultPort;
-        return `http://${ip}:${port}`;
+        if (isStandardPort()) {
+            return trimTrailingSlash(defaultGateway);
+        }
+        return `http://${defaultIp}:${defaultPort}`;
     } catch (e) {
         return `http://${defaultIp}:${defaultPort}`;
     }

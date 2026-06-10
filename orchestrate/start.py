@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Huawei Technologies Co., Ltd.
 # All Rights Reserved.
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -129,7 +131,7 @@ class CustomUvicornServer:
         server_config = uvicorn.Config(
             app=app,
             host=self.server_config.get('ip', "127.0.0.1"),
-            port=int(self.server_config.get('port', 60000)),
+            port=int(self.server_config.get('port', 5001)),
             ssl_certfile=self.conf_obj.ssl_certfile,
             ssl_keyfile=self.conf_obj.ssl_keyfile,
             ssl_keyfile_password=load_cert_password(self.conf_obj.ssl_keyfile_password).decode(DEFAULT_ENCODING),
@@ -156,7 +158,7 @@ def main():
     if server_config.get('persistence_mode', 'file').lower() != 'file':
         create_tables()
     if not is_enable_https:
-        uvicorn.run(app, host=server_config.get('ip', "127.0.0.1"), port=int(server_config.get('port', 60000)))
+        uvicorn.run(app, host=server_config.get('ip', "127.0.0.1"), port=int(server_config.get('port', 5001)))
     else:
         try:
             conf_obj = conf_singleton_obj

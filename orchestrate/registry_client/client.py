@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Huawei Technologies Co., Ltd.
 # All Rights Reserved.
 #
+# SPDX-License-Identifier: Apache-2.0
+#
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -12,7 +14,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-
 from typing import Union, Dict, Any, Optional, List
 
 import httpx
@@ -91,13 +92,15 @@ class AgentRegistryClient:
             params['organization'] = organization
         if provider:
             params['provider'] = provider
-        resp = await self._request('GET', f'/rest/v1/registry-center/agent-cards/', params=params)
+        resp = await self._request('GET', f'/rest/v1/registry-center/agent-cards', params=params)
         try:
             data = resp.json()
         except Exception:
             logger.warning(f"Registry returned non-JSON response, status={resp.status_code}")
             return []
-        return data.get("agentCards", [])
+        agent_card =  data.get("agentCards", [])
+        data_card = data.get("data", [])
+        return agent_card or data_card
 
     async def search_by_task(self, task: str) -> List[dict]:
         resp = await self._request('POST', f'/rest/v1/registry-center/agent-cards/semantic-query', json={'task': task})
