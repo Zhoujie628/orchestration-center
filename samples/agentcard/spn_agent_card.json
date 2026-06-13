@@ -33,8 +33,10 @@
 		}],
 		"securitySchemes": {
 			"bearerAuth": {
-				"scheme": "Bearer",
-				"description": "使用用户名和密码通过登录接口查询accessSession后，使用该accessSession进行bearer认证。"
+				"httpAuthSecurityScheme": {
+				    "scheme": "Bearer",
+				    "description": "使用用户名和密码通过登录接口查询accessSession后，使用该accessSession进行bearer认证。"
+				}
 			}
 		},
 		"securityRequirements": [],

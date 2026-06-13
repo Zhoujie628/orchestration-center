@@ -28,6 +28,7 @@ from a2a.client.interceptors import ClientCallInterceptor, BeforeArgs, AfterArgs
 from loguru import logger
 
 _CREDENTIAL_CONFIG_FILENAME = "agent_credentials.json"
+_TOKEN_CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "auth_tokens"
 
 
 class AgentCredentialService(CredentialService):
@@ -50,6 +51,53 @@ class AgentCredentialService(CredentialService):
         self._httpx_client = httpx_client
         self._tokens: Dict[str, tuple] = {}
         self._lock = None
+        self._response_ttl: Optional[int] = None
+        self._cache_path = _TOKEN_CACHE_DIR / f"{agent_name}.json"
+        self._load_cached_tokens()
+
+    def _load_cached_tokens(self):
+        if not self._cache_path.exists():
+            return
+        try:
+            data = json.loads(self._cache_path.read_text(encoding='utf-8'))
+        except Exception:
+            return
+        now = time.time()
+        loaded = 0
+        for scheme_name, entry in data.items():
+            token = entry.get("token")
+            expires_at = entry.get("expires_at", 0)
+            if token and expires_at > now + 60:
+                self._tokens[scheme_name] = (token, expires_at)
+                loaded += 1
+                logger.info(
+                    f"[AgentAuth] Loaded cached token for agent '{self._agent_name}' "
+                    f"scheme '{scheme_name}', expires in {int(expires_at - now)}s"
+                )
+            else:
+                logger.info(
+                    f"[AgentAuth] Cached token for agent '{self._agent_name}' "
+                    f"scheme '{scheme_name}' is expired, will re-login"
+                )
+        if loaded:
+            logger.info(
+                f"[AgentAuth] Restored {loaded} cached token(s) for agent '{self._agent_name}'"
+            )
+
+    def _persist_token(self, security_scheme_name: str, token: str, expires_at: float):
+        _TOKEN_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        data = {}
+        if self._cache_path.exists():
+            try:
+                data = json.loads(self._cache_path.read_text(encoding='utf-8'))
+            except Exception:
+                pass
+        data[security_scheme_name] = {"token": token, "expires_at": expires_at}
+        self._cache_path.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+        logger.debug(
+            f"[AgentAuth] Persisted token for agent '{self._agent_name}' "
+            f"scheme '{security_scheme_name}'"
+        )
 
     def _ensure_lock(self):
         if self._lock is None:
@@ -84,8 +132,10 @@ class AgentCredentialService(CredentialService):
 
             token = await self._login(scheme_cfg)
             if token:
-                ttl = scheme_cfg.get("token_ttl", 3600)
-                self._tokens[security_scheme_name] = (token, time.time() + ttl)
+                ttl = self._response_ttl or scheme_cfg.get("token_ttl", 3600)
+                expires_at = time.time() + ttl
+                self._tokens[security_scheme_name] = (token, expires_at)
+                self._persist_token(security_scheme_name, token, expires_at)
                 logger.info(
                     f"[AgentAuth] Obtained token for agent '{self._agent_name}' "
                     f"scheme '{security_scheme_name}', TTL={ttl}s"
@@ -146,11 +196,19 @@ class AgentCredentialService(CredentialService):
             resp = await client.request(**req_kwargs)
             resp.raise_for_status()
             data = resp.json()
+            logger.info(
+                f"[AgentAuth] Login response for '{self._agent_name}': "
+                f"{json.dumps(data, ensure_ascii=False, indent=2)}"
+            )
 
             if isinstance(data, dict):
                 token = self._extract_nested_value(data, token_field)
                 if not token:
                     token = data.get("accessSession") or data.get("access_session") or data.get("token")
+                self._response_ttl = None
+                expires = data.get("expires")
+                if isinstance(expires, (int, float)) and expires > 0:
+                    self._response_ttl = int(expires)
             else:
                 token = None
 
@@ -162,7 +220,8 @@ class AgentCredentialService(CredentialService):
 
             logger.warning(
                 f"[AgentAuth] Token field '{token_field}' not found in login response "
-                f"for agent '{self._agent_name}'. Response keys: {list(data.keys()) if isinstance(data, dict) else 'non-dict'}"
+                f"for agent '{self._agent_name}'. "
+                f"Response top-level keys: {list(data.keys()) if isinstance(data, dict) else 'non-dict'}"
             )
             return None
         except Exception as e:
@@ -288,15 +347,23 @@ class CustomAuthInterceptor(ClientCallInterceptor):
                 if auth_header:
                     prefix = scheme_cfg.get("auth_header_prefix", "")
                     args.context.service_parameters[auth_header] = f"{prefix}{credential}"
-                    logger.debug(
-                        "[CustomAuth] Set header '%s' for scheme '%s'",
-                        auth_header, scheme_name,
+                    logger.info(
+                        "[AgentAuth] Injected header '%s' for agent '%s' scheme '%s'",
+                        auth_header, getattr(args.agent_card, 'name', 'unknown'), scheme_name,
                     )
                 else:
                     args.context.service_parameters["Authorization"] = f"Bearer {credential}"
-                    logger.debug(
-                        "[CustomAuth] Set Bearer header for scheme '%s'",
-                        scheme_name,
+                    logger.info(
+                        "[AgentAuth] Injected Bearer header for agent '%s' scheme '%s'",
+                        getattr(args.agent_card, 'name', 'unknown'), scheme_name,
+                    )
+
+                accept_header = scheme_cfg.get("accept_header")
+                if accept_header:
+                    args.context.service_parameters["Accept"] = accept_header
+                    logger.info(
+                        "[AgentAuth] Override Accept header to '%s' for agent '%s'",
+                        accept_header, getattr(args.agent_card, 'name', 'unknown'),
                     )
                 return
 

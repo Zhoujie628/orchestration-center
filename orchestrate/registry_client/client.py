@@ -14,6 +14,7 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+import json
 from typing import Union, Dict, Any, Optional, List
 
 import httpx
@@ -103,6 +104,7 @@ class AgentRegistryClient:
             return []
         agent_card =  data.get("agentCards", [])
         data_card = data.get("data", [])
+        logger.info(f"agentcards is: {json.dumps(data_card, indent=4, ensure_ascii=False)}")
         return agent_card or data_card
 
     async def search_by_task(self, task: str) -> List[dict]:
