@@ -428,8 +428,9 @@ class DynamicWorkflowEngine:
         })
 
     def _push_negotiation_event(self, agent_name: str, metadata_dict: Dict[str, Any], round_num: int):
+        from common.negotiation_utils import NEGOTIATION_CONTEXT_KEY
         concern = metadata_dict.get("negotiationConcern", "")
-        context_data = metadata_dict.get("negotiationContext", {})
+        context_data = metadata_dict.get(NEGOTIATION_CONTEXT_KEY) or {}
         self._push_event("negotiation_request", {
             "agent": agent_name,
             "response": json.dumps({

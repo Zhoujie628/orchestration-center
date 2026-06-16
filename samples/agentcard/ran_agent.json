@@ -42,8 +42,18 @@
       "streaming": false,
       "extensions": [
         {
-          "uri": "https://projects.tmforum.org/a2aproject/telecommunication/extensions/Task-T/v1",
+          "uri": "https://github.com/a2aproject/telecommunication/extensions/Task-T/v1",
           "description": "Extension of structured prompt TASK-T requests.",
+          "required": false
+        },
+        {
+          "uri": "https://github.com/a2aproject/telecommunication/extensions/NEGOTIATION-T",
+          "description": "Extension for A2A-T negotiation text exchange.",
+          "required": false
+        },
+        {
+          "uri": "https://github.com/a2aproject/telecommunication/extensions/DATA-NEGOTIATION-T/v1",
+          "description": "Extension for A2A-T negotiation context data.",
           "required": false
         }
       ]

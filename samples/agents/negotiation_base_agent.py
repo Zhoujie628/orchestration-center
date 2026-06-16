@@ -32,8 +32,10 @@ from common.llm import get_llm_instance
 from common.negotiation_utils import (
     NEGOTIATION_CONTEXT_KEY,
     NEGOTIATION_TEXT_KEY,
+    TASK_PROMPT_KEY,
     NEGOTIATION_REQUEST_MARKER,
     build_negotiation_metadata,
+    build_negotiation_response_metadata,
     log_negotiation_context,
     is_uncertain_response,
     is_follow_up_task,
@@ -61,7 +63,7 @@ class NegotiationBaseAgentExecutor(AgentExecutor):
         ctx_id = context.context_id or "N/A"
         logger.info(f"[{self.__class__.__name__}] execute: task_id={task_id}, context_id={ctx_id}")
 
-        task_t_uri = "https://projects.tmforum.org/a2aproject/telecommunication/extensions/Task-T/v1"
+        task_t_uri = TASK_PROMPT_KEY
         try:
             if hasattr(context, 'message') and context.message:
                 msg = context.message
@@ -97,12 +99,11 @@ class NegotiationBaseAgentExecutor(AgentExecutor):
         uncertain = await asyncio.to_thread(is_uncertain_response, response, self.llm)
         if uncertain:
             logger.info(f"[{self.__class__.__name__}] Response indicates uncertainty, requesting negotiation")
-            metadata: Dict[str, Any] = {}
-            if negotiation_context_data:
-                metadata["negotiationContext"] = negotiation_context_data
-            if negotiation_text:
-                metadata["negotiationText"] = negotiation_text
-            metadata["negotiationConcern"] = response
+            metadata = build_negotiation_response_metadata(
+                negotiation_context_data=negotiation_context_data,
+                negotiation_text=negotiation_text,
+                negotiation_concern=response,
+            )
             return Task(
                 id=context.task_id,
                 context_id=context.context_id,
@@ -195,9 +196,10 @@ class NegotiationBaseAgentExecutor(AgentExecutor):
         response: str,
         negotiation_context: Dict[str, Any]
     ) -> Task:
-        metadata: Dict[str, Any] = {}
-        if negotiation_context:
-            metadata["negotiationContext"] = negotiation_context
+        metadata = build_negotiation_response_metadata(
+            negotiation_context_data=negotiation_context if negotiation_context else None,
+            negotiation_text=None,
+        )
 
         return Task(
             id=context.task_id,

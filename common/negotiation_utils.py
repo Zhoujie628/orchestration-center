@@ -38,7 +38,7 @@ def extract_negotiation_context_from_task_metadata(
     if not task_metadata:
         return None
 
-    context_data = task_metadata.get("negotiationContext")
+    context_data = task_metadata.get(NEGOTIATION_CONTEXT_KEY)
     if not context_data:
         return None
 
@@ -55,7 +55,7 @@ def extract_negotiation_context_from_artifact_metadata(
     if not artifact_metadata:
         return None
 
-    context_data = artifact_metadata.get("negotiationContext")
+    context_data = artifact_metadata.get(NEGOTIATION_CONTEXT_KEY)
     if not context_data:
         return None
 
@@ -74,7 +74,22 @@ def build_negotiation_metadata(
         logger.warning("No negotiation context in result")
         return {}
 
-    return {"negotiationContext": context_data}
+    return {NEGOTIATION_CONTEXT_KEY: context_data}
+
+
+def build_negotiation_response_metadata(
+    negotiation_context_data: Optional[Dict[str, Any]],
+    negotiation_text: Optional[str],
+    negotiation_concern: Optional[str] = None,
+) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = {}
+    if negotiation_context_data:
+        metadata[NEGOTIATION_CONTEXT_KEY] = negotiation_context_data
+    if negotiation_text:
+        metadata[NEGOTIATION_TEXT_KEY] = negotiation_text
+    if negotiation_concern:
+        metadata["negotiationConcern"] = negotiation_concern
+    return metadata
 
 
 def is_negotiation_in_progress(context: NegotiationContext) -> bool:
@@ -148,8 +163,8 @@ Reply with exactly one word: YES or NO."""
 def extract_negotiation_content(task_metadata: Dict[str, Any]) -> tuple[Optional[str], Optional[dict]]:
     if not task_metadata:
         return None, None
-    negotiation_text = task_metadata.get("negotiationText")
-    context_data = task_metadata.get("negotiationContext")
+    negotiation_text = task_metadata.get(NEGOTIATION_TEXT_KEY)
+    context_data = task_metadata.get(NEGOTIATION_CONTEXT_KEY)
     return negotiation_text, context_data
 
 
