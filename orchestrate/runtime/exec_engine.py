@@ -151,7 +151,9 @@ class DynamicWorkflowEngine:
                 if cred_svc is not None:
                     agent_cfg = auth_manager.get_config(card.name) or {}
                     if any(
-                        isinstance(v, dict) and v.get("auth_header")
+                        isinstance(v, dict) and (
+                            v.get("auth_header") or v.get("accept_header")
+                        )
                         for v in agent_cfg.values()
                     ):
                         interceptors.append(CustomAuthInterceptor(cred_svc, agent_cfg))
@@ -175,7 +177,17 @@ class DynamicWorkflowEngine:
     def _get_httpx_client(self) -> httpx.AsyncClient:
         if self._httpx_client is None:
             timeout_config = httpx.Timeout(connect=60, read=60, write=60, pool=10.0)
-            self._httpx_client = httpx.AsyncClient(timeout=timeout_config, verify=False, follow_redirects=True)
+
+            async def _log_request(request: httpx.Request):
+                logger.info(
+                    f"[HTTP] >>> {request.method} {request.url}  "
+                    f"headers={dict(request.headers)}"
+                )
+
+            self._httpx_client = httpx.AsyncClient(
+                timeout=timeout_config, verify=False, follow_redirects=True,
+                event_hooks={"request": [_log_request]},
+            )
             auth_manager = get_auth_manager()
             auth_manager.set_httpx_client(self._httpx_client)
         return self._httpx_client
@@ -383,7 +395,14 @@ class DynamicWorkflowEngine:
                 if iface.protocol_binding
             ] or ["HTTP+JSON", "JSONRPC"]
             selected_url = agent_card.supported_interfaces[0].url if agent_card.supported_interfaces else "N/A"
-            logger.info(f"Calling agent '{agent_name}' via {protocol_bindings[0] if protocol_bindings else 'unknown'} -> {selected_url}")
+            streaming = agent_card.capabilities.streaming if agent_card.capabilities else False
+            proto = protocol_bindings[0] if protocol_bindings else 'unknown'
+            if proto == "HTTP+JSON":
+                endpoint = "message:stream" if streaming else "message:send"
+                full_url = f"{selected_url}/{endpoint}"
+            else:
+                full_url = selected_url
+            logger.info(f"Calling agent '{agent_name}' via {proto} (streaming={streaming}) -> {full_url}")
             config = ClientConfig(
                 httpx_client=client,
                 supported_protocol_bindings=protocol_bindings,
@@ -401,11 +420,12 @@ class DynamicWorkflowEngine:
                 request_msg.metadata.CopyFrom(meta)
                 logger.info(f"[A2AT] Set TASK-T metadata on message for agent '{agent_name}'")
             send_req = SendMessageRequest(message=request_msg)
-            send_req_json = MessageToJson(send_req, preserving_proto_field_name=True)
-            try:
-                req_payload = json.loads(send_req_json)
-            except (json.JSONDecodeError, TypeError):
-                req_payload = send_req_json
+            req_payload = json.loads(MessageToJson(send_req, preserving_proto_field_name=False))
+            logger.info(
+                f"[A2A] Sending to agent '{agent_name}': "
+                f"url={full_url}, "
+                f"body={json.dumps(req_payload, ensure_ascii=False)}"
+            )
             self._push_event("agent_request", {
                 "agent": agent_name,
                 "request": req_payload
@@ -419,7 +439,7 @@ class DynamicWorkflowEngine:
 
             async for response in client.send_message(send_req):
                 try:
-                    raw_resp = MessageToJson(response, preserving_proto_field_name=True)
+                    raw_resp = MessageToJson(response, preserving_proto_field_name=False)
                     resp_payload = json.loads(raw_resp) if raw_resp != "{}" else raw_resp
                 except Exception:
                     resp_payload = str(response)

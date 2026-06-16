@@ -298,6 +298,14 @@ class CustomAuthInterceptor(ClientCallInterceptor):
                         "[CustomAuth] Set Bearer header for scheme '%s'",
                         scheme_name,
                     )
+
+                accept_header = scheme_cfg.get("accept_header")
+                if accept_header:
+                    args.context.service_parameters["Accept"] = accept_header
+                    logger.info(
+                        "[AgentAuth] Override Accept header to '%s' for agent '%s'",
+                        accept_header, getattr(args.agent_card, 'name', 'unknown'),
+                    )
                 return
 
     async def after(self, args: AfterArgs) -> None:
