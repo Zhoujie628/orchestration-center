@@ -45,11 +45,19 @@
 		}],
 		"securitySchemes": {
 			"bearerAuth": {
-				"scheme": "Bearer",
-				"description": "使用用户名和密码通过OAuth2 Password Grant接口获取access_token后，使用fmind-auth头部进行认证。"
+				"httpAuthSecurityScheme": {
+					"scheme": "Bearer",
+					"description": "使用用户名和密码通过OAuth2 Password Grant接口获取access_token后，使用fmind-auth头部进行认证。"
+				}
 			}
 		},
-		"securityRequirements": [],
+		"securityRequirements": [
+			{
+				"schemes": {
+					"bearerAuth": {}
+				}
+			}
+		],
 		"supportedInterfaces": [{
 			"protocolBinding": "JSONRPC",
 			"url": "http://127.0.0.1:26336/a2a/v1",

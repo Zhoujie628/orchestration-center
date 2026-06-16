@@ -42,6 +42,9 @@ def _normalize_security_schemes(sec_schemes: Dict[str, Any]) -> Dict[str, Any]:
             continue
         if "scheme" in scheme and isinstance(scheme["scheme"], str):
             http_auth = {"scheme": scheme["scheme"]}
+            for extra_key in ("description", "bearerFormat"):
+                if extra_key in scheme:
+                    http_auth[extra_key] = scheme[extra_key]
             normalized[name] = {"httpAuthSecurityScheme": http_auth}
             continue
         if scheme.get("type") == "apiKey":
