@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  orchestration-center:
+    build: .
+    container_name: orchestration-center
+    ports:
+      - "60000:60000"
+    volumes:
+      - ./data:/opt/orchestration-center/data
+      - ./etc/ssl:/opt/orchestration-center/etc/ssl
+      - ./log:/opt/orchestration-center/log
+    environment:
+      - ORCH_IP=0.0.0.0
+      - ORCH_PORT=60000
+      - ORCH_ENABLE_HTTPS=false
+      - ORCH_FORWARDED_ALLOW_IPS=*
+      - PERSISTENCE_MODE=file
+    restart: unless-stopped
+
+  # ---- Optional: PostgreSQL for production persistence ----
+  # To enable: uncomment the block below and set these environment
+  # variables in the orchestration-center service above:
+  #   PERSISTENCE_MODE=postgresql
+  #   DB_HOST=postgres
+  #   DB_PORT=5432
+  #   DB_NAME=orchestration_center
+  #   DB_USERNAME=opena2a_t
+  #   DB_PASSWORD=openA2A_T
+  #
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: orchestration-postgres
+  #   environment:
+  #     - POSTGRES_DB=orchestration_center
+  #     - POSTGRES_USER=opena2a_t
+  #     - POSTGRES_PASSWORD=openA2A_T
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   restart: unless-stopped
+  #
+  # volumes:
+  #   pgdata:

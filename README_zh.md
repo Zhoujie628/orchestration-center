@@ -278,6 +278,7 @@ A2AT_NEGOTIATION_STATE_STORE_TYPE=in_memory
 | [用户指南](docs/zh/用户指南.md) | 特性介绍、使用场景、快速入门、FAQ |
 | [API 参考](docs/zh/编排中心API参考.md) | 完整 REST API 规范 |
 | [开发指南](docs/zh/开发指南.md) | 自定义处理器、LLM 模块、扩展开发 |
+| [GCP 部署指南](docs/zh/编排中心GCP容器化部署指南.md) | Docker + GCP Cloud Run 部署指南 |
 | [设计文档](docs/DESIGN.md) | 系统架构与设计 |
 | [前端 README](workflow-designer/README.md) | 工作流设计器技术栈与开发 |
 | [LLM 配置](common/config/README_zh.md) | LLM 配置文件说明 |

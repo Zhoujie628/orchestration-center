@@ -1,0 +1,52 @@
+# GCP Cloud Build ignore file
+# Speeds up source upload by excluding unnecessary files
+
+.git/
+.gitignore
+.gitmodules
+.github/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+.venv/
+venv/
+
+# Local runtime files
+/log/
+/run/
+/data/
+
+# Tests and docs (not needed in container)
+test/
+tests/
+docs/
+
+# Markdown files (except README)
+*.md
+!README.md
+
+# Environment (keep .env for A2A-T SDK base config, exclude sensitive overrides)
+.env.*
+!.env
+
+# Frontend (not part of backend container)
+workflow-designer/node_modules/
+workflow-designer/dist/
+
+# Misc
+wheelhouse/
+wheels/
+.gcloudignore
