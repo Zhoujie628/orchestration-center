@@ -100,7 +100,7 @@ const AgentNode = ({ data, selected }) => {
     `;
 
     const targetHandleBaseClasses = `
-        !w-0 !h-0 !bg-transparent !border-0 !absolute !transform-none
+        !w-[1px] !h-[1px] !bg-transparent !border-0 !absolute !transform-none !opacity-0
         z-[100]
         after:content-[''] after:absolute after:bg-transparent
         ${isConnecting ? 'after:pointer-events-auto' : 'after:pointer-events-none'}

@@ -86,24 +86,26 @@ const MarkdownRenderer = React.memo(({ text }) => {
     const normalized = text.replace(/\\n/g, '\n');
     const lines = normalized.split('\n');
     const elements = [];
+    let elementKey = 0;
+    const nextElementKey = () => `md-${elementKey++}`;
     let i = 0;
     while (i < lines.length) {
         const line = lines[i];
-        if (!line.trim()) { i++; elements.push(<div key={i} className="h-3" />); continue; }
+        if (!line.trim()) { i++; elements.push(<div key={nextElementKey()} className="h-3" />); continue; }
 
         const h3Match = line.match(/^###\s+(.+)/);
         const h2Match = line.match(/^##\s+(.+)/);
         const h1Match = line.match(/^#\s+(.+)/);
         if (h3Match) {
-            elements.push(<h3 key={i} className="text-base font-bold text-zinc-800 dark:text-zinc-100 mt-5 mb-2">{h3Match[1]}</h3>);
+            elements.push(<h3 key={nextElementKey()} className="text-base font-bold text-zinc-800 dark:text-zinc-100 mt-5 mb-2">{h3Match[1]}</h3>);
             i++; continue;
         }
         if (h2Match) {
-            elements.push(<h2 key={i} className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mt-6 mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700">{h2Match[1]}</h2>);
+            elements.push(<h2 key={nextElementKey()} className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mt-6 mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700">{h2Match[1]}</h2>);
             i++; continue;
         }
         if (h1Match) {
-            elements.push(<h1 key={i} className="text-xl font-bold text-zinc-800 dark:text-zinc-100 mt-7 mb-3">{h1Match[1]}</h1>);
+            elements.push(<h1 key={nextElementKey()} className="text-xl font-bold text-zinc-800 dark:text-zinc-100 mt-7 mb-3">{h1Match[1]}</h1>);
             i++; continue;
         }
 
@@ -115,7 +117,7 @@ const MarkdownRenderer = React.memo(({ text }) => {
                 i++;
             }
             elements.push(
-                <ul key={i} className="list-disc pl-5 my-2 space-y-1 text-zinc-700 dark:text-zinc-300">
+                <ul key={nextElementKey()} className="list-disc pl-5 my-2 space-y-1 text-zinc-700 dark:text-zinc-300">
                     {items.map((item, idx) => <li key={idx}>{renderInlineMarkdown(item)}</li>)}
                 </ul>
             );
@@ -130,7 +132,7 @@ const MarkdownRenderer = React.memo(({ text }) => {
                 i++;
             }
             elements.push(
-                <ol key={i} className="list-decimal pl-5 my-2 space-y-1 text-zinc-700 dark:text-zinc-300">
+                <ol key={nextElementKey()} className="list-decimal pl-5 my-2 space-y-1 text-zinc-700 dark:text-zinc-300">
                     {items.map((item, idx) => <li key={idx}>{renderInlineMarkdown(item)}</li>)}
                 </ol>
             );
@@ -150,7 +152,7 @@ const MarkdownRenderer = React.memo(({ text }) => {
                 const headerCells = dataRows[0].split('|').filter(c => c.trim() !== '').map(c => c.trim());
                 const bodyRows = dataRows.slice(1).map(r => r.split('|').filter(c => c.trim() !== '').map(c => c.trim()));
                 elements.push(
-                    <div key={i} className="my-3 overflow-x-auto">
+                    <div key={nextElementKey()} className="my-3 overflow-x-auto">
                         <table className="w-full text-sm border-collapse rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
                             <thead>
                                 <tr className="bg-zinc-50 dark:bg-zinc-800/80">
@@ -176,7 +178,7 @@ const MarkdownRenderer = React.memo(({ text }) => {
         }
 
         const hrMatch = line.match(/^[-*_]{3,}$/);
-        if (hrMatch) { elements.push(<hr key={i} className="my-4 border-zinc-200 dark:border-zinc-700" />); i++; continue; }
+        if (hrMatch) { elements.push(<hr key={nextElementKey()} className="my-4 border-zinc-200 dark:border-zinc-700" />); i++; continue; }
 
         const codeBlockMatch = line.match(/^```/);
         if (codeBlockMatch) {
@@ -188,7 +190,7 @@ const MarkdownRenderer = React.memo(({ text }) => {
             }
             i++;
             elements.push(
-                <pre key={i} className="my-3 p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-xs font-mono overflow-x-auto border border-zinc-200 dark:border-zinc-700">
+                <pre key={nextElementKey()} className="my-3 p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-xs font-mono overflow-x-auto border border-zinc-200 dark:border-zinc-700">
                     <code>{codeLines.join('\n')}</code>
                 </pre>
             );
@@ -203,14 +205,14 @@ const MarkdownRenderer = React.memo(({ text }) => {
                 i++;
             }
             elements.push(
-                <blockquote key={i} className="my-3 pl-4 border-l-4 border-blue-400 text-zinc-600 dark:text-zinc-400 italic">
+                <blockquote key={nextElementKey()} className="my-3 pl-4 border-l-4 border-blue-400 text-zinc-600 dark:text-zinc-400 italic">
                     {qLines.map((ql, idx) => <p key={idx} className="my-1">{renderInlineMarkdown(ql)}</p>)}
                 </blockquote>
             );
             continue;
         }
 
-        elements.push(<p key={i} className="my-1.5 text-zinc-700 dark:text-zinc-300 leading-relaxed">{renderInlineMarkdown(line)}</p>);
+        elements.push(<p key={nextElementKey()} className="my-1.5 text-zinc-700 dark:text-zinc-300 leading-relaxed">{renderInlineMarkdown(line)}</p>);
         i++;
     }
     return <div className="markdown-body">{elements}</div>;

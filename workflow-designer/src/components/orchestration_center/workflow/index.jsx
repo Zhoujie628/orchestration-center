@@ -24,6 +24,7 @@ import {
     useReactFlow,
     useNodesState,
     useEdgesState,
+    useUpdateNodeInternals,
     addEdge
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -201,6 +202,7 @@ const FlowInner = ({
 }) => {
     const { t } = useTranslation();
     const { screenToFlowPosition, fitView, setCenter, getNode } = useReactFlow();
+    const updateNodeInternals = useUpdateNodeInternals();
     const [rfInstance, setRfInstance] = useState(null);
 
     const themeClasses = useMemo(() => ({
@@ -216,8 +218,8 @@ const FlowInner = ({
     const [viewSelectedNodeId, setViewSelectedNodeId] = useState(null);
     const [viewSelectedElement, setViewSelectedElement] = useState(null);
 
-    const [viewPositionNodes, setViewPositionNodes, onViewNodesChange] = useNodesState([]);
-    const [viewPositionEdges, setViewPositionEdges, onViewEdgesChange] = useEdgesState([]);
+    const [viewPositionNodes, setViewPositionNodes] = useNodesState([]);
+    const [viewPositionEdges, setViewPositionEdges] = useEdgesState([]);
 
     const selectViewNode = useCallback((node, subtaskIndex = null) => {
         setViewSelectedNodeId(node.id);
@@ -322,23 +324,31 @@ const FlowInner = ({
     }, [viewEdges, viewNodes, themeClasses, mode]);
 
     useEffect(() => {
-        if (mode === 'view' && processedNodes.length > 0) {
-            setViewPositionNodes(prev => {
-                if (prev.length === 0) return processedNodes;
-                const prevPositions = new Map(prev.map(n => [n.id, n.position]));
-                return processedNodes.map(node => ({
-                    ...node,
-                    position: prevPositions.get(node.id) || node.position,
-                }));
-            });
-        }
-    }, [processedNodes, mode]);
+        if (mode !== 'view') return;
+
+        setViewPositionNodes(prev => {
+            if (processedNodes.length === 0) return [];
+            if (prev.length === 0) return processedNodes;
+
+            const nextNodeIds = new Set(processedNodes.map(node => node.id));
+            const sameGraph = prev.length === processedNodes.length && prev.every(node => nextNodeIds.has(node.id));
+            const prevPositions = sameGraph ? new Map(prev.map(n => [n.id, n.position])) : new Map();
+
+            return processedNodes.map(node => ({
+                ...node,
+                position: prevPositions.get(node.id) || node.position,
+            }));
+        });
+        setViewPositionEdges(processedEdges);
+    }, [processedNodes, processedEdges, mode, setViewPositionNodes, setViewPositionEdges]);
 
     useEffect(() => {
-        if (mode === 'view') {
-            setViewPositionEdges(processedEdges);
-        }
-    }, [processedEdges, mode]);
+        if (mode !== 'view' || viewPositionNodes.length === 0) return;
+        const frame = requestAnimationFrame(() => {
+            viewPositionNodes.forEach(node => updateNodeInternals(node.id));
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [mode, viewPositionNodes, viewSelectedNodeId, updateNodeInternals]);
 
     const lastCenteredNodeId = useRef(null);
 
@@ -667,8 +677,8 @@ const FlowInner = ({
                 edges={displayEdges}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
-                onNodesChange={mode === 'edit' ? onNodesChangeWithDirty : onViewNodesChange}
-                onEdgesChange={mode === 'edit' ? onEdgesChangeWithDirty : onViewEdgesChange}
+                onNodesChange={mode === 'edit' ? onNodesChangeWithDirty : undefined}
+                onEdgesChange={mode === 'edit' ? onEdgesChangeWithDirty : undefined}
                 onConnect={mode === 'edit' ? onConnect : undefined}
                 onNodeDragStop={(e, n) => { onNodeDragStop(e, n); setIsDirty(true); }}
                 onDrop={mode === 'edit' ? onDrop : undefined}
@@ -688,8 +698,8 @@ const FlowInner = ({
                     }
                 }}
                 nodesConnectable={mode === 'edit'}
-                nodesDraggable={true}
-                elementsSelectable={true}
+                nodesDraggable={mode === 'edit'}
+                elementsSelectable={mode === 'edit'}
                 onInit={setRfInstance}
                 colorMode={isDark ? 'dark' : 'light'}
                 fitView
