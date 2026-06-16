@@ -125,7 +125,9 @@ class DynamicWorkflowEngine:
         self._httpx_client: Optional[httpx.AsyncClient] = None
         self.execution_context_id = ""
         self._auth_interceptors: Dict[str, List[Any]] = {}
+        self._task_stubs: Dict[str, str] = {}
         self._setup_agent_auth()
+        self._load_task_stubs()
 
         if _A2AT_AVAILABLE:
             from common.a2at_config import get_a2at_env_path, update_a2at_language
@@ -170,6 +172,22 @@ class DynamicWorkflowEngine:
                     logger.info(f"Agent '{card.name}' configured with ExtensionInterceptor: {ext_uris}")
             if interceptors:
                 self._auth_interceptors[card.name] = interceptors
+
+    def _load_task_stubs(self):
+        stub_path = Path(__file__).resolve().parent.parent.parent / "etc" / "conf" / "task_prompt_stubs.json"
+        if not stub_path.is_file():
+            return
+        try:
+            data = json.loads(stub_path.read_text(encoding='utf-8'))
+        except Exception:
+            return
+        stubs = data.get("stubs", {}) if isinstance(data, dict) else {}
+        if stubs:
+            self._task_stubs = {
+                k: v for k, v in stubs.items()
+                if (isinstance(v, str) and v.strip()) or (isinstance(v, dict) and v)
+            }
+            logger.info(f"[A2AT] Loaded {len(self._task_stubs)} task prompt stub(s): {list(self._task_stubs.keys())}")
 
     def set_push_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
         self.push_callback = callback
@@ -377,16 +395,28 @@ class DynamicWorkflowEngine:
         except ImportError:
             pass
 
-        if self.a2at_client and task_t_uri and not skip_prompt_gen:
-            try:
-                prompt_result = self.a2at_client.generate_task_prompt(task)
-                if prompt_result.success and prompt_result.prompt_text:
-                    task_t_metadata = prompt_result.prompt_text
-                    logger.info(f"[A2AT] Generated TASK-T prompt for agent '{agent_name}', will set in metadata")
+        if task_t_uri and not skip_prompt_gen:
+            stub_text = self._task_stubs.get(agent_name)
+            if stub_text:
+                if isinstance(stub_text, dict):
+                    task_t_metadata = stub_text.get(task_t_uri)
+                    for uri, val in stub_text.items():
+                        if uri != task_t_uri and isinstance(val, str):
+                            logger.info(f"[A2AT] Also stub metadata key '{uri}' for agent '{agent_name}'")
                 else:
-                    logger.warning(f"[A2AT] Task prompt generation failed, using original task")
-            except Exception as e:
-                logger.warning(f"[A2AT] Failed to generate task prompt: {e}")
+                    task_t_metadata = stub_text
+                if task_t_metadata:
+                    logger.info(f"[A2AT] Using stub task prompt for agent '{agent_name}'")
+            elif self.a2at_client:
+                try:
+                    prompt_result = self.a2at_client.generate_task_prompt(task)
+                    if prompt_result.success and prompt_result.prompt_text:
+                        task_t_metadata = prompt_result.prompt_text
+                        logger.info(f"[A2AT] Generated TASK-T prompt for agent '{agent_name}', will set in metadata")
+                    else:
+                        logger.warning(f"[A2AT] Task prompt generation failed, using original task")
+                except Exception as e:
+                    logger.warning(f"[A2AT] Failed to generate task prompt: {e}")
 
         try:
             client = httpx_client or self._get_httpx_client()
@@ -417,6 +447,10 @@ class DynamicWorkflowEngine:
                 from google.protobuf.struct_pb2 import Struct
                 meta = Struct()
                 meta.update({task_t_uri: task_t_metadata})
+                if isinstance(self._task_stubs.get(agent_name), dict):
+                    for uri, val in self._task_stubs[agent_name].items():
+                        if uri != task_t_uri and isinstance(val, str):
+                            meta.update({uri: val})
                 request_msg.metadata.CopyFrom(meta)
                 logger.info(f"[A2AT] Set TASK-T metadata on message for agent '{agent_name}'")
             send_req = SendMessageRequest(message=request_msg)

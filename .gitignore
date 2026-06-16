@@ -9,3 +9,4 @@ log/
 workflow-designer/dist/
 workflow-designer/stats.html
 data/
+etc/conf/task_prompt_stubs.json

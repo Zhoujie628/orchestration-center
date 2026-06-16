@@ -1,0 +1,7 @@
+{
+    "_comment": "TASK-T prompt stub configuration for development/testing.",
+    "_usage": "Copy to task_prompt_stubs.json and fill agent stubs. Each key is an agent name. Value can be: (a) a plain string → injected as metadata[TASK-T-URI], or (b) a dict → injected as metadata[key] directly. Agents not listed use the normal A2A-T SDK generation pipeline.",
+    "stubs": {
+        "SPN Domain Agent": "## Task Type\nSPN专线投诉诊断\n## Task Description\n要求：提供任务的整体概述，基于<Task Object>、<Task Context>进行投诉场景的网络侧故障根因诊断。\n## Task Target\n诊断并返回网络侧的故障根因\n## Expected Output\n1. 诊断结果类型\n2. 诊断结果详细信息\n3. 修复建议"
+    }
+}
