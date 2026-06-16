@@ -232,6 +232,13 @@ class DynamicWorkflowEngine:
         uris = self._get_task_t_uris(agent_card)
         return uris[0] if uris else None
 
+    def _supports_negotiation(self, agent_card) -> bool:
+        if getattr(agent_card, 'capabilities', None) and agent_card.capabilities.extensions:
+            for ext in agent_card.capabilities.extensions:
+                if ext.uri and 'NEGOTIATION-T' in ext.uri:
+                    return True
+        return False
+
     async def send_message_to_agent(self, agent_name: str, task: str, httpx_client=None):
         return await self._send_with_negotiation(agent_name, task, httpx_client)
 
@@ -244,6 +251,16 @@ class DynamicWorkflowEngine:
             task_state = task_result.status.state
             from a2a.types import TaskState as TS
             if task_state == TS.TASK_STATE_INPUT_REQUIRED:
+                agent_card = self._agent_map.get(agent_name)
+                if not agent_card or not self._supports_negotiation(agent_card):
+                    logger.warning(
+                        f"Agent '{agent_name}' returned INPUT_REQUIRED but does not declare"
+                        f" NEGOTIATION-T extension. Returning response text as-is."
+                    )
+                    if response_text is not None:
+                        return response_text
+                    return ""
+
                 if _round >= self._NEGOTIATION_MAX_ROUNDS:
                     logger.error(
                         f"Negotiation with agent '{agent_name}' reached max rounds ({self._NEGOTIATION_MAX_ROUNDS}) "
@@ -294,16 +311,12 @@ class DynamicWorkflowEngine:
         except ImportError:
             pass
 
-        if self.a2at_client and not skip_prompt_gen:
+        if self.a2at_client and task_t_uri and not skip_prompt_gen:
             try:
                 prompt_result = self.a2at_client.generate_task_prompt(task)
                 if prompt_result.success and prompt_result.prompt_text:
-                    if task_t_uri:
-                        task_t_metadata = prompt_result.prompt_text
-                        logger.info(f"[A2AT] Generated TASK-T prompt for agent '{agent_name}', will set in metadata")
-                    else:
-                        task_text = prompt_result.prompt_text
-                        logger.info(f"[A2AT] Generated task prompt for agent '{agent_name}'")
+                    task_t_metadata = prompt_result.prompt_text
+                    logger.info(f"[A2AT] Generated TASK-T prompt for agent '{agent_name}', will set in metadata")
                 else:
                     logger.warning(f"[A2AT] Task prompt generation failed, using original task")
             except Exception as e:
