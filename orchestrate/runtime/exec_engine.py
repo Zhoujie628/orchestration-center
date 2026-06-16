@@ -40,6 +40,60 @@ except ImportError:
     _A2AT_AVAILABLE = False
     A2ATClient = None
 
+import google.protobuf.json_format as _json_format
+
+_original_parse = _json_format.Parse
+
+_STREAM_RESPONSE_KEYS = frozenset({"task", "message", "statusUpdate", "artifactUpdate"})
+
+
+def _normalize_stream_response(data: dict) -> dict:
+    if _STREAM_RESPONSE_KEYS.intersection(data):
+        return data
+    if "id" in data and "status" in data:
+        return {"task": data}
+    if "artifact" in data and "taskId" in data:
+        return {"artifactUpdate": data}
+    if "status" in data and "taskId" in data:
+        return {"statusUpdate": data}
+    return data
+
+
+def _parse_with_unknown(text, message, ignore_unknown_fields=False, **kwargs):
+    from a2a.types.a2a_pb2 import StreamResponse
+    if isinstance(message, StreamResponse):
+        try:
+            import json as _json
+            data = _json.loads(text)
+            if isinstance(data, dict):
+                if not _STREAM_RESPONSE_KEYS.intersection(data):
+                    logger.warning(f"[A2A] Non-SSE response from server: {text[:2048]}")
+                data = _normalize_stream_response(data)
+                text = _json.dumps(data)
+        except Exception:
+            pass
+    return _original_parse(text, message, ignore_unknown_fields=True, **kwargs)
+
+
+_original_parse_dict = _json_format.ParseDict
+
+
+def _parse_dict_with_unknown(js, message, *args, **kwargs):
+    from a2a.types.a2a_pb2 import StreamResponse
+    if isinstance(message, StreamResponse) and isinstance(js, dict):
+        js = _normalize_stream_response(js)
+    kwargs.pop("ignore_unknown_fields", None)
+    args = list(args)
+    if args:
+        args[0] = True
+    else:
+        kwargs["ignore_unknown_fields"] = True
+    return _original_parse_dict(js, message, *args, **kwargs)
+
+
+_json_format.Parse = _parse_with_unknown
+_json_format.ParseDict = _parse_dict_with_unknown
+
 from common.llm import get_llm_instance
 from common.auth import get_auth_manager
 from common.auth.agent_credential_service import CustomAuthInterceptor

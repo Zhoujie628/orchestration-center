@@ -49,10 +49,12 @@ class ExtensionInterceptor(ClientCallInterceptor):
         existing = args.context.service_parameters.get(HTTP_EXTENSION_HEADER, "")
         existing_values = [existing] if existing else []
         merged = sorted(get_requested_extensions([*existing_values, *self._uris]))
-        args.context.service_parameters[HTTP_EXTENSION_HEADER] = ",".join(merged)
+        extension_value = ",".join(merged)
+        args.context.service_parameters[HTTP_EXTENSION_HEADER] = extension_value
+        args.context.service_parameters["x-a2a-extensions"] = extension_value
 
-        logger.debug(
-            f"[Extensions] Set {HTTP_EXTENSION_HEADER}={args.context.service_parameters[HTTP_EXTENSION_HEADER]}"
+        logger.info(
+            f"[Extensions] Set {HTTP_EXTENSION_HEADER}={extension_value} (also x-a2a-extensions)"
         )
 
     async def after(self, args: AfterArgs) -> None:
