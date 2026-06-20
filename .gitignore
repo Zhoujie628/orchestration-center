@@ -18,3 +18,4 @@ etc/ssl/
 etc/conf/agent_credentials.json
 etc/conf/server.conf
 *.token.md
+*token*.md
