@@ -333,7 +333,7 @@ PDF上传 → 解析章节 → PSOP生成 → 预览 → 可进入编辑
 etc/conf/server.conf       (基础配置, key=value 行)
 etc/conf/server.properties (覆盖配置, 更高优先级, 持久化用户设置)
 etc/conf/db_config.json    (PostgreSQL 连接)
-etc/conf/llm_config.json   (LLM 提供商配置)
+common/config/llm_config.json   (LLM 提供商配置)
 ```
 
 ### 7.2 关键配置项

@@ -32,7 +32,7 @@ In addition to the above custom implementations, this feature also provides an e
   - The LLM module adopts a configuration-driven architecture. Integrating a new model only requires editing `common/config/llm_config.json`, with no Python code needed (a small amount of code is required only when adding a new authentication strategy).
 
 ## 3. Environment Requirements
-- Python >= 3.10+
+- Python >= 3.12+
 
 ### 3.1 Setting Up the Environment
 

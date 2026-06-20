@@ -129,7 +129,7 @@
     | status   | string | `"success"`                    |
     | data     | object | 生成的 PSOP 工作流完整对象      |
 
-    **PSOP 对象结构（data 字段）**: 参见 [附录 A：PSOP 数据结构](#附录-apsop-数据结构)。
+    **PSOP 对象结构（data 字段）**: 参见 [附录 A：PSOP 数据结构](#附录-a-psop-数据结构)。
 
 - 响应示例
 

@@ -63,7 +63,7 @@ For the core workflow of the Orchestration Center, see: [OpenAN Quick Start, Sec
 ### 2.1 Prerequisites
 
 - **Node.js**: 20.19 or later
-- **Python**: 3.10 or later (for starting sample Agent services)
+- **Python**: 3.12 or later (for starting sample Agent services)
 
 ### 2.2 Starting the Service
 
@@ -179,7 +179,7 @@ To specify a Python version:
 
 2. Activate the Virtual Environment
 ```bash
-.\.venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 ```
 
 3. Install Project Dependencies
