@@ -16,6 +16,12 @@ services:
       - ORCH_ENABLE_HTTPS=false
       - ORCH_FORWARDED_ALLOW_IPS=*
       - PERSISTENCE_MODE=file
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:60000/rest/v1/orchestrate/agent-cards"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     restart: unless-stopped
 
   # ---- Optional: PostgreSQL for production persistence ----

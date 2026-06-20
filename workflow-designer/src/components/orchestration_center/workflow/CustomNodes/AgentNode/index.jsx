@@ -149,7 +149,7 @@ const AgentNode = ({ data, selected }) => {
                         const agentTheme = getAgentTheme(task.agent);
                         return (
                             <button
-                                key={idx}
+                                key={`${task.agent}-${task.skill}-${idx}`}
                                 type="button"
                                 onClick={(event) => {
                                     event.stopPropagation();

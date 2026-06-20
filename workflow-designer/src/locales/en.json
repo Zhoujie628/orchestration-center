@@ -340,6 +340,11 @@
   "error": {
     "parse_failed": "Failed to parse dropped agent template."
   },
+  "error_boundary": {
+    "title": "Something went wrong",
+    "message": "An unexpected error occurred in this section.",
+    "try_again": "Try Again"
+  },
   "skills": {
     "title": "Skill Center",
     "total_skills": "skills",

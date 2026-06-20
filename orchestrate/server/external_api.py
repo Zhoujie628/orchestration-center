@@ -338,7 +338,7 @@ async def execute_workflow(
         raise
     except Exception as e:
         logger.error(f"Execution failed: {e}")
-        raise HTTPException(status_code=500, detail="Workflow execution failed")
+        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {e}")
     finally:
         if acquired:
             execute_semaphore.release()
@@ -376,7 +376,7 @@ async def execute_psop_by_id(
         raise
     except Exception as e:
         logger.error(f"Execution by ID failed: {e}")
-        raise HTTPException(status_code=500, detail="Workflow execution failed")
+        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {e}")
     finally:
         if acquired:
             execute_semaphore.release()

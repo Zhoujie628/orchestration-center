@@ -69,7 +69,7 @@ class WorkflowStorage:
             WorkflowStorageError: If save fails
         """
         try:
-            file_path = self._get_save_path(psop.id, "psop")
+            file_path = self._get_file_path(psop.id, "psop")
             self._atomic_write(file_path, psop.model_dump_json(indent=2))
             logger.info(f"PSOP saved: {psop.id} at {file_path}")
             return psop.id
@@ -91,7 +91,7 @@ class WorkflowStorage:
             WorkflowStorageError: If save fails
         """
         try:
-            file_path = self._get_save_path(preflow.id, "preflow")
+            file_path = self._get_file_path(preflow.id, "preflow")
             self._atomic_write(file_path, preflow.model_dump_json(indent=2))
             logger.info(f"PreFlow saved : {preflow.id} at {file_path}")
             return preflow.id
@@ -350,16 +350,6 @@ class WorkflowStorage:
         self.preflow_dir.mkdir(parents=True, exist_ok=True)
         self.execution_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Storage initialized at: psop={self.psop_dir}, preflow={self.preflow_dir}, execution={self.execution_dir}")
-
-    def _get_save_path(self, workflow_id: str, workflow_type: str) -> Path:
-        if not re.match(r'^[\w\-]+$', workflow_id):
-            raise WorkflowStorageError(f"Invalid workflow_id: {workflow_id}")
-        if workflow_type == "psop":
-            return self.psop_dir / f"{workflow_id}.json"
-        elif workflow_type == "preflow":
-            return self.preflow_dir / f"{workflow_id}.json"
-        else:
-            raise WorkflowStorageError(f"Unknown workflow type: {workflow_type}")
 
     def _get_file_path(self, workflow_id: str, workflow_type: str) -> Path:
         """
