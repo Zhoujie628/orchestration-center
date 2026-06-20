@@ -158,7 +158,7 @@ sequenceDiagram
 
 ```bash
 # 克隆仓库
-git clone https://gitcode.com/OpenAN/orchestration-center.git
+git clone https://github.com/project-openan/orchestration-center.git
 cd orchestration-center
 
 # 后端启动
