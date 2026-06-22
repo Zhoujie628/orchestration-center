@@ -123,7 +123,8 @@ async def logging_middleware(request: Request, call_next):
 async def security_middleware(request: Request, call_next):
     if len(str(request.url)) > MAX_URL_LENGTH:
         return Response(content="URI Too Long", status_code=status.HTTP_414_URI_TOO_LONG)
-    if request.method in ("POST", "PUT"):
+    content_type = request.headers.get("content-type", "")
+    if request.method in ("POST", "PUT") and "multipart" not in content_type:
         total_size = 0
         body_chunks = []
         try:

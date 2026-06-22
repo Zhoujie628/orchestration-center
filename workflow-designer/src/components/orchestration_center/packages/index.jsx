@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Upload, FileText, Link2, Clock, ExternalLink, Loader2 } from 'lucide-react';
 
 const MOCK_PACKAGES = [
@@ -28,15 +29,16 @@ const MOCK_PACKAGES = [
     },
 ];
 
-const formatDate = (dateStr) => {
+const formatDate = (dateStr, locale) => {
     const d = new Date(dateStr);
-    return d.toLocaleDateString('zh-CN', {
+    return d.toLocaleDateString(locale || 'zh-CN', {
         year: 'numeric', month: '2-digit', day: '2-digit',
         hour: '2-digit', minute: '2-digit'
     });
 };
 
 const SolutionPackages = ({ onBack, onImportPdf, onViewWorkflow, loading, loadingStatus, progress, t }) => {
+    const { i18n } = useTranslation();
     const fileInput = useRef(null);
     const [dragOver, setDragOver] = useState(false);
 
@@ -150,7 +152,7 @@ const SolutionPackages = ({ onBack, onImportPdf, onViewWorkflow, loading, loadin
                                         <div className="flex items-center gap-2 mt-1">
                                             <Clock size={11} className="text-zinc-400" />
                                             <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
-                                                {formatDate(pkg.importedAt)}
+                                                {formatDate(pkg.importedAt, i18n.language)}
                                             </span>
                                         </div>
                                     </div>

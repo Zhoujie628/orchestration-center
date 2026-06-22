@@ -85,10 +85,10 @@ class PathValidatorLink(AbstractValidatorLink):
         return [
             PathValidator(conf_obj.ssl_certfile, suffix=".cer", is_required=True, conf_tip="ssl_certfile"),
             PathValidator(conf_obj.ssl_keyfile, suffix=".pem", is_required=True, conf_tip="ssl_keyfile"),
-            PathValidator(conf_obj.ssl_keyfile_password, suffix=".conf", is_required=True,
+            PathValidator(conf_obj.ssl_keyfile_password, suffix="", is_required=True,
                           conf_tip="ssl_keyfile_password"),
             PathValidator(conf_obj.ssl_ca_certs, suffix=".cer", is_required=True, conf_tip="ssl_ca_certs"),
-            PathValidator(conf_obj.ssl_crl_file, suffix=".cer", is_required=True, conf_tip="ssl_crl_file"),
+            PathValidator(conf_obj.ssl_crl_file, suffix=".crl", is_required=True, conf_tip="ssl_crl_file"),
         ]
 
 

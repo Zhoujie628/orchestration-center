@@ -61,7 +61,8 @@ def _normalize_stream_response(data: dict) -> dict:
 
 def _parse_with_unknown(text, message, ignore_unknown_fields=False, **kwargs):
     from a2a.types.a2a_pb2 import StreamResponse
-    if isinstance(message, StreamResponse):
+    is_stream = isinstance(message, StreamResponse)
+    if is_stream:
         try:
             import json as _json
             data = _json.loads(text)
@@ -72,7 +73,8 @@ def _parse_with_unknown(text, message, ignore_unknown_fields=False, **kwargs):
                 text = _json.dumps(data)
         except Exception:
             pass
-    return _original_parse(text, message, ignore_unknown_fields=True, **kwargs)
+        kwargs["ignore_unknown_fields"] = True
+    return _original_parse(text, message, ignore_unknown_fields=ignore_unknown_fields, **kwargs)
 
 
 _original_parse_dict = _json_format.ParseDict
@@ -80,8 +82,11 @@ _original_parse_dict = _json_format.ParseDict
 
 def _parse_dict_with_unknown(js, message, *args, **kwargs):
     from a2a.types.a2a_pb2 import StreamResponse
-    if isinstance(message, StreamResponse) and isinstance(js, dict):
+    is_stream = isinstance(message, StreamResponse)
+    if is_stream and isinstance(js, dict):
         js = _normalize_stream_response(js)
+    if not is_stream:
+        return _original_parse_dict(js, message, *args, **kwargs)
     kwargs.pop("ignore_unknown_fields", None)
     args = list(args)
     if args:
@@ -206,8 +211,6 @@ class DynamicWorkflowEngine:
                 timeout=timeout_config, verify=False, follow_redirects=True,
                 event_hooks={"request": [_log_request]},
             )
-            auth_manager = get_auth_manager()
-            auth_manager.set_httpx_client(self._httpx_client)
         return self._httpx_client
 
     async def _close_httpx_client(self):
@@ -825,11 +828,15 @@ Do NOT add any prefix markers like "Clarification:". {lang_hint}"""
                 return task.description, {"error": error_msg}, False
 
         if step.type == StepType.ANY_SUCCESS:
-            coros = [execute_single_task(task) for task in step.subtasks]
-            for coro in asyncio.as_completed(coros):
+            tasks = [asyncio.create_task(execute_single_task(task)) for task in step.subtasks]
+            for coro in asyncio.as_completed(tasks):
                 task_name, output, success = await coro
                 results[task_name] = output
                 if success:
+                    for t in tasks:
+                        if not t.done():
+                            t.cancel()
+                    await asyncio.gather(*tasks, return_exceptions=True)
                     return results, True
             self._record_stop_event("ANY_SUCCESS: all subtasks failed", results)
             return results, False

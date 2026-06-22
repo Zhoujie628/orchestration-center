@@ -5,17 +5,23 @@ services:
     build: .
     container_name: orchestration-center
     ports:
-      - "60000:60000"
+      - "5001:5001"
     volumes:
       - ./data:/opt/orchestration-center/data
       - ./etc/ssl:/opt/orchestration-center/etc/ssl
       - ./log:/opt/orchestration-center/log
     environment:
       - ORCH_IP=0.0.0.0
-      - ORCH_PORT=60000
+      - ORCH_PORT=5001
       - ORCH_ENABLE_HTTPS=false
       - ORCH_FORWARDED_ALLOW_IPS=*
       - PERSISTENCE_MODE=file
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/rest/v1/orchestrate/agent-cards"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     restart: unless-stopped
 
   # ---- Optional: PostgreSQL for production persistence ----

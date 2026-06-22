@@ -19,6 +19,7 @@ import os
 import re
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from loguru import logger
 
@@ -60,7 +61,10 @@ def generate_env_from_llm_config(
 
     model = model_cfg.model
     api_key = model_cfg.api_key
-    base_url = model_cfg.url
+    full_url = model_cfg.url
+    parsed = urlparse(full_url)
+    base_path = Path(parsed.path).parent.parent.as_posix()
+    base_url = f"{parsed.scheme}://{parsed.netloc}{base_path}"
 
     if not model:
         raise ValueError("Missing 'model' in LLM config")

@@ -15,6 +15,7 @@
 //    License for the specific language governing permissions and limitations
 //    under the License.
 import {Component} from "react";
+import {withTranslation} from "react-i18next";
 import {AlertTriangle, RefreshCw} from "lucide-react";
 
 class ErrorBoundary extends Component {
@@ -45,10 +46,10 @@ class ErrorBoundary extends Component {
                     <AlertTriangle className="w-12 h-12 text-rose-500" />
                     <div className="text-center">
                         <p className="text-lg font-semibold text-zinc-700 dark:text-zinc-200 mb-1">
-                            Something went wrong
+                            {this.props.t('error_boundary.title')}
                         </p>
                         <p className="text-sm max-w-md">
-                            {this.state.error?.message || "An unexpected error occurred in this section."}
+                            {this.state.error?.message || this.props.t('error_boundary.message')}
                         </p>
                     </div>
                     <button
@@ -56,7 +57,7 @@ class ErrorBoundary extends Component {
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-sm font-medium transition-colors"
                     >
                         <RefreshCw className="w-4 h-4" />
-                        Try Again
+                        {this.props.t('error_boundary.try_again')}
                     </button>
                 </div>
             );
@@ -65,4 +66,6 @@ class ErrorBoundary extends Component {
     }
 }
 
-export {ErrorBoundary};
+const TranslatedErrorBoundary = withTranslation()(ErrorBoundary);
+
+export { TranslatedErrorBoundary as ErrorBoundary };

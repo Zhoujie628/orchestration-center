@@ -630,7 +630,7 @@ eventSource.onerror = function(error) {
 4. **并发安全**: 接口支持并发访问，但同一ID的PSOP多次保存会覆盖之前的数据
 5. **数据验证**: 所有输入数据都会进行严格的Pydantic验证
 6. **LLM调用**: 意图生成和检索接口需要调用LLM API，响应时间可能较长
-7. **环境变量**: 需要设置`DEEPSEEK_API_KEY`环境变量用于LLM调用
+7. **LLM配置**: 需要在 `common/config/llm_config.json` 中配置 LLM API Key 等参数
 
 ---
 

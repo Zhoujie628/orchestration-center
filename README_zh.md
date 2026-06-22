@@ -158,7 +158,7 @@ sequenceDiagram
 
 ```bash
 # 克隆仓库
-git clone https://gitcode.com/OpenAN/orchestration-center.git
+git clone https://github.com/project-openan/orchestration-center.git
 cd orchestration-center
 
 # 后端启动
@@ -231,19 +231,38 @@ flowchart TB
 
 ## API 概览
 
+### 对外 API (`/api/v1/*`)
+
 | 方法 | 端点 | 说明 |
 |------|------|------|
-| `POST` | `/api/v1/solution-package/import` | 导入解决方案包（PDF） |
-| `POST` | `/api/v1/psops/auto-orchestrate` | 通过描述自动生成工作流 |
-| `POST` | `/api/v1/psops` | 创建 PSOP 工作流 |
-| `GET` | `/api/v1/psops` | 查询工作流列表 |
-| `GET` | `/api/v1/psops/{psop_id}` | 获取工作流详情 |
-| `PUT` | `/api/v1/psops/{psop_id}` | 更新工作流 |
-| `DELETE` | `/api/v1/psops/{psop_id}` | 删除工作流 |
-| `POST` | `/api/v1/psops/{psop_id}/execute` | 执行工作流（SSE 流式推送） |
-| `GET` | `/api/v1/psops/{psop_id}/executions` | 查询执行记录 |
-| `POST` | `/api/v1/retrieve` | 语义检索工作流 |
-| `POST` | `/api/v1/psops/publish` | 发布工作流版本 |
+| `POST` | `/api/v1/orchestrate/sop` | SOP 编排（JSON 文本或文件上传） |
+| `POST` | `/api/v1/orchestrate/intent` | 意图编排 |
+| `GET` | `/api/v1/orchestrate/psop/{id}` | 获取 PSOP 工作流详情 |
+| `POST` | `/api/v1/orchestrate/search` | 自然语言语义检索工作流 |
+| `POST` | `/api/v1/orchestrate/execute` | 自动编排+执行（SSE 流式推送） |
+| `GET` | `/api/v1/orchestrate/execute/{id}` | 执行指定 PSOP（SSE 流式推送） |
+| `GET` | `/api/v1/executions` | 查询执行记录列表 |
+| `GET` | `/api/v1/executions/{id}` | 查询执行结果 |
+
+### 内部 API (`/rest/v1/orchestrate/*`)
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| `GET` | `/workflows` | 查询工作流列表 |
+| `GET` | `/workflows/{id}` | 获取工作流详情 |
+| `POST` | `/workflows` | 创建工作流 |
+| `DELETE` | `/workflows/{id}` | 删除工作流 |
+| `POST` | `/generate-from-preflow` | 从 PreFlow 生成 PSOP |
+| `POST` | `/generate-from-intent` | 从意图生成 PSOP |
+| `POST` | `/retrieve-by-intent` | 按意图检索工作流 |
+| `POST` | `/retrieve-topn-by-intent` | 按意图检索 Top-N 工作流 |
+| `GET` | `/agent-cards` | 查询可用 Agent 列表 |
+| `GET` | `/templates` | 查询工作流模板列表 |
+| `POST` | `/templates/{id}/import` | 从模板导入工作流 |
+| `GET` | `/execute` | 启动工作流执行（SSE 流式推送） |
+| `GET` | `/execution-records` | 查询执行记录列表 |
+| `GET` | `/execution-records/{id}` | 获取执行记录详情 |
+| `DELETE` | `/execution-records/{id}` | 删除执行记录 |
 
 完整规范：[API 参考](docs/zh/编排中心API参考.md)
 

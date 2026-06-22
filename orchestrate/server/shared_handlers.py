@@ -15,24 +15,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import anyio
 from common.custom.default_handle import HandlerRegistry
 from common.custom.interface_type import InterfaceType
-from common.util.config_util import get_conf
 from orchestrate.core.retrieval import WorkflowRetrieval
 from orchestrate.workflow_storage_instance import get_workflow_storage
-
-
-def get_semaphore(config_key: str, default: int) -> anyio.Semaphore:
-    return anyio.Semaphore(int(get_conf().get(config_key, default)))
-
-
-def try_acquire(sem: anyio.Semaphore):
-    try:
-        sem.acquire_nowait()
-        return True
-    except anyio.WouldBlock:
-        return False
 
 
 class SharedHandlers:

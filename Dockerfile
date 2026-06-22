@@ -20,12 +20,12 @@
 #   docker build -t orchestration-center:latest .
 #
 # Run (local, file persistence):
-#   docker run -p 60000:60000 orchestration-center:latest
+#   docker run -p 5001:5001 orchestration-center:latest
 #
 # Run (local, PostgreSQL):
 #   docker run -e PERSISTENCE_MODE=postgresql \
 #     -e DB_HOST=host -e DB_USERNAME=user -e DB_PASSWORD=pass \
-#     -p 60000:60000 orchestration-center:latest
+#     -p 5001:5001 orchestration-center:latest
 
 FROM python:3.12-slim AS builder
 
@@ -55,7 +55,7 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     ORCH_IP=0.0.0.0 \
-    ORCH_PORT=60000 \
+    ORCH_PORT=5001 \
     ORCH_ENABLE_HTTPS=false \
     ORCH_FORWARDED_ALLOW_IPS="*" \
     PERSISTENCE_MODE=file
@@ -72,7 +72,7 @@ WORKDIR /opt/orchestration-center
 
 USER appuser
 
-EXPOSE 60000
+EXPOSE 5001
 
 ENTRYPOINT ["/opt/orchestration-center/docker-entrypoint.sh"]
 CMD ["serve"]

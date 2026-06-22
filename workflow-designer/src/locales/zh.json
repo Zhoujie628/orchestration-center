@@ -340,6 +340,11 @@
   "error": {
     "parse_failed": "解析拖拽的 Agent 模板失败。"
   },
+  "error_boundary": {
+    "title": "发生错误",
+    "message": "此部分发生了意外错误。",
+    "try_again": "重试"
+  },
   "skills": {
     "title": "技能中心",
     "total_skills": "个技能",

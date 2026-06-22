@@ -19,8 +19,8 @@ tests/
 docs/
 *.md
 !README.md
+.env
 .env.*
-!.env
 workflow-designer/node_modules/
 workflow-designer/dist/
 wheelhouse/

@@ -50,7 +50,7 @@ The following REST API endpoints are exposed externally:
 
 ### 1.4 Implementation Principles
 
-For the core workflow of the Orchestration Center, see: [OpenAN Quick Start, Section 3.1.4  Core Process Verification](https://gitcode.com/OpenAN/docs/blob/main/en/quick_start.md#314-core-flow-verification).
+For the core workflow of the Orchestration Center, see: [OpenAN Quick Start, Section 3.1.4  Core Process Verification](https://github.com/project-openan/docs/blob/main/en/quick_start.md#314-core-flow-verification).
 
 ### 1.5 Relationship with Related Features
 
@@ -63,13 +63,13 @@ For the core workflow of the Orchestration Center, see: [OpenAN Quick Start, Sec
 ### 2.1 Prerequisites
 
 - **Node.js**: 20.19 or later
-- **Python**: 3.10 or later (for starting sample Agent services)
+- **Python**: 3.12 or later (for starting sample Agent services)
 
 ### 2.2 Starting the Service
 
 #### 2.2.1 **Start the Registry Center Service**
 
-   All Agent information displayed on the UI is retrieved from the Registry Center. For details, see the [Registry Center User Guide](https://gitcode.com/OpenAN/registry-center/blob/main/docs/en/Registry%20Center%20User%20Guide.md).
+   All Agent information displayed on the UI is retrieved from the Registry Center. For details, see the [Registry Center User Guide](https://github.com/project-openan/registry-center/blob/main/docs/en/Registry%20Center%20User%20Guide.md).
 
 #### 2.2.2 **Start the Orchestration Center Backend Service**
 
@@ -179,7 +179,7 @@ To specify a Python version:
 
 2. Activate the Virtual Environment
 ```bash
-.\.venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 ```
 
 3. Install Project Dependencies

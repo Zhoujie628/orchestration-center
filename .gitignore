@@ -10,3 +10,12 @@ workflow-designer/dist/
 workflow-designer/stats.html
 data/
 etc/conf/task_prompt_stubs.json
+.env
+*.pem
+*.cer
+*.key
+etc/ssl/
+etc/conf/agent_credentials.json
+etc/conf/server.conf
+*.token.md
+*token*.md

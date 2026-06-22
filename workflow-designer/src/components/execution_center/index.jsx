@@ -814,6 +814,11 @@ const ExecutionCenter = ({ isDark }) => {
         const idToRun = overrideId || selectedId;
         if (!idToRun) return;
 
+        if (eventSource) {
+            eventSource.close();
+            setEventSource(null);
+        }
+
         setError(null);
         setEvents([]);
         setPsopStatus(null);

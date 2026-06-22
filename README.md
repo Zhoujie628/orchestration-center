@@ -158,7 +158,7 @@ sequenceDiagram
 
 ```bash
 # Clone the repository
-git clone https://gitcode.com/OpenAN/orchestration-center.git
+git clone https://github.com/project-openan/orchestration-center.git
 cd orchestration-center
 
 # Backend setup
