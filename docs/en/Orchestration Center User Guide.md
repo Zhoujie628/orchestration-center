@@ -82,7 +82,7 @@ The script's default configuration file is located at `etc/systemd/deploy.conf`.
 
 | Parameter Name | Default Value | Description |
 | --- | --- | --- |
-| INSTALL_DIR | /opt/orchestration-center | Service installation directory |
+| INSTALL_DIR | /OpenA2A-T/orchestration-center | Service installation directory |
 | PYTHON_PATH | {INSTALL_DIR}/venv/bin/python3 | Python interpreter path |
 | SERVICE_NAME | orchestration-center | systemd service name |
 | INSTALL_DEPS | true | Whether to automatically install dependencies |
