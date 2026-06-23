@@ -1,3 +1,22 @@
+<!--
+Copyright (c) 2026 Huawei Technologies Co., Ltd.
+All Rights Reserved.
+
+SPDX-License-Identifier: Apache-2.0
+
+   Licensed under the Apache License, Version 2.0 (the "License"); you may
+   not use this file except in compliance with the License. You may obtain
+   a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+   WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+   License for the specific language governing permissions and limitations
+   under the License.
+-->
+
 # OpenAN 编排中心 设计文档
 
 *版本: 1.0*
@@ -178,7 +197,7 @@ run()
                    │ get_handler │──── 根据 InterfaceType + persistence_mode 分发
                    └──────┬──────┘
           ┌───────────────┼───────────────┐
-     file mode       postgresql mode
+      file mode       postgresql mode
   ┌──────┴──────┐  ┌───────┴──────────┐
   │BaseHandler  │  │Custom*Handler    │
   │ 子类8个     │  │ 子类8个          │
@@ -258,6 +277,8 @@ run()
 | POST | `/orchestrate/search` | 按意图搜索工作流 |
 | POST | `/orchestrate/execute` | 自动编排 + 执行 SSE |
 | GET | `/orchestrate/execute/{id}` | 按 ID 执行 SSE |
+| GET | `/orchestrate/psop/{id}` | 获取 PSOP 详情 |
+| GET | `/executions` | 列出所有执行记录 |
 | GET | `/executions/{id}` | 获取执行结果 |
 
 ### 5.3 中间件栈

@@ -53,7 +53,7 @@ pytest test/test_exec_engine.py::TestDynamicWorkflowEngine::test_linear_executio
 ### Entrypoints (all run via `-m`)
 
 - `python -m orchestrate.start` — backend server
-- `python -m samples.start_agents_server` — 9 sample A2A agents
+- `python -m samples.start_agents_server` — 11 sample A2A agents
 
 ### Two API layers in one FastAPI app
 

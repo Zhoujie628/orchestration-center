@@ -1,3 +1,22 @@
+<!--
+Copyright (c) 2026 Huawei Technologies Co., Ltd.
+All Rights Reserved.
+
+SPDX-License-Identifier: Apache-2.0
+
+   Licensed under the Apache License, Version 2.0 (the "License"); you may
+   not use this file except in compliance with the License. You may obtain
+   a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+   WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+   License for the specific language governing permissions and limitations
+   under the License.
+-->
+
 # Orchestration Center API Reference
 
 ## Before You Begin
@@ -109,7 +128,7 @@
 
     **JSON Request Body:**
 
-    ```json
+    ```http
     POST /api/v1/orchestrate/sop HTTP/1.1
     Host: your-host:5001
     Content-Type: application/json
@@ -197,7 +216,7 @@
 
 - Request Example
 
-    ```json
+    ```http
     POST /api/v1/orchestrate/intent HTTP/1.1
     Host: your-host:5001
     Content-Type: application/json
@@ -278,7 +297,7 @@
 
 - Request Example
 
-    ```json
+    ```http
     POST /api/v1/orchestrate/search HTTP/1.1
     Host: your-host:5001
     Content-Type: application/json
@@ -399,7 +418,7 @@
 
 ---
 
-## SSE Event Type Description
+### SSE Event Type Description
 
 The following execution endpoints (`POST /orchestrate/execute`, `GET /orchestrate/execute/{psop_id}`) push real-time execution progress via SSE (Server-Sent Events). Each SSE message has the format:
 
@@ -503,7 +522,7 @@ for line in resp.iter_lines(decode_unicode=True):
 
 - Request Example
 
-    ```json
+    ```http
     POST /api/v1/orchestrate/execute HTTP/1.1
     Host: your-host:5001
     Content-Type: application/json

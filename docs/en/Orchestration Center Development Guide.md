@@ -1,5 +1,4 @@
 <!--
-!/usr/bin/env python3
 Copyright (c) 2026 Huawei Technologies Co., Ltd.
 All Rights Reserved.
 
@@ -83,7 +82,7 @@ The system adopts a registry pattern. The core components include:
 
 | Component | Responsibility |
 |-----------|----------------|
-| BaseHandle | Defines the unified abstract interface for all handlers |
+| BaseHandler | Defines the unified abstract interface for all handlers |
 | HandlerRegistry | Manages handler registration and retrieval, providing default implementations as fallback |
 | InterfaceType | Defines the enumeration of supported interface types |
 | Default Handlers | Provide built-in implementations for common operations |
@@ -101,7 +100,7 @@ The system adopts a registry pattern. The core components include:
            │
            ▼
 ┌──────────────────────┐
-│     BaseHandle       │
+│     BaseHandler       │
 │  (Abstract Base)     │
 └──────────┬───────────┘
       ┌────┴────┬───────────────┐
@@ -140,9 +139,9 @@ from common.custom.default_handle import BaseHandler, HandlerRegistry, Interface
 
 Step 2: Create a custom handler
 
-Create a custom class inheriting from BaseHandle and implement the handle method:
+Create a custom class inheriting from BaseHandler and implement the handle method:
 ```python
-class MyCustomHandle(BaseHandle):
+class MyCustomHandle(BaseHandler):
     """Custom handler example"""
     
     def handle(self, *args, **kwargs):
@@ -189,7 +188,7 @@ Below is a complete custom handler implementation example:
 ```python
 from common.custom.default_handle import BaseHandler, HandlerRegistry, InterfaceType
 
-class SaveCustomHandle(BaseHandle):
+class SaveCustomHandle(BaseHandler):
     """Custom query handler"""
     
     def handle(self, query_params=None):
@@ -225,10 +224,10 @@ If no custom handler is registered, the system will use the following default im
 
 | Handler | Corresponding Interface Type | Functional Description |
 |---------|-----------------------------|------------------------|
-| SavePsopHandler | SAVE | Save PSOP |
-| GetAllPsopsHandler | QUERY_ALL | Query all PSOPs |
-| GetPsopHandler | QUERY | Query the corresponding PSOP by its ID |
-| DeletePsopHandler | DELETE | Delete PSOP |
+| SavePsopHandler | SAVE_PSOP | Save PSOP |
+| GetAllPsopsHandler | GET_ALL_PSOP | Query all PSOPs |
+| GetPsopHandler | GET_PSOP_BY_ID | Query the corresponding PSOP by its ID |
+| DeletePsopHandler | DELETE_PSOP | Delete PSOP |
 
 #### 4.1.5 Testing and Verification
 Verify default handlers:
@@ -236,7 +235,7 @@ Verify default handlers:
 from common.custom.default_handle import HandlerRegistry, InterfaceType
 
 # Verify default handler
-handler = HandlerRegistry.get_handler(InterfaceType.QUERY)
+handler = HandlerRegistry.get_handler(InterfaceType.GET_PSOP_BY_ID)
 assert handler is not None, "Handler retrieval failed"
 print(f"Currently used handler: {type(handler).__name__}")
 ```
@@ -244,7 +243,7 @@ Verify custom handler registration:
 ```python
 from common.custom.default_handle import HandlerRegistry, InterfaceType
 
-class TestHandle(BaseHandle):
+class TestHandle(BaseHandler):
     def handle(self, *args, **kwargs):
         return "test_success"
 
@@ -540,12 +539,12 @@ except ValueError:
 **Possible Causes**:
 - 1. The registration was performed after the handler was retrieved
 - 2. The registered interface type does not match the one actually used
-- 3. The custom handler did not properly inherit from BaseHandle
+- 3. The custom handler did not properly inherit from BaseHandler
 
 **Solutions**:
 - 1. Ensure registration is completed at application startup, before any business processing
 - 2. Check that the InterfaceType used during registration and retrieval is consistent
-- 3. Confirm that the custom handler properly inherits from BaseHandle and implements the handle method
+- 3. Confirm that the custom handler properly inherits from BaseHandler and implements the handle method
 
 ### 5.2 New Model Configuration Not Taking Effect?
 

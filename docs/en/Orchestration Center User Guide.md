@@ -1,5 +1,4 @@
 <!--
-!/usr/bin/env python3
 Copyright (c) 2026 Huawei Technologies Co., Ltd.
 All Rights Reserved.
 
@@ -178,7 +177,7 @@ To specify a Python version:
 ```
 
 2. Activate the Virtual Environment
-```bash
+```powershell
 .\.venv\Scripts\Activate.ps1
 ```
 
@@ -236,7 +235,7 @@ tail -f orchestrate.log
    Enter the `bin` folder under the project directory and run the script (this script automatically starts the frontend service and the sample Agent service):
 
    ```bash
-   cd {install_dir}/orchestration-center/bin
+cd {install_dir}/bin
    ./start_samples.sh
    ```
 ## 3. Usage
