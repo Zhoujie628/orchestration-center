@@ -140,10 +140,10 @@ sequenceDiagram
 | **执行引擎** | `DynamicWorkflowEngine` — 异步 DAG 遍历、并行 A2A 调用、LLM 条件路由、SSE 流式推送 |
 | **语义检索** | 基于自然语言意图检索历史工作流，快速复用已有流程 |
 | **双 API 层** | 内部 API（`/rest/v1/orchestrate/*`）供前端调用 + 对外 API（`/api/v1/*`）供第三方集成 |
-| **SSE 流式推送** | 8 种事件类型（init、start、agent_request、agent_response、complete、error 等）实时推送执行进度 |
-| **可插拔存储** | 文件 JSON（默认）或 PostgreSQL 持久化，通过 HandlerRegistry 切换 |
+| **SSE 流式推送** | 11 种事件类型（init、start、agent_request、agent_response、psop_update、negotiation_request、negotiation_resolved、negotiation_failed、complete、error、close）实时推送执行进度 |
+| **可插拔存储** | 文件 JSON 或 PostgreSQL 持久化，通过 HandlerRegistry 切换 |
 | **模板市场** | 预置电信场景工作流模板（直播保障、节能、故障处理） |
-| **示例 Agent** | 8+ 示例 A2A Agent，集成协商能力，用于测试和演示 |
+| **示例 Agent** | 11 个示例 A2A Agent，集成协商能力，用于测试和演示 |
 
 ## 快速开始
 
@@ -252,6 +252,7 @@ flowchart TB
 | `GET` | `/workflows/{id}` | 获取工作流详情 |
 | `POST` | `/workflows` | 创建工作流 |
 | `DELETE` | `/workflows/{id}` | 删除工作流 |
+| `POST` | `/parse-pdf` | 解析 PDF SolutionPackage 提取 PreFlow |
 | `POST` | `/generate-from-preflow` | 从 PreFlow 生成 PSOP |
 | `POST` | `/generate-from-intent` | 从意图生成 PSOP |
 | `POST` | `/retrieve-by-intent` | 按意图检索工作流 |
@@ -259,7 +260,7 @@ flowchart TB
 | `GET` | `/agent-cards` | 查询可用 Agent 列表 |
 | `GET` | `/templates` | 查询工作流模板列表 |
 | `POST` | `/templates/{id}/import` | 从模板导入工作流 |
-| `GET` | `/execute` | 启动工作流执行（SSE 流式推送） |
+| `GET` | `/execute` | 启动工作流执行（SSE 流式推送），参数：`psop_id`、`user_intent`、`lang` |
 | `GET` | `/execution-records` | 查询执行记录列表 |
 | `GET` | `/execution-records/{id}` | 获取执行记录详情 |
 | `DELETE` | `/execution-records/{id}` | 删除执行记录 |

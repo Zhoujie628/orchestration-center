@@ -35,24 +35,24 @@ A modern, high-performance orchestration platform for multi-agent systems. This 
 cd workflow-designer
 
 # Install dependencies
-yarn install
+npm install --force
 ```
 
 ### Development
 
 ```bash
 # Start the development server
-yarn dev
+npm run dev
 ```
 
 ### Build
 
 ```bash
 # Build for production
-yarn build
+npm run build
 
 # Preview production build
-yarn preview
+npm run preview
 ```
 
 ## 📂 Project Structure

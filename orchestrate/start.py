@@ -203,6 +203,6 @@ if __name__ == '__main__':
     logger.info("  GET  /api/v1/orchestrate/execute/{id} - Execute known PSOP (SSE)")
     logger.info("  GET  /api/v1/executions/{id}         - Get execution result")
     logger.info("")
-    logger.info("  For detailed documentation, refer to: PSOP_API_DOCUMENTATION.md")
+    logger.info("  For detailed documentation, refer to: Orchestration Center API Reference")
     logger.info("=" * 50)
     main()
