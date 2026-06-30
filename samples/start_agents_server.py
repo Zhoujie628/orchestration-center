@@ -178,7 +178,10 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
 
     config = uvicorn.Config(app, host=host, port=port)
     uvicorn_server = uvicorn.Server(config)
-    await uvicorn_server.serve()
+    try:
+        await uvicorn_server.serve()
+    except SystemExit:
+        logger.warning(f"Failed to start server for '{agent_name}' on {host}:{port}, continuing...")
 
 
 async def main() -> None:
@@ -220,7 +223,7 @@ async def main() -> None:
         tasks.append(task)
         logger.info(f"Starting server for '{agent_name}' on {agent_card.supported_interfaces[0].url}")
     try:
-        await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks, return_exceptions=True)
     except KeyboardInterrupt:
         logger.info(f"Shutting down all servers...")
         for task in tasks:
