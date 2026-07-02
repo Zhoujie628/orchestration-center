@@ -23,10 +23,10 @@ from urllib.parse import urlparse
 
 from loguru import logger
 
-from a2a_t.llm.factory import LLMClientFactory
-from a2a_t.llm.providers.openai import OpenAIClient
+from a2a_t.llm.factory import LLMClientFactory as _LLMFactory
+from a2a_t.llm.providers.openai import OpenAIClient as _OpenAIClient
 
-LLMClientFactory.register("deepseek", OpenAIClient)
+_LLMFactory.register("deepseek", _OpenAIClient)
 
 LANG_MAP = {"en": "en-US", "zh": "zh-CN"}
 
