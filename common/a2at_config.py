@@ -42,9 +42,23 @@ def get_a2at_env_path(env_path: Path = None) -> Path:
     return _default_env_path()
 
 
+def _get_available_languages() -> set[str]:
+    from a2a_t.config.models import _default_prompt_resource_root_dir
+    root = Path(_default_prompt_resource_root_dir())
+    scenarios_dir = root / "scenarios"
+    if not scenarios_dir.is_dir():
+        return set()
+    return {d.name for d in scenarios_dir.iterdir() if d.is_dir() and (d / "scenarios.json").exists()}
+
+
 def update_a2at_language(language: str, env_path: Path = None) -> None:
     path = get_a2at_env_path(env_path)
     lang_code = LANG_MAP.get(language, language)
+    available = _get_available_languages()
+    if available and lang_code not in available:
+        fallback = "zh-CN" if "zh-CN" in available else next(iter(available))
+        logger.info(f"Language '{lang_code}' has no prompt resources, falling back to '{fallback}'")
+        lang_code = fallback
     content = path.read_text(encoding='utf-8')
     updated = re.sub(r'^(A2AT_LANGUAGE=).*$', rf'\1{lang_code}', content, flags=re.MULTILINE)
     path.write_text(updated, encoding='utf-8')

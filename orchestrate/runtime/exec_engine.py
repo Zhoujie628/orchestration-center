@@ -417,7 +417,14 @@ class DynamicWorkflowEngine:
                         task_t_metadata = prompt_result.prompt_text
                         logger.info(f"[A2AT] Generated TASK-T prompt for agent '{agent_name}', will set in metadata")
                     else:
-                        logger.warning(f"[A2AT] Task prompt generation failed, using original task")
+                        failure = prompt_result.failure
+                        if failure:
+                            logger.warning(
+                                f"[A2AT] Task prompt generation failed: "
+                                f"code={failure.code}, stage={failure.stage}, message={failure.message}"
+                            )
+                        else:
+                            logger.warning(f"[A2AT] Task prompt generation failed, using original task")
                 except Exception as e:
                     logger.warning(f"[A2AT] Failed to generate task prompt: {e}")
 
