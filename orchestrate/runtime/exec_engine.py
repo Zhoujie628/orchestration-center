@@ -599,13 +599,18 @@ class DynamicWorkflowEngine:
 
         logger.info(f"Processing negotiation from agent '{agent_name}': {negotiation_text[:150]}...")
 
+        # Step 1: mechanically forward to predecessor agents.
+        # Only ask direct DAG predecessors; never cross-layer.
+        predecessor_data = await self._forward_to_predecessors(agent_name, negotiation_text)
+
         if not context_data:
-            logger.info(f"No negotiation context in response, generating simple clarification")
-            clarification = await self._generate_negotiation_clarification(
+            # Simple negotiation (no A2A-T protocol context).
+            clarification = await self._build_negotiation_clarification(
                 agent_name=agent_name,
                 original_task=clean_original,
                 negotiation_text=negotiation_text,
                 receive_message="",
+                predecessor_data=predecessor_data,
             )
             if clarification:
                 resolved = build_negotiation_resolution_task(clean_original, clarification)
@@ -630,6 +635,7 @@ class DynamicWorkflowEngine:
             })
             return None
 
+        # Step 2: A2A-T protocol negotiation flow.
         try:
             receive_result = self.a2at_client.receive_negotiation(
                 message=negotiation_text,
@@ -656,11 +662,12 @@ class DynamicWorkflowEngine:
             })
             return None
 
-        clarification = await self._generate_negotiation_clarification(
+        clarification = await self._build_negotiation_clarification(
             agent_name=agent_name,
             original_task=clean_original,
             negotiation_text=negotiation_text,
             receive_message=receive_result.get("message", ""),
+            predecessor_data=predecessor_data,
         )
 
         if not clarification:
@@ -674,7 +681,6 @@ class DynamicWorkflowEngine:
                 }, ensure_ascii=False),
             })
             return None
-
         from a2a_t.negotiation.common.enums import NegotiationStatus
         from a2a_t.negotiation.common.models import ContinueNegotiationInput, NegotiationContext
 
@@ -717,6 +723,95 @@ class DynamicWorkflowEngine:
             }, ensure_ascii=False),
         })
         return resolved_task
+
+    async def _build_negotiation_clarification(
+        self,
+        agent_name: str,
+        original_task: str,
+        negotiation_text: str,
+        receive_message: str,
+        predecessor_data: Optional[str],
+    ) -> Optional[str]:
+        """Build the response used to resolve a negotiation request."""
+        if predecessor_data:
+            return predecessor_data
+        return await self._generate_negotiation_clarification(
+            agent_name=agent_name,
+            original_task=original_task,
+            negotiation_text=negotiation_text,
+            receive_message=receive_message,
+        )
+
+    async def _forward_to_predecessors(
+        self,
+        agent_name: str,
+        negotiation_text: str,
+    ) -> Optional[str]:
+        """Mechanically forward negotiation request to direct DAG predecessor agents.
+
+        Only queries *direct* predecessors of the current step; never cross-layer.
+        Uses raw agent call (no negotiation loop) to avoid infinite recursion.
+        """
+        current_idx = self.current_step_idx
+        if current_idx is None or current_idx >= len(self.workflow.steps):
+            logger.warning(f"Cannot forward negotiation: no current step context")
+            return None
+
+        current_step = self.workflow.steps[current_idx]
+        predecessor_names = self._get_step_predecessors(current_step.name)
+        if not predecessor_names:
+            logger.info(f"Step '{current_step.name}' has no predecessor steps, cannot forward")
+            return None
+
+        logger.info(
+            f"Forwarding negotiation request from '{agent_name}' "
+            f"(step '{current_step.name}') to predecessors: {predecessor_names}"
+        )
+
+        collected = {}
+        for pred_name in predecessor_names:
+            pred_step = self.workflow.steps[self._step_index.get(pred_name)]
+            if not pred_step or not pred_step.subtasks:
+                continue
+
+            # Include the original step output for context
+            prior_output = self.step_outputs.get(pred_name, {})
+            prior_summary = json.dumps(prior_output, ensure_ascii=False, default=str)[:2000]
+
+            for task in pred_step.subtasks:
+                pred_agent = task.agent
+                if not pred_agent:
+                    continue
+
+                forward_msg = (
+                    f"[Negotiation Request - Forwarded from Orchestrator]\n\n"
+                    f"Agent '{agent_name}' is processing a follow-up task "
+                    f"and indicates it needs additional data or clarification.\n\n"
+                    f"The original output you provided for step '{pred_name}':\n"
+                    f"---\n{prior_summary}\n---\n\n"
+                    f"The request from '{agent_name}':\n"
+                    f"---\n{negotiation_text}\n---\n\n"
+                    f"As the predecessor agent, please provide supplemental data "
+                    f"or clarification to help resolve this."
+                )
+
+                logger.info(f"Forwarding to predecessor '{pred_agent}' (step '{pred_name}')")
+                try:
+                    response, _, _ = await self._send_message_internal(pred_agent, forward_msg)
+                    if response:
+                        collected[pred_agent] = response
+                        logger.info(f"Got response from '{pred_agent}' ({len(response)} chars)")
+                    else:
+                        logger.warning(f"Empty response from '{pred_agent}'")
+                except Exception as e:
+                    logger.warning(f"Failed to contact predecessor '{pred_agent}': {e}")
+
+        if not collected:
+            logger.warning(f"No data collected from any predecessor agent")
+            return None
+
+        parts = [f"[Response from {a}]:\n{d}" for a, d in collected.items()]
+        return "\n\n".join(parts)
 
     async def _generate_negotiation_clarification(
         self,
