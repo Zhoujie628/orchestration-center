@@ -1445,6 +1445,58 @@ class TestNegotiationFlow:
                     f"Expected negotiation_failed in events, got: {event_types}"
 
     @pytest.mark.asyncio
+    async def test_negotiation_without_predecessors_uses_clarification_fallback(
+        self, mock_agent_card, mock_llm_client
+    ):
+        """A negotiation on an entry step should still use the clarification fallback."""
+        mock_a2at = self._make_mock_a2at()
+        psop = PSOP(
+            name="negotiation_entry_step",
+            steps=[
+                Step(
+                    name="step1",
+                    type=StepType.ALL_SUCCESS,
+                    subtasks=[Task(description="Task A", agent="test_agent", skill="skill_a")],
+                    next=None,
+                )
+            ],
+        )
+        with patch('orchestrate.runtime.exec_engine.get_llm_instance',
+                   return_value=mock_llm_client):
+            with self._mock_a2at_patch as MockA2AT:
+                MockA2AT.return_value = mock_a2at
+                engine = DynamicWorkflowEngine(
+                    psop=psop, agent_cards=[mock_agent_card],
+                    a2at_env_path=MagicMock()
+                )
+
+        engine.current_step_idx = 0
+        engine._generate_negotiation_clarification = AsyncMock(
+            return_value="Fallback clarification"
+        )
+
+        resolved = await engine._handle_agent_negotiation(
+            "test_agent",
+            "original task",
+            {
+                "negotiationConcern": "I need more information about the target",
+                "https://projects.tmforum.org/a2aproject/telecommunication/extensions/DATA-NEGOTIATION-T/v1": {
+                    "negotiationType": "fulfillment",
+                    "negotiationId": "neg-001",
+                    "role": "client",
+                    "round": "1",
+                    "status": "in-progress",
+                    "extra": {},
+                },
+            },
+        )
+
+        assert resolved is not None
+        assert "Fallback clarification" in resolved
+        engine._generate_negotiation_clarification.assert_awaited_once()
+        mock_a2at.continue_negotiation.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_agent_returns_completed_no_negotiation(
         self, mock_agent_card, mock_llm_client, mock_completed_task
     ):
