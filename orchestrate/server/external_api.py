@@ -63,7 +63,6 @@ execute_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_START_PROCESS_STREAM
 sop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PLAN, 10)))
 intent_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_GENERATE_PSOP, 10)))
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Request Models
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -72,21 +71,17 @@ class SOPOrchestrateRequest(BaseModel):
     sop_content: str = Field(..., min_length=1, max_length=50000, description="Natural language SOP steps (markdown text)")
     name: Optional[str] = Field(None, max_length=256, description="Optional workflow name")
 
-
 class IntentOrchestrateRequest(BaseModel):
     intent: str = Field(..., min_length=1, max_length=10000, description="Natural language intent or task description")
     name: Optional[str] = Field(None, max_length=256, description="Optional workflow name")
-
 
 class ExecuteRequest(BaseModel):
     task: str = Field(..., min_length=1, max_length=10000, description="Task description. System will search existing PSOPs first, auto-generate if none found")
     name: Optional[str] = Field(None, max_length=256, description="Optional workflow name for auto-generation")
 
-
 class SearchRequest(BaseModel):
     intent: str = Field(..., min_length=1, max_length=10000, description="Natural language intent to search for matching workflows")
     top_n: Optional[int] = Field(5, description="Maximum number of results to return", ge=1, le=20)
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. SOP-based orchestration
@@ -192,11 +187,10 @@ async def orchestrate_sop(
         raise
     except Exception as e:
         logger.error(f"SOP orchestration failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
     finally:
         if acquired:
             sop_semaphore.release()
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. Intent-based orchestration
@@ -231,11 +225,10 @@ async def orchestrate_intent(
         raise
     except Exception as e:
         logger.error(f"Intent orchestration failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
     finally:
         if acquired:
             intent_semaphore.release()
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 3. Workflow retrieval
@@ -261,8 +254,7 @@ async def get_psop(
         raise
     except Exception as e:
         logger.error(f"Failed to get PSOP: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get PSOP: {e}")
-
+        raise HTTPException(status_code=500, detail=f"Failed to get PSOP: {e}") from e
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 4. Search/retrieve workflows
@@ -287,8 +279,7 @@ async def search_workflows(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {e}")
-
+        raise HTTPException(status_code=500, detail=f"Search failed: {e}") from e
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. Auto-orchestrate + execute (composite)
@@ -338,11 +329,10 @@ async def execute_workflow(
         raise
     except Exception as e:
         logger.error(f"Execution failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {e}") from e
     finally:
         if acquired:
             execute_semaphore.release()
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 6. Execute known PSOP
@@ -376,11 +366,10 @@ async def execute_psop_by_id(
         raise
     except Exception as e:
         logger.error(f"Execution by ID failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {e}") from e
     finally:
         if acquired:
             execute_semaphore.release()
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. Execution records
@@ -404,8 +393,7 @@ async def list_executions(
         raise
     except Exception as e:
         logger.error(f"Failed to list execution records: {e}")
-        raise HTTPException(status_code=500, detail="Failed to list execution records")
-
+        raise HTTPException(status_code=500, detail="Failed to list execution records") from e
 
 @router.get("/executions/{execution_id}")
 async def get_execution(
@@ -425,4 +413,4 @@ async def get_execution(
         raise
     except Exception as e:
         logger.error(f"Failed to get execution record: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get execution record")
+        raise HTTPException(status_code=500, detail="Failed to get execution record") from e

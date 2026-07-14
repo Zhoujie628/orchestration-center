@@ -34,18 +34,15 @@ Key components:
 
 import json
 from loguru import logger
-import re
-from typing import Type, Optional, Union, Any, Dict, List
+from typing import Optional, Dict, List, Any
 
 from a2a.types import AgentCard
-from pydantic import BaseModel
-
 from common.llm import get_llm_instance
+from common.util.json_utils import parse_llm_json_response
 from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP
 from orchestrate.core.prompts import get_generate_psop_prompt, get_choose_skill_prompt, \
-    get_preprocess_input_prompt
-
+     get_preprocess_input_prompt
 
 class WorkflowGeneratorError(Exception):
     """Custom exception for PSOP workflow generation failures.
@@ -54,7 +51,6 @@ class WorkflowGeneratorError(Exception):
     including task extraction, skill matching, or PSOP structure building.
     """
     pass
-
 
 class PsopGenerator:
     """Main class for generating PSOP workflows from PreFlow inputs.
@@ -73,50 +69,9 @@ class PsopGenerator:
         """Initialize the PSOP generator with an LLM instance."""
         self._llm = get_llm_instance()
 
-    @staticmethod
-    def _parse_json_response(
-            llm_response: str,
-            output_model: Optional[Type[BaseModel]] = None
-    ) -> Union[BaseModel, Dict[str, Any], List[Any]]:
-        """Parse JSON response from LLM output.
-
-        Extracts JSON from code blocks in LLM responses and validates/parses it.
-
-        Args:
-            llm_response: Raw LLM response string containing JSON code blocks
-            output_model: Optional Pydantic model to validate and parse JSON into
-
-        Returns:
-            Parsed JSON data as dict, list, or Pydantic model instance
-
-        Raises:
-            ValueError: If no JSON code block found, empty content, or invalid JSON
-            JSONDecodeError: If JSON parsing fails
-        """
-        matches = re.findall(r'```json(.*?)```', llm_response, re.DOTALL)
-        if not matches:
-            preview = llm_response[:200] if len(llm_response) > 200 else llm_response
-            error_msg = f"No JSON code block found in LLM answer. Response preview: {preview}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        json_str = matches[-1].strip()
-        if not json_str:
-            preview = llm_response[:200] if len(llm_response) > 200 else llm_response
-            error_msg = f"Empty JSON content found in code block. Response preview: {preview}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        try:
-            if output_model:
-                return output_model.model_validate_json(json_str)
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON format: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Failed to parse JSON into model: {e}")
-            raise
+    def _parse_json_response(self, text, model=None):
+        """Backward-compat wrapper delegating to parse_llm_json_response."""
+        return parse_llm_json_response(text, model)
 
     def extract_tasks_from_steps(self, pre_wf_md: str) -> List[str]:
         """Extract concrete tasks from markdown-formatted business steps.
@@ -136,7 +91,7 @@ class PsopGenerator:
         try:
             prompt = get_preprocess_input_prompt(pre_wf_md)
             _, llm_res = self._llm.ask_llm(prompt)
-            all_steps = self._parse_json_response(llm_res)
+            all_steps = parse_llm_json_response(llm_res)
 
             if not isinstance(all_steps, list):
                 raise ValueError(f"Expected list from LLM response, got {type(all_steps)}")
@@ -178,7 +133,7 @@ class PsopGenerator:
             agents_card_str = json.dumps(agent_cards_list, ensure_ascii=False, indent=2)
             prompt = get_choose_skill_prompt(actions_str, agents_card_str)
             _, llm_res = self._llm.ask_llm(prompt)
-            action_skill_pairs = self._parse_json_response(llm_res)
+            action_skill_pairs = parse_llm_json_response(llm_res)
             if not isinstance(action_skill_pairs, dict):
                 raise ValueError(f"Expected dict from LLM response, got {type(action_skill_pairs)}")
             logger.info(f"Successfully matched actions to skills: {len(action_skill_pairs)} matches")
@@ -214,7 +169,7 @@ class PsopGenerator:
             prompt = get_generate_psop_prompt(preflow.steps_md, tasks, psop_schema)
             _, llm_res = self._llm.ask_llm(prompt)
 
-            psop_data = self._parse_json_response(llm_res, PSOP)
+            psop_data = parse_llm_json_response(llm_res, PSOP)
 
             if not getattr(psop_data, 'steps', None):
                 raise ValueError("Generated PSOP has no steps")

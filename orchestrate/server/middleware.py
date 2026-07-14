@@ -31,7 +31,6 @@ from common.config import (
 )
 from common.util.config_util import get_conf
 
-
 class ConnectionLimitMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, max_connections: int):
         super().__init__(app)
@@ -72,7 +71,6 @@ class ConnectionLimitMiddleware(BaseHTTPMiddleware):
             async with self._lock:
                 self.active_connections -= 1
 
-
 class TimeoutMiddleware(BaseHTTPMiddleware):
     _SSE_PATHS = {"/execute", "/api/v1/orchestrate/execute"}
 
@@ -97,10 +95,8 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
                                     "data": None,
                                 })
 
-
 sync_storage = storage.MemoryStorage()
 limiter = strategies.MovingWindowRateLimiter(sync_storage)
-
 
 def parse_rate_limit(interface_name: str, config):
     config_map = {
@@ -140,7 +136,7 @@ def parse_rate_limit(interface_name: str, config):
     key, default_value = entry
     try:
         rate_value = int(config.get(key, default_value))
-    except(ValueError, TypeError):
+    except (ValueError, TypeError):
         logger.error(f"Config key '{key}' has invalid value, using default {default_value}")
         rate_value = default_value
     rate_string = f"{rate_value}/second"
@@ -151,11 +147,9 @@ def parse_rate_limit(interface_name: str, config):
         logger.error(f"Failed to parse rate limit string: '{rate_string}': {e}")
         return None
 
-
 async def async_hit(rate_item, *identifiers: str, cost=1):
     func = partial(limiter.hit, rate_item, *identifiers, cost=cost)
     return await asyncio.to_thread(func)
-
 
 class RateLimiter:
     def __init__(self, config, interface_name: str = None):

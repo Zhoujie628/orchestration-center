@@ -20,7 +20,6 @@ from typing import Any, Dict, Optional
 
 from loguru import logger
 
-
 @dataclass
 class ModelConfig:
     description: str = ""
@@ -47,28 +46,28 @@ class ModelConfig:
             response=raw.get("response", {}),
         )
 
+class _ModelConfigHolder:
+    """Lazy holder for model configurations (avoids mutable global state)."""
+    _instance: Optional[Dict[str, ModelConfig]] = None
 
-_model_configs: Optional[Dict[str, ModelConfig]] = None
+    @classmethod
+    def get(cls) -> Dict[str, ModelConfig]:
+        if cls._instance is None:
+            cls._instance = cls._load()
+        return cls._instance
 
-
-def _load_model_configs() -> Dict[str, ModelConfig]:
-    global _model_configs
-    if _model_configs is not None:
-        return _model_configs
-
-    try:
-        from common.llm.config.config_reader import read_config_as_json
-        raw_config = read_config_as_json("../../config/llm_config.json")
-    except Exception as e:
-        logger.error(f"Failed to load LLM config: {e}")
-        raw_config = {}
-
-    _model_configs = {
-        key: ModelConfig.from_dict(key, val)
-        for key, val in raw_config.items()
-    }
-    return _model_configs
-
+    @classmethod
+    def _load(cls) -> Dict[str, ModelConfig]:
+        try:
+            from common.llm.config.config_reader import read_config_as_json
+            raw_config = read_config_as_json("../../config/llm_config.json")
+        except Exception as e:
+            logger.error(f"Failed to load LLM config: {e}")
+            raw_config = {}
+        return {
+            key: ModelConfig.from_dict(key, val)
+            for key, val in raw_config.items()
+        }
 
 def get_model_config(capability: str) -> Optional[ModelConfig]:
-    return _load_model_configs().get(capability)
+    return _ModelConfigHolder.get().get(capability)

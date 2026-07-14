@@ -14,11 +14,24 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+import pytest
+from common.util.cipher_util import decrypt
 
-import os
 
-from common.util.config_util import get_root_path
+class TestDecrypt:
 
-ROOT_PATH = get_root_path()
-SSL_PATH = os.path.join(ROOT_PATH, 'etc', 'ssl')
-CONFIG_FILE_PATH = os.path.join(ROOT_PATH, 'etc', 'conf', 'server.conf')
+    def test_decrypt_returns_bytes(self):
+        result = decrypt("hello")
+        assert isinstance(result, bytes)
+
+    def test_decrypt_encodes_string(self):
+        result = decrypt("test123")
+        assert result == b"test123"
+
+    def test_decrypt_empty_string(self):
+        result = decrypt("")
+        assert result == b""
+
+    def test_decrypt_utf8_encoding(self):
+        result = decrypt("abc")
+        assert result.decode("utf-8") == "abc"

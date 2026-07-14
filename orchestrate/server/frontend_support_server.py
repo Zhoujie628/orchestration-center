@@ -64,9 +64,12 @@ app = FastAPI(title="Workflow Orchestration API", version="1.0.0", docs_url=None
 
 config = get_conf()
 
+# CORS: restrict origins in production via CORS_ORIGINS env var (comma-separated)
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "*")
+_cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -75,14 +78,12 @@ app.add_middleware(
 app.add_middleware(ConnectionLimitMiddleware, max_connections=int(config.get(CONN_MAX, 200)))
 app.add_middleware(TimeoutMiddleware, timeout_seconds=int(config.get(CONN_TIMEOUT, 300)))
 
-
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content=error(exc.status_code, exc.detail),
     )
-
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -94,7 +95,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content=error(422, "; ".join(messages)),
     )
-
 
 @app.middleware("http")
 async def logging_middleware(request: Request, call_next):
@@ -117,7 +117,6 @@ async def logging_middleware(request: Request, call_next):
         logger.error(f"[{request_id}] <-- {request.method} {request.url.path} "
                      f"ERROR={e} duration={duration:.3f}s")
         raise
-
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
@@ -142,37 +141,30 @@ async def security_middleware(request: Request, call_next):
             return Response(content="Bad Request", status_code=status.HTTP_400_BAD_REQUEST)
     return await call_next(request)
 
-
 # ──── Request models ────
 
 class PlanRequest(BaseModel):
     preflow: dict = Field(..., description="PreFlow model JSON")
     agent_cards: List[dict] = Field(..., description="AgentCard list JSON")
 
-
 class SavePSOPRequest(BaseModel):
     psop: dict = Field(..., description="PSOP model JSON")
-
 
 class IntentRequest(BaseModel):
     user_intent: str = Field(..., min_length=1, max_length=10000, description="Natural language intent description")
     workflow_name: Optional[str] = Field(None, description="Optional workflow name")
 
-
 class RetrieveIntentRequest(BaseModel):
     user_intent: str = Field(..., min_length=1, max_length=10000, description="Natural language intent for retrieval")
 
-
 # ──── Router ────
 router = APIRouter(prefix="/rest/v1/orchestrate")
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Workflow CRUD
 # ═══════════════════════════════════════════════════════════════════════════════
 
 all_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_ALL_PSOPS, 20)))
-
 
 @router.get("/workflows")
 async def list_workflows(
@@ -198,9 +190,7 @@ async def list_workflows(
         if acquired:
             all_psop_semaphore.release()
 
-
 one_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_ONE_PSOP, 10)))
-
 
 @router.get("/workflows/{workflow_id}")
 async def get_workflow(
@@ -227,9 +217,7 @@ async def get_workflow(
         if acquired:
             one_psop_semaphore.release()
 
-
 save_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_SAVE_PSOP, 10)))
-
 
 @router.post("/workflows", status_code=201)
 async def create_workflow(
@@ -272,9 +260,7 @@ async def create_workflow(
         if acquired:
             save_psop_semaphore.release()
 
-
 delete_psop_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_DELETE_PSOP, 5)))
-
 
 @router.delete("/workflows/{workflow_id}")
 async def delete_workflow(
@@ -312,13 +298,11 @@ async def delete_workflow(
         if acquired:
             delete_psop_semaphore.release()
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Workflow generation endpoints
 # ═══════════════════════════════════════════════════════════════════════════════
 
 parse_pdf_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_PARSE_PDF, 5)))
-
 
 @router.post("/parse-pdf")
 async def parse_pdf(
@@ -379,9 +363,7 @@ async def parse_pdf(
         if acquired:
             parse_pdf_semaphore.release()
 
-
 plan_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_PLAN, 10)))
-
 
 @router.post("/generate-from-preflow")
 async def generate_from_preflow(
@@ -424,9 +406,7 @@ async def generate_from_preflow(
         if acquired:
             plan_semaphore.release()
 
-
 generate_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_GENERATE_PSOP, 10)))
-
 
 @router.post("/generate-from-intent")
 async def generate_from_intent(
@@ -478,9 +458,7 @@ async def generate_from_intent(
         if acquired:
             generate_semaphore.release()
 
-
 retrieve_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_RETRIEVE_PSOP, 10)))
-
 
 @router.post("/retrieve-by-intent")
 async def retrieve_by_intent(
@@ -508,11 +486,9 @@ async def retrieve_by_intent(
         if acquired:
             retrieve_semaphore.release()
 
-
 class RetrieveTopNRequest(BaseModel):
     user_intent: str = Field(..., min_length=1, max_length=10000, description="Natural language intent for retrieval")
     top_n: int = Field(default=3, ge=1, le=10, description="Max results to return")
-
 
 @router.post("/retrieve-topn-by-intent")
 async def retrieve_topn_by_intent(
@@ -539,13 +515,11 @@ async def retrieve_topn_by_intent(
         if acquired:
             retrieve_semaphore.release()
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Agent cards
 # ═══════════════════════════════════════════════════════════════════════════════
 
 agent_cards_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_AGENT_CARDS, 20)))
-
 
 @router.get("/agent-cards")
 async def list_agent_cards(
@@ -575,13 +549,11 @@ async def list_agent_cards(
         if acquired:
             agent_cards_semaphore.release()
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Workflow templates
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _templates_dir = pathlib.Path(__file__).resolve().parent.parent.parent / "data" / "workflow_templates"
-
 
 @router.get("/templates")
 async def list_templates(
@@ -609,7 +581,6 @@ async def list_templates(
     except Exception as e:
         logger.error(f"Failed to list templates: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/templates/{template_id}/import", status_code=201)
 async def import_template(
@@ -644,13 +615,11 @@ async def import_template(
         if acquired:
             save_psop_semaphore.release()
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Workflow execution (SSE streaming)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 execute_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_START_PROCESS_STREAM, 10)))
-
 
 @router.get("/execute")
 async def execute_workflow(
@@ -686,7 +655,6 @@ async def execute_workflow(
         if acquired:
             execute_semaphore.release()
 
-
 @router.delete("/execution-records/{execution_id}")
 async def delete_execution_record(execution_id: str):
     try:
@@ -701,7 +669,6 @@ async def delete_execution_record(execution_id: str):
         logger.error(f"Failed to delete execution record: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/execution-records")
 async def list_execution_records():
     try:
@@ -713,7 +680,6 @@ async def list_execution_records():
     except Exception as e:
         logger.error(f"Failed to list execution records: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/execution-records/{execution_id}")
 async def get_execution_record(execution_id: str):
@@ -729,11 +695,9 @@ async def get_execution_record(execution_id: str):
         logger.error(f"Failed to get execution record: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ──── Register routers ────
 app.include_router(router)
 app.include_router(external_router)
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Legacy route aliases (backward compatibility, delegates to new routes)
@@ -744,12 +708,10 @@ async def legacy_agent_cards():
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/rest/v1/orchestrate/agent-cards", status_code=308)
 
-
 @app.get("/psops")
 async def legacy_list_workflows(limit: int = 10, _: Any = Depends(RateLimiter(config, "list_workflows"))):
     recent = SharedHandlers.retrieval().list_recent_workflows(limit=limit, workflow_type='psop')
     return {"code": 200, "message": "success", "data": [wf.to_dict() for wf in recent]}
-
 
 @app.get("/psops/{workflow_id}")
 async def legacy_get_workflow(workflow_id: str, _: Any = Depends(RateLimiter(config, "get_workflow"))):
@@ -757,7 +719,6 @@ async def legacy_get_workflow(workflow_id: str, _: Any = Depends(RateLimiter(con
     if not psop:
         raise HTTPException(status_code=404, detail=f"PSOP {workflow_id} not found")
     return {"code": 200, "message": "success", "data": psop.model_dump()}
-
 
 @app.post("/psops")
 async def legacy_save_workflow(request: SavePSOPRequest, _: Any = Depends(RateLimiter(config, "create_workflow"))):
@@ -778,7 +739,6 @@ async def legacy_save_workflow(request: SavePSOPRequest, _: Any = Depends(RateLi
     finally:
         if acquired:
             save_psop_semaphore.release()
-
 
 @app.delete("/psops/{workflow_id}")
 async def legacy_delete_workflow(workflow_id: str, _: Any = Depends(RateLimiter(config, "delete_workflow"))):

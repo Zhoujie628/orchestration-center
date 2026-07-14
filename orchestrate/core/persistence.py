@@ -31,7 +31,6 @@ class WorkflowStorageError(Exception):
     """Exception raised for workflow storage errors."""
     pass
 
-
 class WorkflowStorage:
     """Storage for workflows (PSOP and PreFlow)."""
     def __init__(self, storage_dir: Optional[str] = None):
@@ -75,7 +74,7 @@ class WorkflowStorage:
             return psop.id
         except Exception as e:
             logger.error(f"Failed to save PSOP: {e}")
-            raise WorkflowStorageError(f"Failed to save PSOP: {e}")
+            raise WorkflowStorageError(f"Failed to save PSOP: {e}") from e
 
     def save_preflow(self, preflow: PreFlow) -> str:
         """
@@ -276,7 +275,7 @@ class WorkflowStorage:
             return record.execution_id
         except Exception as e:
             logger.error(f"Failed to save execution record: {e}")
-            raise WorkflowStorageError(f"Failed to save execution record: {e}")
+            raise WorkflowStorageError(f"Failed to save execution record: {e}") from e
 
     def load_execution_record(self, execution_id: str) -> Optional[ExecutionRecord]:
         """

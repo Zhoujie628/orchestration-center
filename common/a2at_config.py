@@ -30,17 +30,14 @@ _LLMFactory.register("deepseek", _OpenAIClient)
 
 LANG_MAP = {"en": "en-US", "zh": "zh-CN"}
 
-
 def _default_env_path() -> Path:
     base = Path(os.path.abspath(__file__)).parent.parent
     return base / ".env"
-
 
 def get_a2at_env_path(env_path: Path = None) -> Path:
     if env_path is not None:
         return env_path
     return _default_env_path()
-
 
 def _get_available_languages() -> set[str]:
     from a2a_t.config.models import _default_prompt_resource_root_dir
@@ -49,7 +46,6 @@ def _get_available_languages() -> set[str]:
     if not scenarios_dir.is_dir():
         return set()
     return {d.name for d in scenarios_dir.iterdir() if d.is_dir() and (d / "scenarios.json").exists()}
-
 
 def update_a2at_language(language: str, env_path: Path = None) -> None:
     path = get_a2at_env_path(env_path)
@@ -61,9 +57,11 @@ def update_a2at_language(language: str, env_path: Path = None) -> None:
         lang_code = fallback
     content = path.read_text(encoding='utf-8')
     updated = re.sub(r'^(A2AT_LANGUAGE=).*$', rf'\1{lang_code}', content, flags=re.MULTILINE)
-    path.write_text(updated, encoding='utf-8')
-    logger.info(f"Updated A2AT_LANGUAGE to {lang_code} in {path}")
-
+    try:
+        path.write_text(updated, encoding='utf-8')
+        logger.info(f"Updated A2AT_LANGUAGE to {lang_code} in {path}")
+    except PermissionError:
+        logger.warning(f"Cannot write {path} (locked by another process); skipping language update")
 
 def generate_env_from_llm_config(
     env_output_path: Optional[Path] = None,
@@ -140,7 +138,6 @@ A2AT_NEGOTIATION_STATE_STORE_TYPE=in_memory
     env_output_path.write_text(env_content, encoding='utf-8')
     logger.info(f"Generated A2AT .env file at: {env_output_path}")
     return env_output_path
-
 
 def ensure_env_file_exists() -> Path:
     env_path = _default_env_path()

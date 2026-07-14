@@ -25,7 +25,6 @@ from loguru import logger
 
 from common.llm.provider.auth_strategies import AUTH_STRATEGIES
 
-
 class GenericLLM:
     def __init__(self, config: dict):
         self._url = config['url']
@@ -75,8 +74,8 @@ class GenericLLM:
             logger.info(f"ask llm cost {duration:.2f}s")
             return reasoning, answer
         except Exception as e:
-            logger.error(f"ask llm exception {e}")
-            return '', ''
+            logger.error(f"ask llm exception: {e}")
+            raise RuntimeError(f"LLM call failed: {e}") from e
 
     def embed(self, prompt: str) -> List[float]:
         start = _time.time()
@@ -90,8 +89,8 @@ class GenericLLM:
             logger.info(f"embed cost {duration:.2f}s")
             return cast(List[float], result)
         except Exception as e:
-            logger.error(f"embed exception {e}")
-            return []
+            logger.error(f"embed exception: {e}")
+            raise RuntimeError(f"LLM embed failed: {e}") from e
 
     def rerank(self, query: str, documents: List[str]) -> List[Dict[str, Any]]:
         start = _time.time()

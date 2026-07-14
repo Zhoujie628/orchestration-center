@@ -17,6 +17,7 @@
 
 import asyncio
 import atexit
+import os
 import json
 import uuid
 from collections import deque
@@ -46,7 +47,6 @@ _original_parse = _json_format.Parse
 
 _STREAM_RESPONSE_KEYS = frozenset({"task", "message", "statusUpdate", "artifactUpdate"})
 
-
 def _normalize_stream_response(data: dict) -> dict:
     if _STREAM_RESPONSE_KEYS.intersection(data):
         return data
@@ -57,7 +57,6 @@ def _normalize_stream_response(data: dict) -> dict:
     if "status" in data and "taskId" in data:
         return {"statusUpdate": data}
     return data
-
 
 def _parse_with_unknown(text, message, ignore_unknown_fields=False, **kwargs):
     from a2a.types.a2a_pb2 import StreamResponse
@@ -76,9 +75,7 @@ def _parse_with_unknown(text, message, ignore_unknown_fields=False, **kwargs):
         kwargs["ignore_unknown_fields"] = True
     return _original_parse(text, message, ignore_unknown_fields=ignore_unknown_fields, **kwargs)
 
-
 _original_parse_dict = _json_format.ParseDict
-
 
 def _parse_dict_with_unknown(js, message, *args, **kwargs):
     from a2a.types.a2a_pb2 import StreamResponse
@@ -94,7 +91,6 @@ def _parse_dict_with_unknown(js, message, *args, **kwargs):
     else:
         kwargs["ignore_unknown_fields"] = True
     return _original_parse_dict(js, message, *args, **kwargs)
-
 
 _json_format.Parse = _parse_with_unknown
 _json_format.ParseDict = _parse_dict_with_unknown
@@ -145,7 +141,6 @@ class DynamicWorkflowEngine:
                 logger.warning(f"Failed to initialize A2ATClient: {e}, continuing without negotiation support")
         else:
             logger.debug("a2a_t not available, negotiation support disabled")
-
 
     def _setup_agent_auth(self):
         auth_manager = get_auth_manager()
@@ -207,8 +202,9 @@ class DynamicWorkflowEngine:
                     f"headers={dict(request.headers)}"
                 )
 
+            verify_ssl = os.environ.get("AGENT_VERIFY_SSL", "false").lower() != "false"
             self._httpx_client = httpx.AsyncClient(
-                timeout=timeout_config, verify=False, follow_redirects=True,
+                timeout=timeout_config, verify=verify_ssl, follow_redirects=True,
                 event_hooks={"request": [_log_request]},
             )
         return self._httpx_client

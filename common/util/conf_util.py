@@ -26,6 +26,14 @@ from common.util import cipher_util
 from common.util.conf_obj import ConfObj
 from common.util.constant_param import SSL_PATH, CONFIG_FILE_PATH
 
+_conf_singleton_obj: ConfObj | None = None
+
+def get_conf_singleton() -> ConfObj:
+    """Lazy-initialised singleton for the server configuration object."""
+    global _conf_singleton_obj
+    if _conf_singleton_obj is None:
+        _conf_singleton_obj = load_conf_object(CONFIG_FILE_PATH)
+    return _conf_singleton_obj
 
 def load_conf_as_dict(conf_file: str) -> dict:
     config = configparser.ConfigParser()
@@ -37,11 +45,9 @@ def load_conf_as_dict(conf_file: str) -> dict:
         logger.error(f"load config failed, {e}")
         return {}
 
-
 def load_conf_object(conf_file: str) -> ConfObj:
     config_dict = load_conf_as_dict(conf_file)
     return ConfObj.as_object(config_dict)
-
 
 def load_cert_password(password_path: str) -> bytes:
     if not os.path.exists(password_path):
@@ -49,7 +55,6 @@ def load_cert_password(password_path: str) -> bytes:
     with open(password_path, 'r', encoding='utf-8') as f:
         str_content = f.read().strip()
         return cipher_util.decrypt(str_content)
-
 
 def set_ssl_folder_permissions():
     if platform.system().lower() != "linux":
@@ -60,5 +65,11 @@ def set_ssl_folder_permissions():
         for file_name in files:
             file_path = os.path.join(root, file_name)
             os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
+# Backward-compatible alias - prefer get_conf_singleton() in new code.
+conf_singleton_obj = None  # type: ignore[assignment]
 
-conf_singleton_obj = load_conf_object(CONFIG_FILE_PATH)
+def __getattr__(name: str):
+    """Module-level __getattr__ to lazily resolve conf_singleton_obj."""
+    if name == "conf_singleton_obj":
+        return get_conf_singleton()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

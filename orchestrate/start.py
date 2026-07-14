@@ -23,12 +23,12 @@ import uvicorn
 from loguru import logger
 from uvicorn import config
 
-from common.cert.cert_validater import CertValidator
+from common.cert.cert_validator import CertValidator
 from common.config import TLS_CIPHER, FORWARDED_ALLOW_IPS, CONN_TIMEOUT
 from common.log.audit_logger import audit_logger, OperationObject, OperationName, LogLevel, OperationResult
 from common.util.cipher_converter import CipherConverter
 from common.util.cipher_util import DEFAULT_ENCODING
-from common.util.conf_util import conf_singleton_obj, set_ssl_folder_permissions, load_cert_password
+from common.util.conf_util import get_conf_singleton, set_ssl_folder_permissions, load_cert_password
 from common.util.config_util import get_conf
 from database.utils.table_creation import create_tables
 from orchestrate.server.frontend_support_server import app
@@ -65,8 +65,8 @@ def customized_create_ssl_context(certfile: str | os.PathLike[str],
         ctx.verify_mode = ssl.VerifyMode(cert_reqs)
         if ca_certs:
             ctx.load_verify_locations(ca_certs)
-            if len(conf_singleton_obj.get_crl_list()) > 0:
-                ctx.load_verify_locations(conf_singleton_obj.ssl_crl_file)
+            if len(get_conf_singleton().get_crl_list()) > 0:
+                ctx.load_verify_locations(get_conf_singleton().ssl_crl_file)
                 ctx.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
         if ciphers:
             ctx.set_ciphers(ciphers)
@@ -89,7 +89,6 @@ def get_user_info_from_env():
     }
     return user_info
 
-
 def record_startup_log():
     """
     Record server startup audit log.
@@ -104,9 +103,7 @@ def record_startup_log():
         'user_name': get_user_info_from_env().get('username'),
     })
 
-
 config.create_ssl_context = customized_create_ssl_context
-
 
 class CustomUvicornServer:
     """
@@ -147,7 +144,6 @@ class CustomUvicornServer:
         record_startup_log()
         server.run()
 
-
 def main():
     """
     Main entry point for starting the PSOP server.
@@ -161,7 +157,7 @@ def main():
         uvicorn.run(app, host=server_config.get('ip', "127.0.0.1"), port=int(server_config.get('port', 5001)))
     else:
         try:
-            conf_obj = conf_singleton_obj
+            conf_obj = get_conf_singleton()
             result = CertValidator(conf_obj).validate()
             if not result.is_valid:
                 sys.exit(result.message)
@@ -179,7 +175,6 @@ def main():
                 'user_name': get_user_info_from_env().get('username'),
             })
             sys.exit(f"server start failed {e}")
-
 
 if __name__ == '__main__':
     logger.info("=" * 50)

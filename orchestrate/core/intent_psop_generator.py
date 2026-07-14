@@ -41,6 +41,7 @@ from loguru import logger
 from orchestrate.core.model.psop import PSOP
 from orchestrate.core.prompts import get_intent_to_psop_prompt
 from orchestrate.core.psop_generator import PsopGenerator, WorkflowGeneratorError
+from common.util.json_utils import parse_llm_json_response
 
 
 class IntentWorkflowGeneratorError(Exception):
@@ -123,7 +124,7 @@ class IntentPsopGenerator(PsopGenerator):
             _, llm_res = self._llm.ask_llm(prompt)
 
             # Parse LLM response into PSOP object
-            parsed_data = self._parse_json_response(llm_res, PSOP)
+            parsed_data = parse_llm_json_response(llm_res, PSOP)
 
             # Type assertion for type checker
             if not isinstance(parsed_data, PSOP):
