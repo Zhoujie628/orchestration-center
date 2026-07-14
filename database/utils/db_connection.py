@@ -26,15 +26,12 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 from common.util.config_util import get_root_path
 
-
 DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
-
 
 def validate_database_name(name: str) -> str:
     if not DATABASE_NAME_PATTERN.fullmatch(name):
         raise ValueError(f"Invalid database name: '{name}'. Must match ^[A-Za-z_][A-Za-z0-9_]{0,62}$")
     return name
-
 
 def read_db_config(file_name):
     dir_path = Path(get_root_path()) / "etc" / "conf"
@@ -42,20 +39,19 @@ def read_db_config(file_name):
     with open(file_path, "r", encoding='utf-8') as f:
         return json.load(f)
 
+class _ConnInfoHolder:
+    """Thread-safe lazy holder for database connection info."""
+    _instance: dict | None = None
 
-conn_info = None
-
-
-def _ensure_conn_info():
-    global conn_info
-    if conn_info is None:
-        conn_info = read_db_config("db_config.json")
-        validate_database_name(conn_info.get('database', "orchestration_center"))
-    return conn_info
-
+    @classmethod
+    def get(cls) -> dict:
+        if cls._instance is None:
+            cls._instance = read_db_config("db_config.json")
+            validate_database_name(cls._instance.get('database', "orchestration_center"))
+        return cls._instance
 
 def create_database_if_not_exists():
-    conn_info = _ensure_conn_info()
+    conn_info = _ConnInfoHolder.get()
     default_conn_info = {**conn_info,  "database": "postgres"}
     try:
         conn = psycopg2.connect(**default_conn_info)
@@ -89,7 +85,7 @@ def create_connection():
     try:
         if not create_database_if_not_exists():
             return None
-        conn_info = _ensure_conn_info()
+        conn_info = _ConnInfoHolder.get()
         conn = psycopg2.connect(**conn_info)
         logger.info(f"Connected to database '{conn_info.get('database', 'unknown')}' on {conn_info.get('host', 'localhost')}:{conn_info.get('port', 5432)}")
         return conn

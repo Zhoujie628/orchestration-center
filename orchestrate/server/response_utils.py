@@ -26,18 +26,14 @@ from loguru import logger
 from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
 from orchestrate.agentcard_loader import _normalize_agent_dict
 
-
 def ok(data: Any = None, message: str = "success") -> dict:
     return {"code": 200, "message": message, "status": "success", "data": data}
-
 
 def created(data: Any = None, message: str = "created") -> dict:
     return {"code": 201, "message": message, "status": "success", "data": data}
 
-
 def error(code: int, message: str, data: Any = None) -> dict:
     return {"code": code, "message": message, "status": "error", "data": data}
-
 
 async def get_agent_cards() -> List[AgentCard]:
     factory = AgentRegistryClientFactory()
@@ -51,6 +47,6 @@ async def get_agent_cards() -> List[AgentCard]:
         raise
     except Exception as e:
         logger.error(f"Failed to fetch agent cards from registry: {e}")
-        raise HTTPException(status_code=503, detail="Agent registry unavailable")
+        raise HTTPException(status_code=503, detail="Agent registry unavailable") from e
     finally:
         await client.close()

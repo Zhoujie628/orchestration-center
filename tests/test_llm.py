@@ -58,7 +58,6 @@ RERANK_CONFIG = dict(
     response={"results": "results"},
 )
 
-
 # ── ModelConfig ──
 
 class TestModelConfig:
@@ -91,7 +90,6 @@ class TestModelConfig:
         cfg = ModelConfig.from_dict("x", {"url": "", "auth": None})
         assert cfg.auth is None
 
-
 # ── auth_strategies ──
 
 AOC_PARAMS = {
@@ -100,7 +98,6 @@ AOC_PARAMS = {
     "authorization": "Bearer test-token",
     "api_code": "TEST-API",
 }
-
 
 class TestAOCSignedHeaders:
     def test_includes_all_required_headers(self):
@@ -129,7 +126,6 @@ class TestAOCSignedHeaders:
         with pytest.raises(KeyError):
             _build_aoc_signed_headers(bad)
 
-
 # ── GenericLLM ──
 
 class TestGenericLLMInit:
@@ -155,7 +151,6 @@ class TestGenericLLMInit:
         cfg = {**CHAT_CONFIG, "description": ""}
         llm = GenericLLM(cfg)
         assert llm.to_dict()["name"] == "test-chat"
-
 
 class TestRenderBody:
     def test_replaces_model_and_prompt(self):
@@ -204,7 +199,6 @@ class TestRenderBody:
         llm._render_body(prompt="hi")
         assert llm._body_template["model"] == "$MODEL"
 
-
 class TestExtract:
     @pytest.fixture
     def llm(self):
@@ -239,7 +233,6 @@ class TestExtract:
     def test_unconfigured_key_returns_none(self):
         llm = GenericLLM(CHAT_CONFIG)
         assert llm._extract({"x": 1}, "nonexistent") is None
-
 
 class TestBuildHeaders:
     def test_no_auth_adds_bearer_if_api_key_present(self):
@@ -281,7 +274,6 @@ class TestBuildHeaders:
         headers = llm._build_headers()
         assert headers["Authorization"] == "Bearer test-token"
 
-
 class TestAskLLM:
     def test_success_returns_reasoning_and_answer(self):
         with patch('common.llm.provider.generic_llm.httpx.Client') as mock_client_class:
@@ -299,16 +291,14 @@ class TestAskLLM:
             assert answer == "answer"
             assert reasoning == "think"
 
-    def test_exception_returns_empty(self):
+    def test_exception_raises_runtime_error(self):
         with patch('common.llm.provider.generic_llm.httpx.Client') as mock_client_class:
             mock_client = MagicMock()
             mock_client.post.side_effect = Exception("network error")
             mock_client_class.return_value = mock_client
 
-            llm = GenericLLM(CHAT_CONFIG)
-            reasoning, answer = llm.ask_llm("hello")
-            assert answer == ""
-            assert reasoning == ""
+            with pytest.raises(RuntimeError, match="LLM call failed"):
+                GenericLLM(CHAT_CONFIG).ask_llm("hello")
 
     def test_missing_reasoning_returns_empty_string(self):
         with patch('common.llm.provider.generic_llm.httpx.Client') as mock_client_class:
@@ -342,7 +332,6 @@ class TestAskLLM:
             sent_body = mock_client.post.call_args[1]["json"]
             assert sent_body["messages"][0]["content"] == "my prompt"
 
-
 class TestEmbed:
     def test_success_returns_embedding_vector(self):
         with patch('common.llm.provider.generic_llm.httpx.Client') as mock_client_class:
@@ -359,31 +348,25 @@ class TestEmbed:
             result = llm.embed("test text")
             assert result == [0.1, 0.2, 0.3]
 
-    def test_missing_embedding_returns_empty(self):
+    def test_missing_embedding_raises_runtime_error(self):
         with patch('common.llm.provider.generic_llm.httpx.Client') as mock_client_class:
             mock_client = MagicMock()
             mock_response = MagicMock()
-            mock_response.json.return_value = {"wrong": "format"}
+            mock_response.json.return_value = {'wrong': 'format'}
             mock_response.raise_for_status = MagicMock()
             mock_client.post.return_value = mock_response
             mock_client_class.return_value = mock_client
 
-            llm = GenericLLM(EMBED_CONFIG)
-            result = llm.embed("test")
-            assert result == []
-
-    def test_network_error_returns_empty(self):
+            with pytest.raises(RuntimeError, match='LLM embed failed'):
+                GenericLLM(EMBED_CONFIG).embed('test')
+    def test_network_error_raises_runtime_error(self):
         with patch('common.llm.provider.generic_llm.httpx.Client') as mock_client_class:
             mock_client = MagicMock()
-            mock_client.post.side_effect = Exception("connection refused")
+            mock_client.post.side_effect = Exception('connection refused')
             mock_client_class.return_value = mock_client
 
-            llm = GenericLLM(EMBED_CONFIG)
-            result = llm.embed("test")
-            assert result == []
-
-
-class TestRerank:
+            with pytest.raises(RuntimeError, match='LLM embed failed'):
+                GenericLLM(EMBED_CONFIG).embed('test')
     def test_success_returns_rerank_results(self):
         with patch('common.llm.provider.generic_llm.httpx.Client') as mock_client_class:
             mock_client = MagicMock()
@@ -436,7 +419,6 @@ class TestRerank:
             llm = GenericLLM(RERANK_CONFIG)
             result = llm.rerank("q", ["d"])
             assert result == []
-
 
 class TestInstanceReuse:
     def test_multiple_ask_llm_calls_reuse_client(self):

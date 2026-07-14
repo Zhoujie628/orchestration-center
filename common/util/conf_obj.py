@@ -29,7 +29,6 @@ DEFAULT_SSL_CA_CERTS = 'etc/ssl/trust.cer'
 DEFAULT_SSL_CRLFILE = 'etc/ssl/revocationlist.crl'
 DEFAULT_VERIFY_CLIENT = ssl.CERT_REQUIRED
 
-
 def as_absolute_path(path):
     new_path = path
     if path.startswith('etc/'):
@@ -37,17 +36,16 @@ def as_absolute_path(path):
     new_path = os.path.normpath(new_path)
     return new_path
 
-
 class ConfObj:
-    ip = DEFAULT_IP
-    port = DEFAULT_PORT
-    ssl_certfile = DEFAULT_SSL_CERT_FILE
-    ssl_keyfile = DEFAULT_SSL_KEYFILE
-    ssl_keyfile_password = DEFAULT_KEY_PASSWORD
-    ssl_ca_certs = DEFAULT_SSL_CA_CERTS
-    ssl_crl_file = DEFAULT_SSL_CRLFILE
-    verify_client = DEFAULT_VERIFY_CLIENT
-    crl_list_data = None
+    ip: str = DEFAULT_IP
+    port: int = DEFAULT_PORT
+    ssl_certfile: str = DEFAULT_SSL_CERT_FILE
+    ssl_keyfile: str = DEFAULT_SSL_KEYFILE
+    ssl_keyfile_password: str = DEFAULT_KEY_PASSWORD
+    ssl_ca_certs: str = DEFAULT_SSL_CA_CERTS
+    ssl_crl_file: str = DEFAULT_SSL_CRLFILE
+    verify_client: int = DEFAULT_VERIFY_CLIENT
+    crl_list_data: list | None = None
 
     @classmethod
     def as_object(cls, in_dict: dict):

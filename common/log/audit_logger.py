@@ -17,6 +17,7 @@
 
 import json
 import os.path
+import platform
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,29 +29,26 @@ from common.util.config_util import get_root_path, load_configs
 
 FILE_PERMISSION_MODE = 0o600
 
+from enum import Enum
 
-class LogLevel:
+class LogLevel(str, Enum):
     DANGER = "Critical"
     INFO = "Information"
     MINOR = "General"
 
-
-class OperationName:
+class OperationName(str, Enum):
     START_SERVER = "Start Server"
     SAVE_PSOP = "Save PSOP"
     DELETE_PSOP = "Delete PSOP"
     EXECUTE_PSOP = "Execute PSOP"
 
-
-class OperationObject:
+class OperationObject(str, Enum):
     SERVER = "Server"
     PSOP = "PSOP"
 
-
-class OperationResult:
+class OperationResult(str, Enum):
     SUCCESS = "Success"
     FAILURE = "Failure"
-
 
 class AuditLogger:
 
@@ -61,7 +59,8 @@ class AuditLogger:
         parent_path = os.path.join(get_root_path(), "log", "audit")
         audit_log_dir = Path(parent_path)
         audit_log_dir.mkdir(parents=True, exist_ok=True)
-        os.chmod(audit_log_dir, 0o700)
+        if platform.system().lower() == "linux":
+            os.chmod(audit_log_dir, 0o700)
         self.log_file = os.path.join(parent_path, "audit.log")
         self.lock = threading.Lock()
 
@@ -116,15 +115,19 @@ class AuditLogger:
                 return
         try:
             open(self.log_file, "w").close()
-            os.chmod(self.log_file, FILE_PERMISSION_MODE)
+            if platform.system().lower() == "linux":
+                os.chmod(self.log_file, FILE_PERMISSION_MODE)
         except Exception as e:
             logger.error(f"Error:failed to create new log file: {e}")
 
     def _write_log(self, log_data: Dict[str, Any]):
         with self.lock:
             self._rotate_logs()
-            with open(self.log_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
-
+            try:
+                with open(self.log_file, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(log_data, ensure_ascii=False) + '\n')
+            except PermissionError:
+                logger.warning(f"Cannot write audit log to {self.log_file} (locked); falling back to stdout")
+                logger.info(f"Audit: {json.dumps(log_data, ensure_ascii=False)}")
 
 audit_logger = AuditLogger()

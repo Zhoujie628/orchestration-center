@@ -22,7 +22,6 @@ from unittest.mock import MagicMock, patch
 from orchestrate.core.psop_generator import PsopGenerator, WorkflowGeneratorError
 from orchestrate.core.model.psop import PSOP, Task, Step, StepType, TaskStatus
 
-
 @pytest.fixture
 def mock_llm():
     with patch('orchestrate.core.psop_generator.get_llm_instance') as mock_get:
@@ -30,11 +29,9 @@ def mock_llm():
         mock_get.return_value = llm
         yield llm
 
-
 @pytest.fixture
 def generator(mock_llm):
     return PsopGenerator()
-
 
 class TestParseJsonResponse:
     def test_code_block_parsed(self, generator):
@@ -56,7 +53,7 @@ class TestParseJsonResponse:
             generator._parse_json_response("```json\n   \n```")
 
     def test_invalid_json_raises(self, generator):
-        with pytest.raises(json.JSONDecodeError):
+        with pytest.raises(ValueError, match="Invalid JSON format"):
             generator._parse_json_response("```json\nnot valid json!!!\n```")
 
     def test_pydantic_model_validation(self, generator):
@@ -81,7 +78,6 @@ class TestParseJsonResponse:
         result = generator._parse_json_response('```json\n  {"a":  1}  \n```')
         assert result == {"a": 1}
 
-
 class TestExtractTasksFromSteps:
     def test_happy_path(self, generator, mock_llm):
         mock_llm.ask_llm.return_value = ("req_id", '```json\n["task1", "task2"]\n```')
@@ -97,7 +93,6 @@ class TestExtractTasksFromSteps:
         mock_llm.ask_llm.return_value = ("req_id", '```json\n{"not": "a list"}\n```')
         with pytest.raises(WorkflowGeneratorError):
             generator.extract_tasks_from_steps("# Step 1")
-
 
 class TestMatchActionsToSkills:
     def test_happy_path(self, generator, mock_llm):

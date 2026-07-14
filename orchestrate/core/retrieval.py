@@ -16,7 +16,6 @@
 #    under the License.
 
 import json
-import re
 from datetime import timezone
 from typing import Optional, List
 
@@ -26,12 +25,12 @@ from common.custom import HandlerRegistry, InterfaceType
 from common.custom.psop_processor import build_tasks_summary
 from common.llm import get_llm_instance
 from common.util.config_util import get_conf
+from common.util.json_utils import parse_llm_json_response
 from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP
 from orchestrate.core.persistence import WorkflowStorage
 from orchestrate.core.prompts import get_retrieve_psop_prompt
 from orchestrate.core.workflow_search_result import WorkflowSearchResult
-
 
 class WorkflowRetrieval:
     def __init__(self, storage: WorkflowStorage):
@@ -185,20 +184,6 @@ class WorkflowRetrieval:
         results.sort(key=_sort_key, reverse=True)
         return results[:limit]
 
-    def _parse_json_response(self, llm_response: str) -> str:
-        matches = re.findall(r'```json(.*?)```', llm_response, re.DOTALL)
-        if not matches:
-            raise ValueError("No JSON code block found in LLM answer")
-
-        json_str = matches[-1].strip()
-        if not json_str:
-            raise ValueError("Empty JSON content found in code block")
-
-        try:
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON format: {e}")
-
     def _retrieve_names_by_intent(self, user_intent: str, top_n: int = 1) -> List[str]:
         summaries = self._list_psop_summaries()
         if not summaries:
@@ -219,7 +204,7 @@ class WorkflowRetrieval:
 
         try:
             _, llm_res = llm.ask_llm(prompt)
-            selected_names = self._parse_json_response(llm_res)
+            selected_names = parse_llm_json_response(llm_res)
 
             if not isinstance(selected_names, list):
                 raise ValueError(f"Expected a JSON array of names, got: {type(selected_names)}")

@@ -269,14 +269,14 @@ const AgentDashboard = ({ agent, isDark }) => {
 
                 {advancedExpanded && (
                     <div className="animate-in fade-in duration-300 pl-1 space-y-6">
-                        {agent.supportedInterfaces && agent.supportedInterfaces.length > 0 && (
+                        {(agent.supportedInterfaces || []).length > 0 && (
                             <InfoCard
-                                title={`${t('agent_profile.supported_interfaces')} (${agent.supportedInterfaces.length})`}
+                                title={`${t('agent_profile.supported_interfaces')} (${(agent.supportedInterfaces || []).length})`}
                                 icon={Server}
                                 theme={theme}
                             >
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {agent.supportedInterfaces.map((iface, index) => (
+                                    {(agent.supportedInterfaces || []).map((iface, index) => (
                                         <div
                                             key={`interface-${index}`}
                                             className={`p-4 rounded-lg border transition-all duration-200 ${theme.border} ${theme.skillCardHover}`}>
@@ -297,7 +297,7 @@ const AgentDashboard = ({ agent, isDark }) => {
                             </InfoCard>
                         )}
 
-                        {agent.capabilities?.extensions && agent.capabilities.extensions.length > 0 && (
+                        {agent.capabilities?.extensions?.length > 0 && (
                             <InfoCard
                                 title={`${t('agent_profile.extensions')} (${agent.capabilities.extensions.length})`}
                                 icon={Puzzle}
@@ -338,19 +338,19 @@ const AgentDashboard = ({ agent, isDark }) => {
                                 <div className="grid grid-cols-1 gap-3">
                                     <CapabilityToggle
                                         label={t('agent_profile.streaming')}
-                                        active={agent.capabilities.streaming}
+                                        active={agent.capabilities?.streaming}
                                         icon={Activity}
                                         theme={theme}
                                     />
                                     <CapabilityToggle
                                         label={t('agent_profile.stateTransitionHistory')}
-                                        active={agent.capabilities.stateTransitionHistory}
+                                        active={agent.capabilities?.stateTransitionHistory}
                                         icon={Layers}
                                         theme={theme}
                                     />
                                     <CapabilityToggle
                                         label={t('agent_profile.pushNotifications')}
-                                        active={agent.capabilities.pushNotifications}
+                                        active={agent.capabilities?.pushNotifications}
                                         icon={Zap}
                                         theme={theme}
                                     />
@@ -392,29 +392,29 @@ const AgentDashboard = ({ agent, isDark }) => {
                                         theme={theme}
                                     />
                                     <div className="pt-4">
-                                        <span className={`text-xs uppercase font-semibold tracking-wider ${theme.label}`}>
-                                            {t('agent_profile.defaultInputModes')}
-                                        </span>
-                                        <div className="flex flex-wrap gap-2 mt-2 mb-4">
-                                            {agent.defaultInputModes.map(m => (
-                                                <span key={m}
-                                                      className={`px-2 py-1 text-xs rounded border ${theme.border} ${theme.textSecondary} bg-opacity-50`}>
-                                                    {m}
-                                                </span>
-                                            ))}
-                                        </div>
+                                       <span className={`text-xs uppercase font-semibold tracking-wider ${theme.label}`}>
+                                           {t('agent_profile.defaultInputModes')}
+                                       </span>
+                                       <div className="flex flex-wrap gap-2 mt-2 mb-4">
+                                            {(agent.defaultInputModes || []).map(m => (
+                                               <span key={m}
+                                                     className={`px-2 py-1 text-xs rounded border ${theme.border} ${theme.textSecondary} bg-opacity-50`}>
+                                                   {m}
+                                               </span>
+                                           ))}
+                                       </div>
 
-                                        <span className={`text-xs uppercase font-semibold tracking-wider ${theme.label}`}>
-                                            {t('agent_profile.defaultOutputModes')}
-                                        </span>
-                                        <div className="flex flex-wrap gap-2 mt-2">
-                                            {agent.defaultOutputModes.map(m => (
-                                                <span key={m}
-                                                      className={`px-2 py-1 text-xs rounded border ${theme.border} ${theme.textSecondary} bg-opacity-50`}>
-                                                    {m}
-                                                </span>
-                                            ))}
-                                        </div>
+                                       <span className={`text-xs uppercase font-semibold tracking-wider ${theme.label}`}>
+                                           {t('agent_profile.defaultOutputModes')}
+                                       </span>
+                                       <div className="flex flex-wrap gap-2 mt-2">
+                                            {(agent.defaultOutputModes || []).map(m => (
+                                               <span key={m}
+                                                     className={`px-2 py-1 text-xs rounded border ${theme.border} ${theme.textSecondary} bg-opacity-50`}>
+                                                   {m}
+                                               </span>
+                                           ))}
+                                       </div>
                                     </div>
                                 </div>
                                 {agent.documentationUrl && (
