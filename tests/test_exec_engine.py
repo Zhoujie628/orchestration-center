@@ -412,7 +412,7 @@ class TestIntegration:
             engine = DynamicWorkflowEngine(psop=psop, agent_cards=[mock_card1, mock_card2])
 
             # Mock external calls
-            async def mock_send(agent, task_desc):
+            async def mock_send(agent, task_desc, **kwargs):
                 return f"Result from {agent}: {task_desc}"
 
             engine.send_message_to_agent = mock_send
@@ -568,7 +568,7 @@ class TestCrossLayerOrchestration:
 
             engine = DynamicWorkflowEngine(psop=psop, agent_cards=[mock_card1, mock_card2])
 
-            async def mock_send(agent, task_desc):
+            async def mock_send(agent, task_desc, **kwargs):
                 return f"Result from {agent}"
 
             engine.send_message_to_agent = mock_send
@@ -612,7 +612,7 @@ class TestCrossLayerOrchestration:
 
             captured_messages = []
 
-            async def mock_send(agent, task_desc):
+            async def mock_send(agent, task_desc, **kwargs):
                 captured_messages.append((agent, task_desc))
                 return f"Result from {agent}"
 
@@ -694,7 +694,7 @@ class TestCrossLayerOrchestration:
                    return_value=mock_llm_client):
             engine = DynamicWorkflowEngine(psop=psop, agent_cards=[mock_card])
 
-            async def mock_send(agent, task_desc):
+            async def mock_send(agent, task_desc, **kwargs):
                 return f"Result from {agent}: {task_desc}"
 
             engine.send_message_to_agent = mock_send
@@ -736,7 +736,7 @@ class TestCrossLayerOrchestration:
                    return_value=mock_llm_client):
             engine = DynamicWorkflowEngine(psop=psop, agent_cards=[mock_card])
 
-            async def mock_send(agent, task_desc):
+            async def mock_send(agent, task_desc, **kwargs):
                 return f"Result from {agent}: {task_desc}"
 
             engine.send_message_to_agent = mock_send

@@ -121,6 +121,10 @@ class DynamicWorkflowEngine:
         self._current_step_name: Optional[str] = None
         self._sdk_workflow = None
 
+        # Read client_verify_server from config (default: false for dev).
+        from common.util.config_util import get_conf
+        self._ssl_verify = str(get_conf().get("client_verify_server", "false")).lower() == "true"
+
         # Resolve the a2at env path + language for the SDK WorkflowEngineClient,
         # which builds its own A2ATClient from env_path. common.a2at_config is
         # imported lazily -- it may fail on some a2a-t-sdk versions, and we
@@ -192,7 +196,7 @@ class DynamicWorkflowEngine:
             engine_client=engine_client,
             runtime_intent=self.runtime_intent or "",
             lang=self.lang,
-            ssl_verify=False,
+            ssl_verify=self._ssl_verify,
             on_finish=on_finish,
             on_event=self._shape_event,
         ):
@@ -245,13 +249,13 @@ class DynamicWorkflowEngine:
             self._record_stop_event(d.get("error", "execution failed"), None)
         return event
 
-    async def send_message_to_agent(self, agent_name: str, task: str):
+    async def send_message_to_agent(self, agent_name: str, task: str, *, engine_client=None):
         """Send a message to an agent. Delegates to SDK WorkflowEngineClient.
 
         Returns the response text (string) for backward compat with callers
         and tests that mock this method.
         """
-        client = self._get_engine_client()
+        client = engine_client or self._get_engine_client()
         result = await client.send_message_with_negotiation(
             agent_name, task,
             max_rounds=self._NEGOTIATION_MAX_ROUNDS,
@@ -279,7 +283,8 @@ class DynamicWorkflowEngine:
         """
         task_label = request.description or request.message
         try:
-            response_text = await self.send_message_to_agent(request.agent_name, request.message)
+            response_text = await self.send_message_to_agent(
+                request.agent_name, request.message, engine_client=engine_client)
             return TaskResponse(success=True, output=response_text)
         except Exception as e:
             err = f"Agent call failed : {str(e)}"
