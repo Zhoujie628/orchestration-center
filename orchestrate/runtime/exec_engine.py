@@ -160,7 +160,7 @@ class DynamicWorkflowEngine:
                 agent_cards=self.agent_cards,
                 a2at_env_path=self._a2at_env_path,
                 credentials_config=str(cred_path) if cred_path.is_file() else None,
-                ssl_verify=False,  # orch-center internal: agents use self-signed certs
+                ssl_verify=self._ssl_verify,
             )
             logger.info(
                 f"[Engine] WorkflowEngineClient constructed "
