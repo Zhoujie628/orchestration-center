@@ -80,15 +80,13 @@ The `WorkflowStorage` singleton is accessed via `get_workflow_storage()` (uses `
 
 ### Agent authentication
 
-External agents that require authentication (e.g., Bearer token obtained via a login endpoint) are supported via the `common/auth/` module.
+Agent authentication (Bearer token obtained via a login endpoint, custom auth headers, `A2A-Extensions` header injection) is handled by the **a2at-engine SDK** (`a2at_engine.client.AuthManager` + `credential_service` + `extension_interceptor`). The `DynamicWorkflowEngine` constructs a `WorkflowEngineClient` (SDK) which auto-builds `AuthInterceptor` / `ExtensionInterceptor` for agents whose AgentCard declares `securitySchemes` / `securityRequirements` / extensions.
 
 | File | Role |
 |---|---|
-| `common/auth/agent_credential_service.py` | `AgentCredentialService` (implements a2a-sdk `CredentialService` — logs in to obtain token, caches with TTL) + `AgentAuthManager` singleton |
-| `common/auth/extension_interceptor.py` | Injects `A2A-Extensions` HTTP header from AgentCard `capabilities.extensions[].uri` |
-| `etc/conf/agent_credentials.json` | Stores per-agent credentials (login_url, method, request_fields, token_field) |
+| `etc/conf/agent_credentials.json` | Per-agent credentials (login_url, method, request_fields, token_field) — passed to the SDK's `WorkflowEngineClient(credentials_config=...)` |
 
-The `DynamicWorkflowEngine` automatically creates `AuthInterceptor` + `ExtensionInterceptor` for agents whose AgentCard declares `securitySchemes` / `securityRequirements` / extensions. Agents without these fields are unaffected.
+Agents without `securitySchemes` in their AgentCard are unaffected.
 
 ### AgentCard format normalization
 
@@ -114,11 +112,10 @@ The engine's httpx client is created with `verify=False` to support agents behin
 orchestrate/           # Core backend: models, runtime engine, server, registry client
   core/model/          # PSOP, PreFlow, ExecutionRecord (Pydantic)
   core/psop_generator.py   # LLM-driven PreFlow → PSOP
-  runtime/exec_engine.py   # DynamicWorkflowEngine
+  runtime/exec_engine.py   # DynamicWorkflowEngine (thin wrapper over a2at-engine SDK)
   server/frontend_support_server.py  # FastAPI app & internal API
   server/external_api.py             # External API routes
-common/                # Shared infra: config, LLM, logging, certs, util, auth
-  auth/                # Agent credential service + extension interceptor (see "Agent authentication")
+common/                # Shared infra: config, LLM, logging, certs, util
   custom/              # Pluggable handler pattern (HandlerRegistry)
   llm/                 # LLM abstraction (generic HTTP client + auth strategies)
 workflow-designer/     # React frontend (separate Node project)

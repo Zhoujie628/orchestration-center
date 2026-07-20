@@ -17,6 +17,7 @@
 
 pydantic>=2.12.5
 a2a-t-sdk>=0.1.8
+a2at-engine>=0.3.0
 a2a-sdk[http-server]
 a2a-sdk[grpc]
 openai>=2.26.0
