@@ -24,7 +24,8 @@ from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.routes import create_rest_routes, create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from starlette.responses import JSONResponse
 from google.protobuf.json_format import MessageToDict
 from loguru import logger
 from typing import List
@@ -40,11 +41,14 @@ from samples.agents.live_streaming_agent import LiveStreamingAgentExecutor
 from samples.agents.assurance_agent import AssuranceAgentExecutor
 from samples.agents.ran_agent import RanAgentExecutor
 from samples.agents.dispatch_agent import DispatchAgentExecutor
-from samples.agents.spn_agent_city1 import SpnCity1AgentExecutor
-from samples.agents.spn_agent_city2 import SpnCity2AgentExecutor
 from samples.agents.uncertainty_agent import UncertaintySimulationAgentExecutor
 from samples.agents.spn_domain_agent import SpnDomainAgentExecutor
+from samples.agents.spn_domain_agent_city2 import SpnDomainAgentCity2Executor
 from samples.agents.workbench_platform_agent import WorkbenchPlatformAgentExecutor
+
+from google.protobuf.json_format import MessageToDict as _MessageToDict
+import time as _time
+import secrets as _secrets
 from common.a2at_config import ensure_env_file_exists
 
 
@@ -132,10 +136,9 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
         "Assurance Agent": AssuranceAgentExecutor,
         "RAN Agent": RanAgentExecutor,
         "Transport Workbench Agent": DispatchAgentExecutor,
-        "SPN Fault Handling Agent City1 OMC": SpnCity1AgentExecutor,
-        "SPN Fault Handling Agent City2 OMC": SpnCity2AgentExecutor,
         "Uncertainty Simulation Agent": UncertaintySimulationAgentExecutor,
         "SPN Domain Agent": SpnDomainAgentExecutor,
+        "SPN Domain Agent City2": SpnDomainAgentCity2Executor,
         "Workbench Platform Agent": WorkbenchPlatformAgentExecutor,
     }
     agent_name = agent_card.name
@@ -158,6 +161,39 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
     )
 
     app = FastAPI()
+
+    # --- Auth support: login endpoint for agents declaring securitySchemes ---
+    _VALID_TOKENS = {}  # token -> expiry timestamp
+
+    has_security = agent_card.security_schemes and agent_card.security_requirements
+    if has_security:
+        login_path = "/rest/plat/smapp/v1/oauth/token"
+        logger.info(f"Agent '{agent_name}' auth login endpoint: {login_path}")
+
+        @app.api_route(login_path, methods=["PUT", "POST"])
+        async def _agent_login(request: Request):
+            """Mock login: accept fixed credentials, return accessSession."""
+            body = {}
+            ct = request.headers.get("content-type", "")
+            if "json" in ct:
+                try:
+                    body = await request.json()
+                except Exception:
+                    body = {}
+            else:
+                form = await request.form()
+                body = dict(form)
+            username = body.get("userName") or body.get("username")
+            password = body.get("value") or body.get("password")
+            if username == "admin" and password == "Admin@123":
+                token = _secrets.token_urlsafe(24)
+                _VALID_TOKENS[token] = _time.time() + 3600
+                logger.info(f"[Auth] Login succeeded for agent '{agent_name}', token issued")
+                return {"accessSession": token}
+            logger.warning(f"[Auth] Login failed for agent '{agent_name}': bad credentials")
+            return JSONResponse(status_code=401, content={"error": "Invalid credentials"})
+
+
 
     agent_card_routes = create_agent_card_routes(agent_card=agent_card)
     app.routes.extend(agent_card_routes)

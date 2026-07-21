@@ -49,3 +49,53 @@ class SpnDomainAgentExecutor(NegotiationBaseAgentExecutor):
 
     def __init__(self) -> None:
         super().__init__(agent_prompt_template=SPN_DOMAIN_PROMPT)
+
+    def _build_task_response(self, context, response, negotiation_context):
+        """Override to inject A2A-T extension metadata.
+
+        For diagnosis tasks: inject Authorization-T (repair plan needs authorization).
+        For recovery tasks: inject Notification-T (recovery success report).
+        The SDK's AuthorizationTHandler reads "Authorization-T" from task metadata
+        and calls ControlPoint.onAuthorization. The SDK's NotificationTHandler
+        reads "Notification-T" and calls onNotification.
+        """
+        from common.negotiation_utils import build_negotiation_response_metadata
+        from a2a.types import Task, TaskStatus, TaskState, Artifact, Part
+        import uuid
+
+        metadata = build_negotiation_response_metadata(
+            negotiation_context_data=negotiation_context if negotiation_context else None,
+            negotiation_text=None,
+        )
+
+        is_recovery = "recovery" in response.lower() or "recovery" in (context.get_user_input() or "").lower()
+        if is_recovery:
+            # Recovery step: inject Notification-T (recovery success)
+            metadata["Notification-T"] = {
+                "topic": "recovery_result",
+                "status": "recovery_successful",
+                "message": "上海侧OMC端口光模块已更换, 端口恢复Up, 专线业务恢复正常",
+            }
+            logger.info("[SpnDomainAgentExecutor] Injected Notification-T: recovery_successful")
+        else:
+            # Diagnosis step: inject Authorization-T (repair plan needs authorization)
+            metadata["Authorization-T"] = {
+                "needs_authorization": True,
+                "repair_plan": "更换上海侧OMC端口光模块, 恢复端口Down状态",
+                "risk_level": "medium",
+                "affected_service": "客户A上海-广州间SPN专线",
+            }
+            logger.info("[SpnDomainAgentExecutor] Injected Authorization-T: needs_authorization=True")
+
+        return Task(
+            id=context.task_id,
+            context_id=context.context_id,
+            status=TaskStatus(state=TaskState.TASK_STATE_COMPLETED),
+            artifacts=[
+                Artifact(
+                    artifact_id=str(uuid.uuid4()),
+                    parts=[Part(text=response)]
+                )
+            ],
+            metadata=metadata
+        )

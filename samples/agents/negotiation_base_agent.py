@@ -168,7 +168,7 @@ class NegotiationBaseAgentExecutor(AgentExecutor):
             )
             negotiation_text = negotiation_result.get(NEGOTIATION_TEXT_KEY)
             if negotiation_text:
-                logger.info(f"[{self.__class__.__name__}] Started fulfillment negotiation: {negotiation_text[:100]}...")
+                logger.info(f"[{self.__class__.__name__}] Started fulfillment negotiation: {negotiation_text}")
             else:
                 logger.info(f"[{self.__class__.__name__}] Started fulfillment negotiation (no text in result)")
             return negotiation_result
@@ -186,7 +186,7 @@ class NegotiationBaseAgentExecutor(AgentExecutor):
         if ctx_lines:
             prompt = "## Execution Context\n" + "\n".join(ctx_lines) + "\n\n" + prompt
         _, res = self.llm.ask_llm(prompt)
-        logger.info(f"[{self.__class__.__name__}] Task: {user_input[:50]}..., Result: {res[:100]}...")
+        logger.info(f"[{self.__class__.__name__}] Task: {user_input}, Result: {res}")
         return res
 
     def _build_task_response(
