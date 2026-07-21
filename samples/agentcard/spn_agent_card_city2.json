@@ -1,7 +1,7 @@
 [
   {
-    "name": "SPN Domain Agent",
-    "description": "SPN Domain Agent (external agent card template — for reference only)",
+    "name": "SPN Domain Agent City2",
+    "description": "SPN Domain Agent for City2 OMC - private-line fault diagnosis with Bearer auth",
     "provider": {
       "organization": "Huawei",
       "url": "https://www.huawei.com"
@@ -49,14 +49,15 @@
     ],
     "skills": [
       {
-        "id": "SPN-private-line-service-complain-diagnosis",
-        "name": "SPN专线业务投诉诊断",
-        "description": "提供SPN领域专线业务网络侧故障根因诊断能力",
+        "id": "SPN-private-line-service-complain-diagnosis-city2",
+        "name": "SPN专线业务投诉诊断-City2",
+        "description": "City2地市SPN网络专线故障根因诊断能力",
         "tags": [
-          "SPN专线业务投诉诊断"
+          "SPN专线业务投诉诊断",
+          "City2"
         ],
         "examples": [
-          "## Task Type\\nSPN专线投诉诊断\\n## Task Description\\n要求：提供任务的整体概述，基于<Task Object>、<Task Context>进行投诉场景的网络侧故障根因诊断, 达成<Task Target>中定义的投诉诊断目标，按照<Expected Output>中定义的结构返回任务处理结果。\\n## Task Target\\n基于专线业务的故障现象，诊断并返回网络侧的故障根因\\n## Task Object\\n接入端口资源ID：f47ac10b-58cc-4372-a567-0e02b2c3d479\\n## Task Context\\n1. 故障场景：\"专线中断\"\\n2. 故障发生时间：\"2024-01-16T08: 21: 46Z\"\\n3. OSS侧事件流水号：\"fault-id-1-017-20230511-09013\"\\n## Expected Output\\n要求：\\n1. 包含诊断结果类型，诊断结果详细信息，修复建议。\\n2. 诊断结果类型参数的取值范围包括：诊断成功、诊断失败、诊断未开始或者诊断未结束\\n3. 可以包括多个故障根因，每个故障根因包含故障根因的名称、详细描述、修复建议，故障根因点所在资源对象的标识、类型，名称，详细位置等信息。如果存在多故障根因，需要将每个故障根因中的详细描述和修复建议总结提炼到整体的诊断结果详细信息和修复建议。"
+          "SPN专线投诉诊断 - City2地市"
         ],
         "inputModes": [
           "application/json",
@@ -86,13 +87,13 @@
     "supportedInterfaces": [
       {
         "protocolBinding": "JSONRPC",
-        "url": "http://127.0.0.1:26335/a2a/v1",
+        "url": "http://127.0.0.1:26337/a2a/v1",
         "tenant": "",
         "protocolVersion": "1.0"
       },
       {
         "protocolBinding": "HTTP+JSON",
-        "url": "http://127.0.0.1:26335/a2a/json",
+        "url": "http://127.0.0.1:26337/a2a/json",
         "tenant": "",
         "protocolVersion": "1.0"
       }

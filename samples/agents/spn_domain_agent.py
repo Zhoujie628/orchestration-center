@@ -68,7 +68,7 @@ class SpnDomainAgentExecutor(NegotiationBaseAgentExecutor):
             negotiation_text=None,
         )
 
-        is_recovery = "recovery" in response.lower() or "recovery" in (context.get_user_input() or "").lower()
+        is_recovery = ("recovery" in response.lower() or "recovery" in (context.get_user_input() or "").lower() or "\u62a2\u901a" in (context.get_user_input() or "") or "\u62a2\u901a" in response)
         if is_recovery:
             # Recovery step: inject Notification-T (recovery success)
             metadata["Notification-T"] = {
