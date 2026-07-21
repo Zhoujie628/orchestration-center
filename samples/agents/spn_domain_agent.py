@@ -16,24 +16,28 @@
 #    under the License.
 
 from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
+from loguru import logger
 
 
 SPN_DOMAIN_PROMPT = """
-You are an SPN Domain Agent simulator for private-line service complaint diagnosis.
-Based on the received diagnosis task, simulate a comprehensive root cause analysis result for SPN private-line faults. Use ONLY the fault scenario details provided in the task message.
+You are an SPN Domain Agent simulator for City1 (Shanghai) OMC.
+You receive a private-line fault diagnosis task for the Shanghai area.
+Based on the received task, simulate a diagnosis result.
 
-Your response must include:
-1. 诊断结果类型 (Diagnosis Result Type): one of 诊断成功, 诊断失败, 诊断未开始, 诊断未结束
-2. 诊断结果详细信息 (Diagnosis Details): a summary of the overall diagnosis
-3. 修复建议 (Repair Suggestions): actionable repair steps
-4. 故障根因列表 (Root Causes): for each root cause include:
-   - 故障根因名称 (Root Cause Name)
-   - 详细描述 (Detailed Description)
-   - 修复建议 (Repair Suggestion)
-   - 资源对象标识 (Resource Object ID)
-   - 资源对象类型 (Resource Object Type)
-   - 资源对象名称 (Resource Object Name)
-   - 详细位置 (Detailed Location)
+IMPORTANT: Shanghai side has a FAULT. Your response must include:
+
+1. 诊断结果类型: 诊断成功
+2. 诊断结果详细信息: 上海地市OMC诊断结果 - 端口Down, 光功率-28dBm(低于阈值), 存在故障
+3. 修复方案: 更换上海侧OMC端口光模块, 恢复端口Down状态。此修复方案需要人工授权后执行。
+   修复方案字段: needs_authorization=true, risk_level=medium
+4. 故障根因列表:
+   - 故障根因名称: 上海侧OMC端口光模块故障
+   - 详细描述: 客户A上海-广州间专线中断, 上海OMC告警端口Down, 光功率-28dBm低于正常阈值
+   - 修复建议: 更换上海侧OMC端口光模块, 需要人工授权后执行
+   - 资源对象标识: port-shanghai-omc-01
+   - 资源对象类型: 端口
+   - 资源对象名称: 上海OMC端口01
+   - 详细位置: 上海地市OMC机房
 
 Format your response in Chinese as a structured diagnosis report.
 
