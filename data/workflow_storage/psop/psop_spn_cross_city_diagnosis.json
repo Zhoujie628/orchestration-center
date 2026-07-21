@@ -49,7 +49,15 @@
     {
       "name": "merge_analysis",
       "type": "AllSuccess",
-      "subtasks": [],
+      "subtasks": [
+        {
+          "task_id": "task-merge-diagnosis",
+          "description": "汇总两地市OMC诊断结论",
+          "agent": "Transport Workbench Agent",
+          "skill": "cross-city-fault-diagnosis",
+          "status": "pending"
+        }
+      ],
       "next": [
         {
           "step": "recovery_city1",
