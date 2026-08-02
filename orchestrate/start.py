@@ -138,7 +138,7 @@ class CustomUvicornServer:
             ssl_cert_reqs=self.conf_obj.verify_client,
             ssl_ciphers=CipherConverter.convert(self.server_config.get(TLS_CIPHER)),
             timeout_keep_alive=0,
-            timeout_graceful_shutdown=5,
+            timeout_graceful_shutdown=2,
             log_level="info",
             proxy_headers=True
         )
@@ -185,7 +185,7 @@ def main():
         else:
             logger.info("Users already exist, skipping admin seed")
     if not is_enable_https:
-        uvicorn.run(app, host=server_config.get('ip', "127.0.0.1"), port=int(server_config.get('port', 5001)), timeout_graceful_shutdown=5)
+        uvicorn.run(app, host=server_config.get('ip', "127.0.0.1"), port=int(server_config.get('port', 5001)), timeout_graceful_shutdown=2)
     else:
         try:
             conf_obj = get_conf_singleton()
