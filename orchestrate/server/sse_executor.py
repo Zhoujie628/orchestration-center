@@ -49,6 +49,19 @@ async def dispatch_intent_sse(
     This function drains the A2A-T response stream, extracts the SDK
     events from metadata, and forwards them to the frontend SSE.
     """
+    if not agent_cards:
+        async def error_stream():
+            yield f"data: {json.dumps({'type': 'error', 'message': 'No agent cards available'}, ensure_ascii=False)}\n\n"
+        return StreamingResponse(
+            error_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
     engine = OrchestrationEngine(agent_cards, target_agent=target_agent, lang=lang)
 
     async def stream():
