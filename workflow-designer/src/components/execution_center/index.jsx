@@ -40,12 +40,15 @@ import {
     SlidersHorizontal,
     X,
     FileText,
-    ChevronUp
+    ChevronUp,
+    Loader
 } from 'lucide-react';
 import { getWorkflow, getWorkflowById, getStartProcessStreamUrl, matchWorkflowsTopN, getExecutionRecords, getExecutionRecord, deleteExecutionRecord } from '@/service/api.js';
+import { getAgentCards, getDispatchStreamUrl } from '@/service/api.js';
 import { transformWorkflowToReactFlow } from '@/components/orchestration_center/workflow/utils/index.jsx';
 import UnifiedWorkflow from '../orchestration_center/workflow/index.jsx';
 import ExecutionStatistics from './execution_statistics/index.jsx';
+import ExecutionTimeline from './timeline/index.jsx';
 
 const parseProtobufText = (raw) => {
     if (!raw || typeof raw !== 'string') return { text: raw, metadata: null };
@@ -269,6 +272,13 @@ const parseLogData = (data, type) => {
             }
         }
 
+        // Merge event-level metadata so findText and Show Raw can surface extension content
+        if (data.metadata && typeof parsed === 'object' && parsed !== null) {
+            if (!parsed.metadata) parsed.metadata = {};
+            Object.assign(parsed.metadata, data.metadata);
+        } else if (data.metadata && typeof parsed === 'string') {
+            parsed = { response: parsed, metadata: data.metadata };
+        }
         return { parsed, type: 'json' };
     } catch (e) {
         return { parsed: raw, type: 'text' };
@@ -369,11 +379,11 @@ const LogEntry = React.memo(({ event, isDark, t, isSelected }) => {
                     ? 'bg-blue-500/5 border-blue-500 shadow-[inset_4px_0_0_0_#3b82f6]' 
                     : 'border-zinc-100 dark:border-zinc-800/50'}`}
         >
-            <div className={`absolute -left-[9px] top-6 w-4 h-4 rounded-full border-4 ${isDark ? 'border-zinc-900' : 'border-white'} 
-                ${dotColor}
-                ${isSelected ? 'ring-4 ring-blue-500/20 scale-125 transition-transform' : ''}`}
-            />
-
+                                            className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-2xl transition-all duration-300 shadow-xl
+                                                ${runningId === wf.workflow_id 
+                                                    ? 'opacity-100 scale-100 bg-rose-500 shadow-rose-500/20' 
+                                                    : (selectedId === wf.workflow_id ? 'opacity-100 scale-100 bg-emerald-500 shadow-emerald-500/20' : 'opacity-0 scale-75 bg-blue-600 group-hover:opacity-100 group-hover:scale-100 shadow-blue-500/20')}
+                                                hover:scale-110 active:scale-95 text-white z-10`}
             <div className="flex items-center gap-4 mb-3">
                 <div className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border-2 shadow-sm transition-all ${bgLight}`}>
                     {isNegotiation ? <MessageSquare size={15} className="opacity-80" /> : <Bot size={15} className="opacity-80" />}
@@ -470,6 +480,11 @@ const ExecutionCenter = ({ isDark }) => {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [recordToDelete, setRecordToDelete] = useState(null);
 
+    // Dispatch: host agent selection
+    const [agentCards, setAgentCards] = useState([]);
+    const [selectedAgent, setSelectedAgent] = useState('');
+    const [isDispatching, setIsDispatching] = useState(false);
+
     // Search mode: 'fuzzy' | 'exact'
     const [searchMode, setSearchMode] = useState(() => {
         return localStorage.getItem('execution_search_mode') || 'fuzzy';
@@ -500,6 +515,108 @@ const ExecutionCenter = ({ isDark }) => {
         setNodes([]);
         setEdges([]);
     }, []);
+
+    // Fetch agent cards for dispatch dropdown
+    useEffect(() => {
+        let mounted = true;
+        getAgentCards()
+            .then(resp => {
+                if (mounted && resp?.data) {
+                    const cards = Array.isArray(resp.data) ? resp.data : [];
+                    setAgentCards(cards);
+                    // Auto-select Workbench Agent if available, otherwise first agent
+                    if (cards.length > 0 && !selectedAgent) {
+                        const workbenchAgent = cards.find(card => 
+                            card.name && card.name.toLowerCase().includes('workbench')
+                        );
+                        setSelectedAgent(workbenchAgent ? workbenchAgent.name : cards[0].name);
+                    }
+                }
+            })
+            .catch(err => console.error('Failed to fetch agent cards:', err));
+        return () => { mounted = false; };
+    }, []);
+
+    // Dispatch intent to the selected host agent via A2A-T
+    const handleDispatch = useCallback(() => {
+        if (!userIntent.trim() || !selectedAgent) return;
+
+        if (eventSource) {
+            eventSource.close();
+            setEventSource(null);
+        }
+
+        setError(null);
+        setEvents([]);
+        setPsopStatus(null);
+        setIsDispatching(true);
+        setIsRunning(true);
+        setAutoScroll(true);
+        setSelectedExecutionId(null);
+        setSelectedId(null);
+        setWorkflowSource(null);
+        setMatchedWorkflows([]);
+        setNodes([]);
+        setEdges([]);
+
+        const url = getDispatchStreamUrl(userIntent, selectedAgent, i18n.language);
+        const es = new EventSource(url);
+
+        es.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                setEvents(prev => [...prev, data]);
+                console.log('[SSE event]', data.type, data.data?.step || data.data?.agent || '', JSON.stringify(data.data).slice(0, 120));
+
+               switch (data.type) {
+                    case 'start':
+                        setAutoScroll(true);
+                        setSelectedId('dispatch');
+                        setWorkflowSource('retrieved');
+                        setMatchedWorkflows([{ workflow_id: 'dispatch', name: data.data?.workflow || 'Workflow', description: userIntent || '' }]);
+                        break;
+                    case 'psop_update':
+                        try {
+                            const status = typeof data.data.psop === 'string'
+                                ? JSON.parse(data.data.psop)
+                                : data.data.psop;
+                            setPsopStatus(status);
+                        } catch (e) {
+                            console.error('Failed to parse psop_update data:', e);
+                        }
+                        break;
+                    case 'dispatch_result':
+                    case 'complete':
+                    case 'close':
+                        setIsRunning(false);
+                        setIsDispatching(false);
+                        setRunningId(null);
+                        es.close();
+                        break;
+                    case 'dispatch_error':
+                    case 'error':
+                        setError(data.data.error || 'Dispatch failed');
+                        setIsRunning(false);
+                        setIsDispatching(false);
+                        setRunningId(null);
+                        es.close();
+                        break;
+                }
+            } catch (err) {
+                console.error("Failed to parse dispatch event data:", err);
+            }
+        };
+
+        es.onerror = () => {
+            setError("Dispatch SSE Connection Error");
+            setIsRunning(false);
+            setIsDispatching(false);
+            setRunningId(null);
+            es.close();
+        };
+
+        setEventSource(es);
+    }, [userIntent, selectedAgent, eventSource, i18n.language]);
 
     // Update exact filter
     const updateFilter = useCallback((key, value) => {
@@ -783,7 +900,7 @@ const ExecutionCenter = ({ isDark }) => {
             const { nodes: n, edges: e } = transformWorkflowToReactFlow(psopStatus);
             setNodes(n);
             setEdges(e);
-        } else if (selectedId) {
+        } else if (selectedId && selectedId !== 'dispatch') {
             (async () => {
                 try {
                     const res = await getWorkflowById(selectedId);
@@ -827,17 +944,13 @@ const ExecutionCenter = ({ isDark }) => {
         setAutoScroll(true);
         setSelectedExecutionId(null);
 
-        const url = getStartProcessStreamUrl(idToRun, userIntent, i18n.language);
+        const url = getStartProcessStreamUrl(idToRun, userIntent, i18n.language, selectedAgent);
         const es = new EventSource(url);
 
         es.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                if (data.type === 'agent_request' || data.type === 'agent_response'
-                    || data.type === 'negotiation_request' || data.type === 'negotiation_resolved'
-                    || data.type === 'negotiation_failed') {
-                    setEvents(prev => [...prev, data]);
-                }
+                setEvents(prev => [...prev, data]);
 
                 switch (data.type) {
                     case 'psop_update':
@@ -876,7 +989,7 @@ const ExecutionCenter = ({ isDark }) => {
         };
 
         setEventSource(es);
-    }, [selectedId, userIntent]);
+    }, [selectedId, userIntent, selectedAgent]);
 
     useEffect(() => {
         return () => {
@@ -1020,6 +1133,31 @@ const ExecutionCenter = ({ isDark }) => {
                                 >
                                     <X size={16} strokeWidth={3} />
                                     {t('execution.clear_filters')}
+                                </button>
+                            </div>
+                        )}
+
+                        {searchMode === 'fuzzy' && (
+                            <div className="flex items-center gap-3">
+                                <select
+                                    value={selectedAgent}
+                                    onChange={(e) => setSelectedAgent(e.target.value)}
+                                    className={`h-12 px-4 rounded-xl border-2 text-sm font-bold outline-none transition-all focus:border-blue-500 ${theme.input}`}
+                                >
+                                    <option value="">{t('execution.select_agent') || 'Select Agent'}</option>
+                                    {agentCards.map(agent => (
+                                        <option key={agent.name} value={agent.name}>
+                                            {agent.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <button
+                                    onClick={handleDispatch}
+                                    disabled={isDispatching || !userIntent.trim() || !selectedAgent}
+                                    className="flex items-center gap-2 px-6 h-14 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-sm font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-500/20"
+                                >
+                                    <Bot size={16} strokeWidth={3} />
+                                    {isDispatching ? (t('execution.dispatching') || 'Dispatching...') : (t('execution.dispatch') || 'Dispatch')}
                                 </button>
                             </div>
                         )}
@@ -1175,11 +1313,18 @@ const ExecutionCenter = ({ isDark }) => {
                                             </span>
                                         </div>
                                         
+                                        {isDispatching && wf.workflow_id === 'dispatch' ? (
+                                            <div className='absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-2xl bg-blue-500/10'>
+                                                <Loader size={14} className='text-blue-500 animate-spin' />
+                                            </div>
+                                        ) : (
                                         <button 
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (runningId === wf.workflow_id) {
                                                     stopExecution();
+                                                } else if (wf.workflow_id === 'dispatch') {
+                                                    handleDispatch();
                                                 } else {
                                                     setSelectedId(wf.workflow_id);
                                                     startExecution(wf.workflow_id);
@@ -1192,79 +1337,15 @@ const ExecutionCenter = ({ isDark }) => {
                                                 hover:scale-110 active:scale-95 text-white z-10`}
                                         >
                                             {runningId === wf.workflow_id ? (
-                                                <StopCircle size={14} fill="white" strokeWidth={3} />
+                                                <StopCircle size={14} fill='white' strokeWidth={3} />
                                             ) : (
-                                                <Play size={14} fill="white" strokeWidth={3} />
+                                                <Play size={14} fill='white' strokeWidth={3} />
                                             )}
                                         </button>
+                                        )}
                                     </div>
                                 ))
-                            )}
-                        </div>
-                    )}
 
-                    {activeTab === 'history' && (
-                        <div className={`flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar ${theme.content}`}>
-                            {isLoadingRecords ? (
-                                <div className="h-full flex flex-col items-center justify-center opacity-[0.30] text-zinc-400 gap-3">
-                                    <RotateCcw size={24} className="animate-spin" />
-                                    <p className="text-xs font-bold uppercase">{t('execution.loading')}</p>
-                                </div>
-                            ) : executionRecords.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400 gap-3">
-                                    <Clock size={48} strokeWidth={1.5} />
-                                    <p className="text-sm font-bold uppercase tracking-wider">{t('execution.no_history')}</p>
-                                </div>
-                            ) : (
-                                executionRecords.map(record => (
-                                    <div
-                                        key={record.execution_id}
-                                        onClick={() => loadHistoryDetail(record.execution_id)}
-                                        className={`group relative p-4 rounded-2xl border transition-all cursor-pointer
-                                            ${selectedExecutionId === record.execution_id
-                                                ? 'bg-blue-500/10 border-blue-500/50' 
-                                                : 'bg-white/50 dark:bg-black/20 border-transparent hover:border-zinc-200 dark:hover:border-zinc-700'}
-                                        `}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            {record.status === 'success' ? (
-                                                <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" />
-                                            ) : record.status === 'failed' ? (
-                                                <XCircle size={16} className="text-rose-500 mt-0.5 shrink-0" />
-                                            ) : (
-                                                <Clock size={16} className="text-amber-500 mt-0.5 shrink-0" />
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="text-sm font-bold dark:text-white truncate">{record.psop_name || record.psop_id}</span>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setRecordToDelete(record);
-                                                            setShowDeleteDialog(true);
-                                                        }}
-                                                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/20 text-zinc-400 hover:text-rose-500 transition-all"
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </button>
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-zinc-400">
-                                                    <span>{record.started_at ? new Date(record.started_at).toLocaleString() : '-'}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-1.5">
-                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase
-                                                        ${record.status === 'success' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
-                                                          record.status === 'failed' ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' :
-                                                          'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'}
-                                                    `}>
-                                                        {record.status}
-                                                    </span>
-                                                    <span className="text-[10px] text-zinc-400">{record.step_count} steps</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
                             )}
                         </div>
                     )}
@@ -1378,28 +1459,8 @@ const ExecutionCenter = ({ isDark }) => {
                         </div>
                     </div>
 
-                    <div ref={logScrollRef} onScroll={handleScroll} className={`flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar scroll-smooth ${theme.content}`}>
-                        {events.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400">
-                                <History size={64} strokeWidth={1.5} />
-                                <p className="text-xl font-black mt-4 uppercase tracking-widest">{t('execution.idle')}</p>
-                            </div>
-                        ) : (
-                            events.map((event, index) => {
-                                const agentName = event.data.agent;
-                                const isSelected = selectedNodeId && (nodes.find(n => n.id === selectedNodeId)?.data?.name === agentName || nodes.find(n => n.id === selectedNodeId)?.data?.agent === agentName);
-                                
-                                return (
-                                    <LogEntry 
-                                        key={`${event.timestamp}-${event.data.agent}-${index}`} 
-                                        event={event} 
-                                        isDark={isDark} 
-                                        t={t} 
-                                        isSelected={isSelected}
-                                    />
-                                );
-                            })
-                        )}
+                    <div ref={logScrollRef} onScroll={handleScroll} className={`flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar scroll-smooth ${theme.content}`}>
+                        <ExecutionTimeline events={events} isDark={isDark} isRunning={isRunning || isDispatching} />
                     </div>
                 </div>
             </div>
