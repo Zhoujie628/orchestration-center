@@ -174,11 +174,9 @@ def build_negotiation_resolution_task(
         "",
         "Please re-execute the task based on the clarification above.",
     ]
-    if continued_context:
-        import json as _json
-        parts.append("")
-        parts.append(NEGOTIATION_CONTEXT_MARKER)
-        parts.append(_json.dumps(continued_context, ensure_ascii=False))
+    # Note: Java SDK's buildResolutionMessage does NOT append [NEGOTIATION_CONTEXT]
+    # JSON to the follow-up text. The negotiation context is carried in metadata
+    # (via continue_negotiation), not in the message text. Aligning with Java.
     return "\n".join(parts)
 
 
