@@ -14,7 +14,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-from loguru import logger
 
 from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
@@ -49,7 +48,7 @@ class SpnDomainAgentCity2Executor(NegotiationBaseAgentExecutor):
         Mirrors Java demo buildResponseMetadata: only TASK_PROMPT_KEY is set.
         Authorization-T is pre-positioned, Notification-T is pushed via SSE.
         """
-        from common.negotiation_utils import build_negotiation_response_metadata, TASK_PROMPT_KEY
+        from samples.agents.util.negotiation_utils import build_negotiation_response_metadata, TASK_PROMPT_KEY
         from a2a.types import Task, TaskStatus, TaskState, Artifact, Part
         import uuid
 

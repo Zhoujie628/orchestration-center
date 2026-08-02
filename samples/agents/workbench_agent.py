@@ -65,7 +65,13 @@ from a2at_engine import (
     RegistryClient,
 )
 
-from common.a2at_config import get_a2at_env_path, update_a2at_language
+try:
+    from a2a_t.llm.factory import LLMClientFactory as _LLMFactory
+    from a2a_t.llm.providers.openai import OpenAIClient as _OpenAIClient
+    _LLMFactory.register("deepseek", _OpenAIClient)
+except Exception:
+    pass
+
 from common.llm import get_llm_instance
 from common.util.config_util import get_conf
 
@@ -506,7 +512,7 @@ class WorkbenchAgentExecutor(AgentExecutor):
 
     def __init__(self) -> None:
         self.lang = "zh"
-        self._a2at_env_path = str(get_a2at_env_path())
+        self._a2at_env_path = str(Path(__file__).resolve().parents[2] / ".env")
         self._ssl_verify = str(get_conf().get("client_verify_server", "false")).lower() == "true"
 
         # Orchestration center URL (for PSOP search/load via external API)
@@ -519,7 +525,7 @@ class WorkbenchAgentExecutor(AgentExecutor):
         self._registry_url = registry_url or "https://127.0.0.1:5000"
 
         self._cred_path = str(
-            Path(__file__).resolve().parent.parent.parent / "etc" / "conf" / "agent_credentials.json"
+            Path(__file__).resolve().parent.parent / "agent_credentials.json"
         )
 
         logger.info(

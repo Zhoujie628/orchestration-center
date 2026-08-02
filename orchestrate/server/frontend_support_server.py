@@ -224,7 +224,6 @@ async def register(request: RegisterRequest):
     conf = get_conf()
     if conf.get("persistence_mode", "file").lower() != "postgresql":
         raise HTTPException(status_code=400, detail="Registration requires PostgreSQL persistence mode")
-    import re
     if not re.fullmatch(r"^[a-zA-Z][a-zA-Z0-9_-]{2,63}$", request.username):
         raise HTTPException(status_code=400, detail="Username must start with a letter and contain only letters, digits, underscores or hyphens (3-64 chars)")
     from database.utils.user_store import create_user, user_exists

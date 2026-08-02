@@ -25,10 +25,13 @@ and forwards events to the frontend SSE.
 """
 
 import json
+import time
+from datetime import datetime, timezone
 from typing import List
 
 from a2a.types import AgentCard
 from fastapi.responses import StreamingResponse
+from loguru import logger
 
 from orchestrate.runtime.exec_engine import OrchestrationEngine
 
@@ -65,8 +68,77 @@ async def dispatch_intent_sse(
     engine = OrchestrationEngine(agent_cards, target_agent=target_agent, lang=lang)
 
     async def stream():
-        async for event in engine.events(intent):
-            yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+        from orchestrate.core.model.execution_record import ExecutionRecord, ExecutionStatus
+        from common.custom import HandlerRegistry, InterfaceType
+
+        started_at = datetime.now(timezone.utc)
+        collected_events = []
+        psop_id = ""
+        psop_name = ""
+        final_psop = None
+        record_status = ExecutionStatus.SUCCESS
+        record_error = None
+
+        try:
+            async for event in engine.events(intent):
+                collected_events.append(event)
+                evt_type = event.get("type", "")
+                evt_data = event.get("data", {})
+
+                if evt_type == "start":
+                    wf_id = evt_data.get("workflow_id")
+                    if wf_id:
+                        psop_id = wf_id
+                        wf_name = evt_data.get("workflow")
+                        if wf_name:
+                            psop_name = wf_name
+                    elif not psop_name:
+                        wf_name = evt_data.get("workflow")
+                        if wf_name:
+                            psop_name = wf_name
+
+                elif evt_type == "psop_update":
+                    psop_data = evt_data.get("psop")
+                    if psop_data:
+                        final_psop = psop_data
+                        if not psop_id:
+                            psop_id = psop_data.get("id", "")
+                        if not psop_name:
+                            psop_name = psop_data.get("name", "")
+
+                elif evt_type == "error":
+                    record_status = ExecutionStatus.FAILED
+                    record_error = evt_data.get("error", "Unknown error")
+
+                yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+
+        except Exception as e:
+            record_status = ExecutionStatus.FAILED
+            record_error = str(e)
+            logger.error(f"[SSE] Stream error: {e}", exc_info=True)
+        finally:
+            if not psop_id:
+                psop_id = f"dispatch-{int(time.time())}"
+            if not psop_name:
+                psop_name = intent[:80]
+
+            try:
+                record = ExecutionRecord(
+                    psop_id=psop_id,
+                    psop_name=psop_name,
+                    started_at=started_at,
+                    completed_at=datetime.now(timezone.utc),
+                    status=record_status,
+                    execution_history=[],
+                    final_psop=final_psop,
+                    events=collected_events,
+                    error=record_error,
+                )
+                handler = HandlerRegistry.get_handler(InterfaceType.SAVE_EXECUTION_RECORD)
+                handler.handle(record)
+                logger.info(f"[SSE] Execution record saved: {record.execution_id} (status={record_status.value})")
+            except Exception as e:
+                logger.error(f"[SSE] Failed to save execution record: {e}", exc_info=True)
 
     return StreamingResponse(
         stream(),

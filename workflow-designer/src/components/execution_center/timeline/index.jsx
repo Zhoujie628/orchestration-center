@@ -198,7 +198,7 @@ const MarkdownRenderer = React.memo(({ text }) => {
 });
 
 /* ──────────────────────────────────────────────────────────────────
- * ProtocolCard (Phase 3.3)
+ * ProtocolCard - Request/Response card with improved readability
  * ────────────────────────────────────────────────────────────────── */
 
 const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
@@ -214,25 +214,26 @@ const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
     const hasAuth = data.authorization;
     const hasNotif = data.notification;
 
-    const icon = hasAuth ? <Shield size={14} className="text-amber-500" />
-        : hasNotif ? <Bell size={14} className="text-purple-500" />
-        : isRequest ? <ArrowRight size={14} className="text-blue-500" />
-        : <ArrowLeft size={14} className="text-emerald-500" />;
+    const icon = hasAuth ? <Shield size={12} className="text-amber-500" />
+        : hasNotif ? <Bell size={12} className="text-purple-500" />
+        : isRequest ? <ArrowRight size={12} className="text-blue-500" />
+        : <ArrowLeft size={12} className="text-emerald-500" />;
 
     const label = hasAuth ? 'AUTH' : hasNotif ? 'NOTIF' : isRequest ? 'REQUEST' : 'RESPONSE';
     const bgClass = isRequest
-        ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900'
-        : 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900';
+        ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
+        : 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800';
     const ts = timestamp ? new Date(timestamp * 1000).toLocaleTimeString('en-GB') : '';
 
     return (
-        <div className={`rounded-xl border p-3 ${bgClass}`}>
-            <div className="flex items-center gap-2 mb-2">
+        <div className={`rounded-lg border ${bgClass} overflow-hidden`}>
+            {/* Card Header */}
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-inherit bg-white/50 dark:bg-zinc-900/30">
                 {icon}
-                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{label}</span>
+                <span className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">{label}</span>
                 {ts && <span className="text-[10px] text-zinc-400 ml-auto font-mono">{ts}</span>}
                 {state && (
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${
                         state.includes('COMPLETED') ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
                         : state.includes('FAILED') ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
                         : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
@@ -241,15 +242,14 @@ const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
                     </span>
                 )}
             </div>
+
+            {/* A2A-T Headers */}
             {(() => {
-                // Extract A2A-T headers from metadata keys (extension URIs)
                 const headerKeys = Object.keys(metadata).filter(k => k.includes('tmforum.org') || k.includes('a2aproject'));
-                const otherKeys = Object.keys(metadata).filter(k => !headerKeys.includes(k));
-                const hasHeaders = headerKeys.length > 0;
-                if (!hasHeaders) return null;
+                if (headerKeys.length === 0) return null;
                 return (
-                    <div className="mb-2 rounded-lg bg-zinc-100/60 dark:bg-zinc-800/40 p-2">
-                        <div className="text-[9px] font-black uppercase text-zinc-400 mb-1">Headers: A2A-Extensions</div>
+                    <div className="px-3 py-2 border-b border-inherit bg-zinc-50/50 dark:bg-zinc-800/30">
+                        <div className="text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 mb-1">A2A-Extensions</div>
                         <div className="flex flex-wrap gap-1">
                             {headerKeys.map((k, idx) => (
                                 <span key={idx} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
@@ -260,26 +260,29 @@ const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
                     </div>
                 );
             })()}
+
+            {/* Body Content */}
             {text && (
-                <div className="rounded-lg bg-white/60 dark:bg-zinc-900/40 p-2 max-h-48 overflow-y-auto custom-scrollbar">
-                    <div className="text-[9px] font-black uppercase text-zinc-400 mb-1">Body</div>
+                <div className="px-3 py-2 bg-white/60 dark:bg-zinc-900/40 max-h-48 overflow-y-auto custom-scrollbar">
                     <MarkdownRenderer text={text} />
                 </div>
             )}
+
+            {/* Metadata Toggle */}
             {hasMetadata && (
-                <div className="mt-2">
+                <div className="px-3 py-2 border-t border-inherit bg-zinc-50/30 dark:bg-zinc-800/20">
                     <button
                         onClick={() => setShowMetadata(!showMetadata)}
-                        className="flex items-center gap-1 text-[10px] font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                        className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
                     >
-                        {showMetadata ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        {showMetadata ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
                         Metadata ({Object.keys(metadata).length})
                     </button>
                     {showMetadata && (
-                        <div className="mt-1 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 p-2 max-h-40 overflow-y-auto custom-scrollbar">
+                        <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
                             {Object.entries(metadata).map(([key, val], idx) => (
-                                <div key={idx} className="mb-1">
-                                    <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 break-all">{key}:</span>
+                                <div key={idx} className="text-[10px]">
+                                    <span className="font-semibold text-zinc-600 dark:text-zinc-400 break-all">{key}:</span>
                                     <div className="ml-2 mt-0.5">
                                         <MarkdownRenderer text={typeof val === 'string' ? val : JSON.stringify(val, null, 2)} />
                                     </div>
@@ -294,39 +297,46 @@ const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
 });
 
 /* ──────────────────────────────────────────────────────────────────
- * AgentInteraction (Phase 3.6 inner component)
+ * AgentInteraction - Agent call card with improved layout
  * ────────────────────────────────────────────────────────────────── */
 
 const AgentInteraction = React.memo(({ interaction, isDark }) => {
     const agent = interaction.agent || 'Unknown';
     return (
-        <div className="flex flex-col gap-2 pl-3 border-l-2 border-zinc-200 dark:border-zinc-700 ml-2">
-            <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center shrink-0">
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/30 overflow-hidden">
+            {/* Agent Header */}
+            <div className="flex items-center gap-2.5 px-3 py-2 border-b border-zinc-200 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/30">
+                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center shrink-0">
                     <Bot size={12} className="text-white" />
                 </div>
-                <span className="text-xs font-bold text-zinc-700 dark:text-zinc-200">{agent}</span>
+                <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200 truncate">{agent}</span>
             </div>
-            {interaction.request && (
-                <ProtocolCard direction="request" data={interaction} timestamp={interaction.timestamp} isDark={isDark} />
-            )}
-            {interaction.response && (
-                <ProtocolCard direction="response" data={interaction} timestamp={interaction.timestamp} isDark={isDark} />
-            )}
-            {interaction.negotiations && interaction.negotiations.length > 0 && (
-                <div className="ml-4 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20 p-2 space-y-2">
-                    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">
-                        <MessageSquare size={12} />
-                        Negotiation ({interaction.negotiations.length} round{interaction.negotiations.length > 1 ? 's' : ''})
-                    </div>
-                    {interaction.negotiations.map((neg, idx) => (
-                        <div key={idx} className="text-[10px] text-zinc-600 dark:text-zinc-400 pl-2 border-l border-amber-300 dark:border-amber-800">
-                            <span className="font-bold uppercase">{neg.type.replace('negotiation_', '')}:</span>{' '}
-                            {neg.data?.concern || neg.data?.clarification || neg.data?.reason || ''}
+
+            {/* Interaction Content */}
+            <div className="p-3 space-y-2">
+                {interaction.request && (
+                    <ProtocolCard direction="request" data={interaction} timestamp={interaction.timestamp} isDark={isDark} />
+                )}
+                {interaction.response && (
+                    <ProtocolCard direction="response" data={interaction} timestamp={interaction.timestamp} isDark={isDark} />
+                )}
+                {interaction.negotiations && interaction.negotiations.length > 0 && (
+                    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-3">
+                        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 mb-2">
+                            <MessageSquare size={11} />
+                            协商 ({interaction.negotiations.length} 轮)
                         </div>
-                    ))}
-                </div>
-            )}
+                        <div className="space-y-1.5">
+                            {interaction.negotiations.map((neg, idx) => (
+                                <div key={idx} className="text-[10px] text-zinc-600 dark:text-zinc-400 pl-2 border-l-2 border-amber-300 dark:border-amber-700">
+                                    <span className="font-semibold">{neg.type.replace('negotiation_', '')}:</span>{' '}
+                                    {neg.data?.concern || neg.data?.clarification || neg.data?.reason || ''}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 });
@@ -377,7 +387,7 @@ const RouteDecisionCard = React.memo(({ data }) => {
 });
 
 /* ──────────────────────────────────────────────────────────────────
- * StepPhase (Phase 3.6 main container)
+ * StepPhase - Step container with improved visual hierarchy
  * ────────────────────────────────────────────────────────────────── */
 
 const StepPhase = React.memo(({ step, isDark }) => {
@@ -386,22 +396,44 @@ const StepPhase = React.memo(({ step, isDark }) => {
     const duration = formatDuration(step.startTime, step.endTime);
 
     return (
-        <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-                <div className={`w-2.5 h-2.5 rounded-full ${statusInfo.dot} shrink-0`} />
-                <StatusIcon size={14} className={statusInfo.color + (step.status === 'running' ? ' animate-spin' : '')} />
-                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-100">{step.name}</span>
-                <span className={`text-[10px] font-bold uppercase ${statusInfo.color}`}>
-                    [{step.status}]
-                </span>
-                {duration && <span className="text-[10px] text-zinc-400 ml-auto font-mono">{duration}</span>}
-                {step.isSelfLoop && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300">
-                        SELF-LOOP
-                    </span>
-                )}
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/50 overflow-hidden">
+            {/* Step Header */}
+            <div className={`px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 ${
+                step.status === 'running' ? 'bg-blue-50/50 dark:bg-blue-950/20' :
+                step.status === 'completed' ? 'bg-emerald-50/30 dark:bg-emerald-950/10' :
+                step.status === 'failed' ? 'bg-rose-50/30 dark:bg-rose-950/10' :
+                'bg-zinc-50 dark:bg-zinc-800/30'
+            }`}>
+                <div className="flex items-center gap-2.5">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                        step.status === 'running' ? 'bg-blue-100 dark:bg-blue-900/40' :
+                        step.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-900/40' :
+                        step.status === 'failed' ? 'bg-rose-100 dark:bg-rose-900/40' :
+                        'bg-zinc-100 dark:bg-zinc-800'
+                    }`}>
+                        <StatusIcon size={14} className={statusInfo.color + (step.status === 'running' ? ' animate-spin' : '')} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-zinc-900 dark:text-white truncate">{step.name}</span>
+                            {step.isSelfLoop && (
+                                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300">
+                                    SELF-LOOP
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-[10px] font-medium ${statusInfo.color}`}>
+                                {step.status === 'running' ? '执行中' : step.status === 'completed' ? '已完成' : step.status === 'failed' ? '失败' : '等待中'}
+                            </span>
+                            {duration && <span className="text-[10px] text-zinc-400">· {duration}</span>}
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div className="ml-5 flex flex-col gap-2">
+
+            {/* Step Content */}
+            <div className="p-4 space-y-3">
                 {step.isSelfLoop ? (
                     <SelfLoopCard step={step} isDark={isDark} />
                 ) : (
@@ -411,18 +443,21 @@ const StepPhase = React.memo(({ step, isDark }) => {
                 )}
                 {step.route && <RouteDecisionCard data={step.route} />}
                 {step.output && (
-                    <div className="ml-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-700 p-2">
-                        <div className="text-[9px] font-black uppercase text-zinc-400 mb-1">Output</div>
-                        <div className="max-h-24 overflow-y-auto custom-scrollbar">
+                    <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-3">
+                        <div className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase mb-1.5">输出结果</div>
+                        <div className="max-h-32 overflow-y-auto custom-scrollbar">
                             <MarkdownRenderer text={typeof step.output === 'string' ? step.output : (step.output?.output || JSON.stringify(step.output))} />
                         </div>
                     </div>
                 )}
                 {step.error && (
-                    <div className="ml-4 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 p-2">
-                        <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
-                            Error: {step.error.error || JSON.stringify(step.error)}
-                        </span>
+                    <div className="rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 p-3">
+                        <div className="flex items-start gap-2">
+                            <XCircle size={14} className="text-rose-500 shrink-0 mt-0.5" />
+                            <span className="text-xs font-medium text-rose-600 dark:text-rose-400">
+                                {step.error.error || JSON.stringify(step.error)}
+                            </span>
+                        </div>
                     </div>
                 )}
             </div>
@@ -431,7 +466,7 @@ const StepPhase = React.memo(({ step, isDark }) => {
 });
 
 /* ──────────────────────────────────────────────────────────────────
- * WorkflowHeader (Phase 3.1 inner)
+ * WorkflowHeader - Compact workflow status card
  * ────────────────────────────────────────────────────────────────── */
 
 const WorkflowHeader = React.memo(({ events, steps, isRunning }) => {
@@ -448,32 +483,42 @@ const WorkflowHeader = React.memo(({ events, steps, isRunning }) => {
     const overallStatus = errorEvent ? 'failed' : completeEvent ? 'completed' : isRunning ? 'running' : 'pending';
     const statusInfo = StepStatusMap[overallStatus] || StepStatusMap.pending;
     const StatusIcon = statusInfo.icon;
+    const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
 
     return (
-        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-zinc-50 to-zinc-100 dark:from-zinc-800/50 dark:to-zinc-900/50 p-4 flex items-center gap-4">
-            <StatusIcon size={20} className={statusInfo.color + (overallStatus === 'running' ? ' animate-spin' : '')} />
-            <div className="flex-1 min-w-0">
-                <div className="text-sm font-black text-zinc-800 dark:text-zinc-100 truncate">{wfName || 'Workflow Execution'}</div>
-                <div className="flex items-center gap-3 mt-1">
-                    <span className={`text-[10px] font-bold uppercase ${statusInfo.color}`}>
-                        {overallStatus === 'running' ? 'Executing' : overallStatus === 'completed' ? 'Completed' : overallStatus === 'failed' ? 'Failed' : 'Pending'}
-                    </span>
-                    {totalSteps > 0 && (
-                        <span className="text-[10px] text-zinc-400">
-                            Steps {completedSteps}/{totalSteps}
-                            {failedSteps > 0 && <span className="text-rose-500"> ({failedSteps} failed)</span>}
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-zinc-50 to-white dark:from-zinc-800/50 dark:to-zinc-900/50 p-4">
+            <div className="flex items-center gap-3 mb-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    overallStatus === 'failed' ? 'bg-rose-100 dark:bg-rose-900/30' :
+                    overallStatus === 'completed' ? 'bg-emerald-100 dark:bg-emerald-900/30' :
+                    overallStatus === 'running' ? 'bg-blue-100 dark:bg-blue-900/30' :
+                    'bg-zinc-100 dark:bg-zinc-800'
+                }`}>
+                    <StatusIcon size={20} className={statusInfo.color + (overallStatus === 'running' ? ' animate-spin' : '')} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-zinc-900 dark:text-white truncate">{wfName || 'Workflow Execution'}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-xs font-medium ${statusInfo.color}`}>
+                            {overallStatus === 'running' ? '执行中' : overallStatus === 'completed' ? '已完成' : overallStatus === 'failed' ? '失败' : '等待中'}
                         </span>
-                    )}
-                    {duration && <span className="text-[10px] text-zinc-400 font-mono">{duration}</span>}
+                        {totalSteps > 0 && (
+                            <span className="text-xs text-zinc-400">
+                                · {completedSteps}/{totalSteps} 步骤
+                                {failedSteps > 0 && <span className="text-rose-500"> ({failedSteps} 失败)</span>}
+                            </span>
+                        )}
+                        {duration && <span className="text-xs text-zinc-400">· {duration}</span>}
+                    </div>
                 </div>
             </div>
             {totalSteps > 0 && (
-                <div className="w-24 h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
+                <div className="w-full h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
                     <div
                         className={`h-full rounded-full transition-all duration-500 ${
                             overallStatus === 'failed' ? 'bg-rose-500' : overallStatus === 'completed' ? 'bg-emerald-500' : 'bg-blue-500'
                         }`}
-                        style={{ width: `${totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0}%` }}
+                        style={{ width: `${progress}%` }}
                     />
                 </div>
             )}
@@ -482,7 +527,7 @@ const WorkflowHeader = React.memo(({ events, steps, isRunning }) => {
 });
 
 /* ──────────────────────────────────────────────────────────────────
- * FinalResultCard (Phase 3.5)
+ * FinalResultCard - Workflow completion summary
  * ────────────────────────────────────────────────────────────────── */
 
 const FinalResultCard = React.memo(({ events, steps, isDark }) => {
@@ -499,54 +544,73 @@ const FinalResultCard = React.memo(({ events, steps, isDark }) => {
     const duration = formatDuration(startTime, endTime);
 
     return (
-        <div className={`rounded-2xl border p-4 ${
+        <div className={`rounded-xl border overflow-hidden ${
             isComplete
-                ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20'
-                : 'border-rose-200 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/20'
+                ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20'
+                : 'border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-950/20'
         }`}>
-            <div className="flex items-center gap-2 mb-3">
-                {isComplete ? <CheckCircle2 size={16} className="text-emerald-500" /> : <XCircle size={16} className="text-rose-500" />}
-                <span className="text-sm font-black text-zinc-800 dark:text-zinc-100">
-                    {isComplete ? 'Workflow Complete' : 'Workflow Failed'}
-                </span>
-                {duration && <span className="text-[10px] text-zinc-400 ml-auto font-mono">Total: {duration}</span>}
-            </div>
-            {Object.keys(stepOutputs).length > 0 && (
-                <div className="space-y-2">
-                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase text-zinc-500 dark:text-zinc-400">
-                        <FileText size={12} />
-                        Step Outputs
+            {/* Header */}
+            <div className={`px-4 py-3 border-b ${
+                isComplete 
+                    ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-100/50 dark:bg-emerald-900/30' 
+                    : 'border-rose-200 dark:border-rose-800 bg-rose-100/50 dark:bg-rose-900/30'
+            }`}>
+                <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                        isComplete ? 'bg-emerald-500' : 'bg-rose-500'
+                    }`}>
+                        {isComplete ? <CheckCircle2 size={16} className="text-white" /> : <XCircle size={16} className="text-white" />}
                     </div>
-                    {Object.entries(stepOutputs).map(([stepName, output], idx) => (
-                        <div key={idx} className="rounded-lg bg-white/60 dark:bg-zinc-900/40 p-2">
-                            <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-300">{stepName}:</span>
-                            <div className="mt-1 max-h-24 overflow-y-auto custom-scrollbar">
-                                <MarkdownRenderer text={typeof output === 'string' ? output : (output?.output || JSON.stringify(output))} />
-                            </div>
+                    <div className="flex-1">
+                        <div className="text-sm font-semibold text-zinc-900 dark:text-white">
+                            {isComplete ? '工作流完成' : '工作流失败'}
                         </div>
-                    ))}
-                </div>
-            )}
-            {history.length > 0 && (
-                <details className="mt-2">
-                    <summary className="cursor-pointer text-[10px] font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-                        Execution History ({history.length} entries)
-                    </summary>
-                    <div className="mt-1 max-h-32 overflow-y-auto custom-scrollbar space-y-1">
-                        {history.map((h, idx) => (
-                            <div key={idx} className="text-[10px] text-zinc-500 dark:text-zinc-400 rounded px-2 py-0.5 bg-zinc-50 dark:bg-zinc-900/40">
-                                {typeof h === 'string' ? h : JSON.stringify(h)}
-                            </div>
-                        ))}
+                        {duration && <div className="text-[10px] text-zinc-500 dark:text-zinc-400">总耗时: {duration}</div>}
                     </div>
-                </details>
-            )}
+                </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 space-y-3">
+                {Object.keys(stepOutputs).length > 0 && (
+                    <div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-zinc-600 dark:text-zinc-400 uppercase mb-2">
+                            <FileText size={11} />
+                            步骤输出
+                        </div>
+                        <div className="space-y-2">
+                            {Object.entries(stepOutputs).map(([stepName, output], idx) => (
+                                <div key={idx} className="rounded-lg bg-white/60 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-700 p-2.5">
+                                    <div className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-300 mb-1">{stepName}</div>
+                                    <div className="max-h-24 overflow-y-auto custom-scrollbar">
+                                        <MarkdownRenderer text={typeof output === 'string' ? output : (output?.output || JSON.stringify(output))} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {history.length > 0 && (
+                    <details className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
+                        <summary className="cursor-pointer px-3 py-2 text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors">
+                            执行历史 ({history.length} 条)
+                        </summary>
+                        <div className="px-3 pb-2 space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+                            {history.map((h, idx) => (
+                                <div key={idx} className="text-[10px] text-zinc-500 dark:text-zinc-400 rounded px-2 py-1 bg-white dark:bg-zinc-900/50">
+                                    {typeof h === 'string' ? h : JSON.stringify(h)}
+                                </div>
+                            ))}
+                        </div>
+                    </details>
+                )}
+            </div>
         </div>
     );
 });
 
 /* ──────────────────────────────────────────────────────────────────
- * ExecutionTimeline (Phase 3.1 main container)
+ * ExecutionTimeline - Main timeline container
  * ────────────────────────────────────────────────────────────────── */
 
 const ExecutionTimeline = React.memo(({ events, isDark, isRunning }) => {
@@ -560,17 +624,20 @@ const ExecutionTimeline = React.memo(({ events, isDark, isRunning }) => {
 
     if (events.length === 0) {
         return (
-            <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400">
-                <Clock size={64} strokeWidth={1.5} />
-                <p className="text-xl font-black mt-4 uppercase tracking-widest">Idle</p>
+            <div className="h-full flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500 py-16">
+                <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4">
+                    <Clock size={28} strokeWidth={1.5} />
+                </div>
+                <p className="text-sm font-medium">等待执行</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">执行工作流后将在此显示进度</p>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="space-y-3">
             <WorkflowHeader events={events} steps={steps} isRunning={isRunning} />
-            <div className="space-y-4">
+            <div className="space-y-3">
                 {steps.map((step, idx) => (
                     <StepPhase key={idx} step={step} isDark={isDark} />
                 ))}

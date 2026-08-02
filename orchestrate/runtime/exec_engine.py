@@ -36,6 +36,13 @@ from loguru import logger
 
 from a2at_engine import A2ATransport, WorkflowEngineClient
 
+try:
+    from a2a_t.llm.factory import LLMClientFactory as _LLMFactory
+    from a2a_t.llm.providers.openai import OpenAIClient as _OpenAIClient
+    _LLMFactory.register("deepseek", _OpenAIClient)
+except Exception:
+    pass
+
 
 class OrchestrationEngine:
     """Thin orchestration channel -- PSOP preview + A2A-T dispatch + event forward."""
@@ -48,15 +55,9 @@ class OrchestrationEngine:
         from common.util.config_util import get_conf
         self._ssl_verify = str(get_conf().get("client_verify_server", "false")).lower() == "true"
 
-        env_path = None
-        try:
-            from common.a2at_config import get_a2at_env_path
-            env_path = str(get_a2at_env_path())
-        except Exception:
-            pass
-        self._a2at_env_path = env_path
+        self._a2at_env_path = str(Path(__file__).resolve().parent.parent.parent / ".env")
 
-        cred_path = Path(__file__).resolve().parent.parent.parent / "etc" / "conf" / "agent_credentials.json"
+        cred_path = Path(__file__).resolve().parent.parent.parent / "samples" / "agent_credentials.json"
         self._cred_path = str(cred_path) if cred_path.is_file() else None
 
     def _find_target_card(self):

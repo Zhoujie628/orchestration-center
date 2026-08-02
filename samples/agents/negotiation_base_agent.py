@@ -18,6 +18,7 @@
 import asyncio
 import uuid
 import queue as _queue
+from pathlib import Path
 from typing import Dict, Any, Optional
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
@@ -28,9 +29,8 @@ from a2a_t.server import A2ATServer
 from a2a_t.negotiation.common.enums import NegotiationType
 from a2a_t.negotiation.common.models import StartNegotiationInput, NegotiationContext
 
-from common.a2at_config import get_a2at_env_path
 from common.llm import get_llm_instance
-from common.negotiation_utils import (
+from samples.agents.util.negotiation_utils import (
     NEGOTIATION_CONTEXT_KEY,
     NEGOTIATION_TEXT_KEY,
     TASK_PROMPT_KEY,
@@ -64,7 +64,7 @@ class NegotiationBaseAgentExecutor(AgentExecutor):
 
     def __init__(self, agent_prompt_template: str) -> None:
         self.llm = get_llm_instance()
-        env_path = get_a2at_env_path()
+        env_path = Path(__file__).resolve().parents[2] / ".env"
         self.a2at_server = A2ATServer(env_path=env_path)
         self.prompt_template = agent_prompt_template
         self._authorization_policy: Optional[str] = None

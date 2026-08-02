@@ -110,7 +110,7 @@ class SpnDomainAgentExecutor(NegotiationBaseAgentExecutor):
         Mirrors Java demo buildResponseMetadata: only TASK_PROMPT_KEY is set.
         Authorization-T is pre-positioned, Notification-T is pushed via SSE.
         """
-        from common.negotiation_utils import build_negotiation_response_metadata, TASK_PROMPT_KEY
+        from samples.agents.util.negotiation_utils import build_negotiation_response_metadata, TASK_PROMPT_KEY
         from a2a.types import Task, TaskStatus, TaskState, Artifact, Part
         import uuid
 

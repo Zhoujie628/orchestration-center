@@ -45,10 +45,8 @@ from samples.agents.spn_domain_agent import SpnDomainAgentExecutor
 from samples.agents.spn_domain_agent_city2 import SpnDomainAgentCity2Executor
 from samples.agents.workbench_agent import WorkbenchAgentExecutor
 
-from google.protobuf.json_format import MessageToDict as _MessageToDict
 import time as _time
 import secrets as _secrets
-from common.a2at_config import ensure_env_file_exists
 
 # Global list to track all agent executors for graceful shutdown
 _agent_executors = []
@@ -121,9 +119,6 @@ def pre_insert_psop():
         logger.info("Persistence mode is file, skipping pre_insert_psop")
         return
 
-    ensure_env_file_exists()
-    logger.info("A2AT SDK environment file initialized")
-    
     storage = get_workflow_storage()
     for wf_id in storage.list_psops():
         psop = storage.load_psop(wf_id)
@@ -197,7 +192,6 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
                 return {"accessSession": token}
             logger.warning(f"[Auth] Login failed for agent '{agent_name}': bad credentials")
             return JSONResponse(status_code=401, content={"error": "Invalid credentials"})
-
 
 
     agent_card_routes = create_agent_card_routes(agent_card=agent_card)
