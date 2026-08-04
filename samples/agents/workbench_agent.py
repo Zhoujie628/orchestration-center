@@ -28,6 +28,7 @@ WorkbenchOrchestrator + WorkbenchControlPoint.
 
 import asyncio
 import json
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -53,7 +54,6 @@ from a2at_engine import (
     ControlPoint,
     EventCallback,
     EventType,
-    ExtensionCallback,
     ExtensionSender,
     RouteDecision,
     TaskResponse,
@@ -239,9 +239,12 @@ Step type: {step_type_val}
         if not self.llm_client:
             raise ValueError("LLM Client not initialized.")
         try:
+            t0 = time.time()
+            logger.info(f"[ControlPoint] LLM route decision for step '{step_name}': calling LLM...")
             _, decision = await asyncio.get_event_loop().run_in_executor(
                 self._llm_executor, self.llm_client.ask_llm, prompt_template
             )
+            logger.info(f"[ControlPoint] LLM route decision for step '{step_name}': LLM call done ({time.time()-t0:.2f}s)")
             decision = decision.strip() if decision else ""
             if not decision:
                 logger.error(f"LLM returned empty decision for step '{step_name}', defaulting to termination.")
@@ -284,9 +287,12 @@ Analyze the available execution context and produce a comprehensive result.
 # Output
 Produce a clear, structured analysis based on the context above. {lang_hint}"""
         try:
+            t0 = time.time()
+            logger.info(f"[Workbench] Self-loop merge: calling LLM...")
             _, result = await asyncio.get_event_loop().run_in_executor(
                 self._llm_executor, self.llm_client.ask_llm, prompt
             )
+            logger.info(f"[Workbench] Self-loop merge: LLM call done ({time.time()-t0:.2f}s)")
             if result:
                 logger.info(f"[Workbench] Self-loop merge result: {result[:150]}...")
                 return result
@@ -426,9 +432,12 @@ context below, provide an accurate clarification or supplementary explanation.
 Based on the execution context above, provide a clear clarification to the agent.
 Do NOT add any prefix markers like "Clarification:". {lang_hint}"""
         try:
+            t0 = time.time()
+            logger.info(f"[Workbench] Negotiation clarification for '{agent_name}': calling LLM...")
             _, clarification = await asyncio.get_event_loop().run_in_executor(
                 self._llm_executor, self.llm_client.ask_llm, prompt,
             )
+            logger.info(f"[Workbench] Negotiation clarification for '{agent_name}': LLM call done ({time.time()-t0:.2f}s)")
             clarification = clarification.strip() if clarification else ""
             if clarification:
                 logger.info(f"Generated negotiation clarification for '{agent_name}': {clarification[:150]}...")
@@ -453,34 +462,42 @@ Do NOT add any prefix markers like "Clarification:". {lang_hint}"""
         return None
 
 
-class WorkbenchExtensionCallback(ExtensionCallback):
-    """Reactive Authorization-T / Notification-T hooks for the workbench."""
-
-    async def on_authorization(self, agent_name: str, auth_request: Dict[str, Any]) -> bool:
-        logger.info(f"[Workbench] Authorizing {agent_name}: approved")
-        return True
-
-    async def on_notification(self, agent_name: str, notification: Dict[str, Any]) -> None:
-        logger.info(f"[Workbench] Notification from {agent_name}: {str(notification)[:200]}")
-
-
 class _WorkbenchEventCallback(EventCallback):
     """Tracks current step for negotiation forwarding + step outputs update."""
 
     def __init__(self, control_point: WorkbenchControlPoint):
         self._cp = control_point
+        self._step_start_times: Dict[str, float] = {}
+        self._task_start_times: Dict[str, float] = {}
 
     def on_event(self, event_type: str, data: Dict[str, Any]):
+        now = time.time()
         if event_type == EventType.STEP_START:
             step_name = data.get("step")
+            self._step_start_times[step_name] = now
             self._cp.set_current_step(step_name)
+            logger.info(f"[Timing] Step '{step_name}' started")
+        elif event_type == EventType.TASK_REQUEST:
+            agent = data.get("agent", "?")
+            step = data.get("step", "?")
+            self._task_start_times[agent] = now
+            logger.info(f"[Timing] Task dispatched to '{agent}' (step={step})")
+        elif event_type == EventType.TASK_RESPONSE:
+            agent = data.get("agent", "?")
+            step = data.get("step", "?")
+            elapsed = now - self._task_start_times.get(agent, now)
+            logger.info(f"[Timing] Task response from '{agent}' (step={step}): {elapsed:.2f}s")
         elif event_type == EventType.TASK_STATUS_CHANGED:
             step_name = data.get("step")
             status = data.get("status", "")
             if step_name and status:
                 outputs = self._cp._step_outputs.setdefault(step_name, {})
                 outputs[data.get("subtask", "task")] = data.get("result", "")
-        elif event_type == EventType.COMPLETE:
+        elif event_type == EventType.STEP_COMPLETE:
+            step_name = data.get("step")
+            elapsed = now - self._step_start_times.get(step_name, now)
+            logger.info(f"[Timing] Step '{step_name}' completed: {elapsed:.2f}s")
+        elif event_type == EventType.WORKFLOW_COMPLETE:
             d = data if isinstance(data, dict) else {}
             self._cp.update_step_outputs(d.get("step_outputs", {}))
         elif event_type == EventType.ERROR:
@@ -534,14 +551,13 @@ class WorkbenchAgentExecutor(AgentExecutor):
         )
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        t_execute = time.time()
         intent = context.get_user_input()
         task_id = context.task_id or "N/A"
         ctx_id = context.context_id or "N/A"
         logger.info(f"[WorkbenchAgent] execute: task_id={task_id}, context_id={ctx_id}, intent={intent[:100]}")
 
         collected_events = []
-        # Enqueue initial Task (required by A2A server before any
-        # TaskStatusUpdateEvent / TaskArtifactUpdateEvent can be sent).
         await event_queue.enqueue_event(Task(
             id=context.task_id,
             context_id=context.context_id,
@@ -552,16 +568,22 @@ class WorkbenchAgentExecutor(AgentExecutor):
         try:
             processed_intent = await self._process_intent(intent)
 
-            # Check if orchestration center passed psop_id in metadata (skip search)
             request_metadata = context.metadata or {}
             psop_id = request_metadata.get("__orch_psop_id__")
             if psop_id:
                 logger.info(f"[WorkbenchAgent] Using psop_id from orchestration center: {psop_id}")
             else:
+                t0 = time.time()
                 psop_id = await self._search_psop(processed_intent)
+                logger.info(f"[WorkbenchAgent] PSOP search done ({time.time()-t0:.2f}s)")
 
+            t0 = time.time()
             workflow = await self._load_psop(psop_id)
+            logger.info(f"[WorkbenchAgent] PSOP load done ({time.time()-t0:.2f}s)")
+
+            t0 = time.time()
             agent_cards = await self._load_agent_cards()
+            logger.info(f"[WorkbenchAgent] Agent cards load done: {len(agent_cards)} cards ({time.time()-t0:.2f}s)")
 
             transport = A2ATransport(
                 agent_cards=agent_cards,
@@ -571,7 +593,7 @@ class WorkbenchAgentExecutor(AgentExecutor):
             )
             engine_client = WorkflowEngineClient(transport, max_negotiation_rounds=3)
 
-            await self._pre_position_extensions(transport, agent_cards, workflow=workflow)
+            sender = await self._pre_position_extensions(transport, agent_cards, workflow=workflow, event_queue=event_queue, context=context)
 
             cp = WorkbenchControlPoint(
                 orch_url=self._orch_url,
@@ -579,14 +601,14 @@ class WorkbenchAgentExecutor(AgentExecutor):
                 a2at_env_path=self._a2at_env_path,
                 lang=self.lang,
             )
-            sdk_workflow = workflow  # already a SDKWorkflow from load_psop
+            sdk_workflow = workflow
             cp.set_workflow(sdk_workflow)
-            ext_cb = WorkbenchExtensionCallback()
             cp.set_engine_client(engine_client)
             engine_client.set_control_point(cp)
-            engine_client.set_extension_callback(ext_cb)
             engine_client.set_event_callback(_WorkbenchEventCallback(cp))
 
+            t0 = time.time()
+            logger.info(f"[WorkbenchAgent] Starting workflow execution")
             async for event in execute_psop(
                 psop=workflow,
                 agent_cards=agent_cards,
@@ -599,16 +621,20 @@ class WorkbenchAgentExecutor(AgentExecutor):
                 collected_events.append(event)
                 task_update = self._event_to_task_update(event, context)
                 await event_queue.enqueue_event(task_update)
+            logger.info(f"[WorkbenchAgent] Workflow execution done ({time.time()-t0:.2f}s), {len(collected_events)} events")
 
-            # Enqueue final Task with all SDK events in metadata for
-            # the OrchestrationEngine to extract and forward to frontend.
             await event_queue.enqueue_event(Task(
                 id=context.task_id,
                 context_id=context.context_id,
                 status=TaskStatus(state=TaskState.TASK_STATE_COMPLETED),
                 metadata={"__sdk_events__": json.dumps(collected_events, ensure_ascii=False, default=str)},
             ))
-            logger.info(f"[WorkbenchAgent] Enqueued final Task with {len(collected_events)} SDK events")
+            logger.info(f"[WorkbenchAgent] Total execute time: {time.time()-t_execute:.2f}s")
+            try:
+                if sender:
+                    sender.cancel_notification_streams()
+            except Exception:
+                pass
             try:
                 await engine_client.close()
             except Exception:
@@ -632,15 +658,19 @@ class WorkbenchAgentExecutor(AgentExecutor):
         raise RuntimeError("No matching workflow found")
 
     async def _load_psop(self, psop_id: str):
-        return await load_psop(self._orch_url, psop_id, ssl_verify=self._ssl_verify)
+        workflow = await load_psop(self._orch_url, psop_id, ssl_verify=self._ssl_verify)
+        logger.info(f"[WorkbenchAgent] Loaded PSOP: {workflow.name} ({len(workflow.steps)} steps)")
+        return workflow
 
     async def _load_agent_cards(self) -> list:
         registry = RegistryClient(self._registry_url, ssl_verify=self._ssl_verify)
-        return await registry.fetch_agent_cards()
+        cards = await registry.fetch_agent_cards()
+        logger.info(f"[WorkbenchAgent] Loaded {len(cards)} agent cards from registry")
+        return cards
 
-    async def _pre_position_extensions(self, transport: A2ATransport, agent_cards: list, workflow=None):
+    async def _pre_position_extensions(self, transport: A2ATransport, agent_cards: list, workflow=None, event_queue=None, context=None):
+        t_total = time.time()
         sender = ExtensionSender(transport)
-        # Extract agent names referenced in the workflow steps/subtasks
         workflow_agents = set()
         if workflow:
             for step in workflow.steps:
@@ -655,21 +685,49 @@ class WorkbenchAgentExecutor(AgentExecutor):
             if "Workbench" in name:
                 continue
             try:
+                t0 = time.time()
                 logger.info(f"[WorkbenchAgent] Pre-position Authorization-T to {name}")
                 await sender.send_authorization(name, "下发授权放行策略", self._AUTH_INPUT)
+                logger.info(f"[WorkbenchAgent] Authorization-T to {name} done ({time.time()-t0:.2f}s)")
             except Exception as e:
                 logger.warning(f"[WorkbenchAgent] Auth-T to {name} failed: {e}")
+            logger.info(f"[WorkbenchAgent] Pre-position Notification-T to {name} (long-lived SSE)")
             try:
-                logger.info(f"[WorkbenchAgent] Pre-position Notification-T to {name}")
-                await asyncio.wait_for(
-                    sender.send_notification(name, "订阅业务抢通结果通知", self._NOTIF_INPUT),
-                    timeout=10.0,
+                await sender.send_notification(
+                    name, "订阅业务抢通结果通知", self._NOTIF_INPUT,
+                    event_callback=lambda evt, n=name: self._on_notification_event(evt, n, event_queue, context),
                 )
-            except asyncio.TimeoutError:
-                logger.info(f"[WorkbenchAgent] Notification-T to {name}: subscribed (stream stays open)")
+                logger.info(f"[WorkbenchAgent] Notification-T subscription confirmed for {name}")
             except Exception as e:
                 logger.warning(f"[WorkbenchAgent] Notification-T to {name} failed: {e}")
-        logger.info("[WorkbenchAgent] Extension pre-positioning complete")
+        logger.info(f"[WorkbenchAgent] Extension pre-positioning complete ({time.time()-t_total:.2f}s)")
+        return sender
+
+    def _on_notification_event(self, event: Dict[str, Any], agent_name: str, event_queue=None, context=None):
+        """Handle Notification-T SSE events (recovery results pushed by agents)."""
+        text = event.get("text", "")
+        state = event.get("state", "")
+        evt_type = event.get("type", "")
+        logger.info(f"[WorkbenchAgent] Notification-T from {agent_name}: type={evt_type}, state={state}, text={len(text)} chars")
+        if text:
+            logger.info(f"[WorkbenchAgent] Recovery result from {agent_name}: {text[:200]}")
+        if event_queue and context:
+            artifact_text = f"[Notification-T] {agent_name}: {text}" if text else f"[Notification-T] {agent_name}: {evt_type}"
+            artifact = Artifact(
+                artifact_id=str(uuid.uuid4()),
+                name=f"notification-{agent_name}",
+                parts=[Part(root=Part.TextPart(text=artifact_text))],
+                metadata={"notification_agent": agent_name, "notification_state": state, "notification_type": evt_type},
+            )
+            try:
+                loop = asyncio.get_event_loop()
+                loop.create_task(event_queue.enqueue_event(TaskArtifactUpdateEvent(
+                    task_id=context.task_id,
+                    context_id=context.context_id,
+                    artifact=artifact,
+                )))
+            except Exception as e:
+                logger.warning(f"[WorkbenchAgent] Failed to enqueue notification artifact: {e}")
 
     # Event types that carry artifact content (not just status)
     _ARTIFACT_EVENTS = frozenset({"agent_request", "agent_response", "step_complete"})
