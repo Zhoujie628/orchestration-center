@@ -19,14 +19,36 @@ LLM 模块采用配置驱动架构，接入新模型通过编辑 `common/config/
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `description` | string | 否 | 模型描述，用于日志 |
-| `model` | string | 否 | 模型名称，通过 `$MODEL` 占位符注入 |
+| `model` | string | **是** | 模型名称，通过 `$MODEL` 占位符注入 |
 | `url` | string | **是** | API 端点地址 |
-| `api_key` | string | 否 | API 密钥，`auth` 为 null 时自动作为 `Authorization: Bearer` 头 |
+| `api_key` | string | **是** | API 密钥，`auth` 为 null 时自动作为 `Authorization: Bearer` 头 |
 | `enable_thinking` | boolean | 否 | 思考模式开关，通过 `$ENABLE_THINKING` 注入 |
+| `verify_ssl` | boolean | 否 | 是否校验 TLS 证书（默认 `true`）。自签名端点可设为 `false` |
 | `auth` | object/string/null | 否 | 认证策略（见下文） |
 | `headers` | object | 否 | 额外静态 HTTP 头 |
 | `body` | object | **是** | 请求体模板，支持 `$` 占位符 |
 | `response` | object | **是** | 响应提取路径（点分路径） |
+
+`model`、`url`、`api_key` 默认为 `<YOUR_...>` 占位值。若未填写，会抛出 `ValueError` 并指明
+具体字段及对应的环境变量，而不是等到调用厂商接口才失败。
+
+## 环境变量覆盖
+
+上述**标量**字段均可通过 `LLM_<能力>_<字段>` 覆盖，无需修改本文件 —— 例如
+`LLM_CHAT_MODEL`、`LLM_CHAT_API_KEY`、`LLM_EMBED_URL`。优先级：
+
+```
+环境变量  >  <仓库根目录>/.env  >  common/config/llm_config.json
+```
+
+- 空值视为未设置，因此 Docker Compose 的 `${LLM_CHAT_MODEL:-}` 不会把默认值清空。
+- 布尔值支持 `true/false`、`1/0`、`yes/no`、`on/off`。
+- 结构化字段（`auth`、`headers`、`body`、`response`）属于请求模板，无法通过环境变量设置，仍保留在 JSON 中。
+- 容器内仅透传 `LLM_CHAT_*`（见 `docker-compose.yml`），仓库根目录的 `.env` 未挂载进容器，其他能力仍通过 JSON 配置。
+
+该配置驱动 `GenericLLM` —— 编排后端自身的 LLM 调用（意图解析、PSOP 检索、PDF/BPMN 摘要）。
+它与 A2A-T 协商 SDK 在仓库根目录 `.env` 中的 `A2AT_*` 配置相互独立（详见顶层 README）。
+配置缓存与进程同生命周期 —— 修改后需重启。
 
 ## 认证策略（`auth`）
 
@@ -61,11 +83,13 @@ LLM 模块采用配置驱动架构，接入新模型通过编辑 `common/config/
 
 ### OpenAI 兼容 API
 
+适用于 OpenAI、DeepSeek、Qwen/DashScope 及自建网关 —— 只需调整 `model`、`url`。
+
 ```json
 {
   "chat": {
-    "model": "deepseek-chat",
-    "url": "https://api.deepseek.com/v1/chat/completions",
+    "model": "gpt-4o",
+    "url": "https://api.openai.com/v1/chat/completions",
     "api_key": "sk-xxxxxxxx",
     "enable_thinking": true,
     "auth": null,

@@ -367,12 +367,45 @@ python generate_selfsign_cert.py etc/ssl serverAuth
 | `etc/conf/server.conf` | 服务 IP、端口、TLS 证书、持久化模式、注册中心 URL, access password |
 | `etc/conf/server.properties` | TLS 版本、密码套件、流控参数、连接限制, client_verify_server |
 | `etc/conf/db_config.json` | PostgreSQL 连接配置 |
-| `common/config/llm_config.json` | LLM/Embedding/Rerank 模型端点 |
+| `common/config/llm_config.json` | LLM/Embedding/Rerank 模型端点（可通过 `LLM_*` 覆盖，见下文） |
+| `.env` | 本地覆盖配置 — 已加入 gitignore。协商 SDK 也直接从这里读取 `A2AT_*` 变量（见下文） |
 | `common/config/README_zh.md` | LLM 配置指南 |
+
+## LLM 配置
+
+无硬编码厂商。`common/config/llm_config.json` 提供占位符，任何兼容 OpenAI 的服务均可使用。
+每个标量字段都可以不修改 JSON 直接覆盖，使用 `LLM_<能力>_<字段>` —— 在环境变量或仓库根目录的
+`.env` 中设置：
+
+| 变量 | 用途 |
+|------|------|
+| `LLM_CHAT_MODEL` | 模型名称 — **必填** |
+| `LLM_CHAT_API_KEY` | API 密钥 — **必填** |
+| `LLM_CHAT_URL` | 完整的 chat-completions 端点 — **必填** |
+| `LLM_CHAT_VERIFY_SSL` | 设为 `false` 跳过 TLS 校验（自签名网关） |
+| `LLM_CHAT_ENABLE_THINKING` | 思考模式开关 |
+
+`能力` 为 `chat`、`embed` 或 `rerank`；`字段` 为该能力下任意标量字段。优先级为
+**环境变量 > `.env` > `llm_config.json`**。结构化字段（`auth`、`headers`、`body`、`response`）
+是请求模板，仍保留在 JSON 中。容器内仅透传 `LLM_CHAT_*`（见 `docker-compose.yml`），其他能力
+仍通过 JSON 配置。
+
+该配置驱动编排后端自身的 LLM 调用（意图解析、PSOP 检索、PDF 摘要），与下文 A2A-T 协商 SDK 的
+配置相互独立。
+
+```bash
+LLM_CHAT_MODEL=gpt-4o
+LLM_CHAT_API_KEY=<your-api-key>
+LLM_CHAT_URL=https://api.openai.com/v1/chat/completions
+```
+
+DeepSeek、Qwen 及自建网关的示例参见 [`.env.example`](.env.example)。
 
 ## A2A-T SDK 集成
 
-本项目集成了 workflow-engine SDK，用于工作台智能体的工作流执行和 fulfillment 协商：
+本项目集成了 workflow-engine SDK，用于工作台智能体的工作流执行和 fulfillment 协商。其配置
+（`A2AT_LLM_PROVIDER`、`A2AT_LLM_MODEL`、`A2AT_LLM_API_KEY`、`A2AT_LLM_BASE_URL`、
+`A2AT_NEGOTIATION_STATE_STORE_TYPE` 等）直接从仓库根目录的 `.env` 读取 — 请在其中配置：
 
 ```env
 A2AT_LLM_PROVIDER=deepseek
@@ -382,7 +415,7 @@ A2AT_LLM_BASE_URL=https://api.deepseek.com
 A2AT_NEGOTIATION_STATE_STORE_TYPE=in_memory
 ```
 
-配置由 `common/a2at_config.py` 从 `common/config/llm_config.json` 自动生成。
+与上文的 `LLM_CHAT_*` 配置相互独立 — 两者之间没有自动派生关系。
 
 ## 文档导航
 
