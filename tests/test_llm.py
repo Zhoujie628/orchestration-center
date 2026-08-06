@@ -90,6 +90,51 @@ class TestModelConfig:
         cfg = ModelConfig.from_dict("x", {"url": "", "auth": None})
         assert cfg.auth is None
 
+    def test_verify_ssl_is_read(self):
+        cfg = ModelConfig.from_dict("chat", {
+            "url": "https://gateway.internal/llm/api/chat/completions",
+            "verify_ssl": False,
+        })
+        assert cfg.verify_ssl is False
+
+    def test_verify_ssl_defaults_to_true(self):
+        cfg = ModelConfig.from_dict("x", {"url": "http://x"})
+        assert cfg.verify_ssl is True
+
+# ── configuration guard ──
+
+class TestConfiguredGuard:
+    """llm_config.json ships provider-neutral placeholders; leaving one in place
+    must fail with a message naming the field and the variable that sets it."""
+
+    def _instance_with(self, **overrides):
+        from common.llm.llm import get_llm_instance, reset_instances
+        cfg = ModelConfig.from_dict("chat", {**CHAT_CONFIG, **overrides})
+        reset_instances()
+        try:
+            with patch("common.llm.llm.get_model_config", return_value=cfg):
+                return get_llm_instance()
+        finally:
+            reset_instances()
+
+    @pytest.mark.parametrize("field,env_var", [
+        ("url", "LLM_CHAT_URL"),
+        ("model", "LLM_CHAT_MODEL"),
+        ("api_key", "LLM_CHAT_API_KEY"),
+    ])
+    def test_placeholder_is_rejected(self, field, env_var):
+        with pytest.raises(ValueError) as exc:
+            self._instance_with(**{field: "<YOUR_VALUE>"})
+        assert field in str(exc.value)
+        assert env_var in str(exc.value)
+
+    def test_empty_value_is_rejected(self):
+        with pytest.raises(ValueError, match="api_key"):
+            self._instance_with(api_key="")
+
+    def test_fully_configured_capability_is_accepted(self):
+        assert self._instance_with() is not None
+
 # ── auth_strategies ──
 
 AOC_PARAMS = {

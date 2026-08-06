@@ -1,8 +1,8 @@
 {
   "chat": {
     "description": "Chat/LLM model for PSOP generation and execution",
-    "model": "deepseek-chat",
-    "url": "https://api.deepseek.com/v1/chat/completions",
+    "model": "<YOUR_MODEL>",
+    "url": "<YOUR_CHAT_COMPLETIONS_URL>",
     "api_key": "<YOUR_API_KEY>",
     "enable_thinking": true,
     "verify_ssl": true,
