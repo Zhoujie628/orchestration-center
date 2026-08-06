@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 Copyright (c) 2026 Huawei Technologies Co., Ltd.
 All Rights Reserved.
 
@@ -136,14 +136,14 @@ sequenceDiagram
 |------|------|
 | **可视化编排** | 基于 React Flow 的拖拽式工作流设计器，支持自动 Dagre 布局 |
 | **多模式生成** | 支持 PDF 文档导入、手动拖拽编排、自然语言生成三种工作流创建方式 |
-| **A2A-T 协商集成** | 集成 a2a-t-sdk 的 fulfillment 协商能力，协商上下文通过 Task.metadata 携带 |
-| **执行引擎** | `DynamicWorkflowEngine` — 异步 DAG 遍历、并行 A2A 调用、LLM 条件路由、SSE 流式推送 |
+| **A2A-T 协商集成** | 集成 workflow-engine 的 fulfillment 协商能力，协商上下文通过 Task.metadata 携带 |
+| **执行引擎** | `OrchestrationEngine` — 薄 A2A-T 分发通道；PSOP 工作流执行委托给工作台智能体（workflow-engine SDK） |
 | **语义检索** | 基于自然语言意图检索历史工作流，快速复用已有流程 |
 | **双 API 层** | 内部 API（`/rest/v1/orchestrate/*`）供前端调用 + 对外 API（`/api/v1/*`）供第三方集成 |
 | **SSE 流式推送** | 11 种事件类型（init、start、agent_request、agent_response、psop_update、negotiation_request、negotiation_resolved、negotiation_failed、complete、error、close）实时推送执行进度 |
 | **可插拔存储** | 文件 JSON 或 PostgreSQL 持久化，通过 HandlerRegistry 切换 |
 | **模板市场** | 预置电信场景工作流模板（直播保障、节能、故障处理） |
-| **示例 Agent** | 11 个示例 A2A Agent，集成协商能力，用于测试和演示 |
+| **示例 Agent** | 10 个示例 A2A Agent，集成协商能力，用于测试和演示 |
 
 ## 快速开始
 
@@ -198,7 +198,7 @@ flowchart TB
         direction TB
         api["双 API 层<br/>内部 /rest/v1/orchestrate/*<br/>对外 /api/v1/*"]
         domain["核心领域<br/>PSOP 生成 · 意图生成<br/>语义检索 · 发布"]
-        engine["DynamicWorkflowEngine<br/>DAG 遍历 · 并行 A2A 调用<br/>LLM 路由 · SSE 推送"]
+        engine["OrchestrationEngine<br/>薄 A2A-T 分发通道<br/>SSE 事件转发"]
     end
 
     subgraph storage["存储"]
@@ -219,9 +219,10 @@ flowchart TB
     domain --> engine
     engine --> file
     engine --> pg
-    engine -->|"A2A 协议<br/>+ A2A-T 协商"| a1
-    engine --> a2
-    engine --> a3
+    engine -->|"A2A-T 协议"| wb["工作台智能体<br/>(Leader · workflow-engine SDK)"]
+    wb -->|"A2A 协议<br/>+ A2A-T 协商"| a1
+    wb --> a2
+    wb --> a3
 
     style backend fill:#e1f5fe,stroke:#0288d1
     style frontend fill:#e8f5e9,stroke:#388e3c
@@ -371,7 +372,7 @@ python generate_selfsign_cert.py etc/ssl serverAuth
 
 ## A2A-T SDK 集成
 
-本项目集成了 a2a-t-sdk 的 fulfillment 协商能力：
+本项目集成了 workflow-engine SDK，用于工作台智能体的工作流执行和 fulfillment 协商：
 
 ```env
 A2AT_LLM_PROVIDER=deepseek

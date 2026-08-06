@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 Copyright (c) 2026 Huawei Technologies Co., Ltd.
 All Rights Reserved.
 
@@ -136,14 +136,14 @@ sequenceDiagram
 |----------|------------|
 | **Visual Designer** | React Flow-based drag-and-drop workflow builder with automatic Dagre layout |
 | **Multi-Mode Creation** | PDF document import, manual drag-and-drop, and natural-language-to-workflow via LLM |
-| **A2A-T Negotiation** | Fulfillment negotiation between agents via a2a-t-sdk, context carried in Task.metadata |
-| **Execution Engine** | `DynamicWorkflowEngine` — async DAG traversal, parallel A2A calls, conditional LLM routing, SSE streaming |
+| **A2A-T Negotiation** | Fulfillment negotiation between agents via workflow-engine, context carried in Task.metadata |
+| **Execution Engine** | `OrchestrationEngine` — thin A2A-T dispatch channel; PSOP workflow execution delegated to the Workbench Agent via workflow-engine SDK |
 | **Semantic Search** | Natural-language retrieval of previously built workflows |
 | **Dual API Layer** | Internal API (`/rest/v1/orchestrate/*`) for the frontend + External API (`/api/v1/*`) for third-party integration |
 | **SSE Streaming** | Real-time execution progress via 11 event types (init, start, agent_request, agent_response, psop_update, negotiation_request, negotiation_resolved, negotiation_failed, complete, error, close) |
 | **Pluggable Storage** | File-based JSON or PostgreSQL persistence via HandlerRegistry |
 | **Template Marketplace** | Pre-built workflow templates for telecom scenarios (live broadcast, energy saving, fault handling) |
-| **Sample Agents** | 11 sample A2A agents with negotiation support for testing and demonstration |
+| **Sample Agents** | 10 sample A2A agents with negotiation support for testing and demonstration |
 
 ## Quick Start
 
@@ -200,7 +200,7 @@ flowchart TB
         direction TB
         api["Dual API Layer<br/>Internal /rest/v1/orchestrate/*<br/>External /api/v1/*"]
         domain["Core Domain<br/>PSOP Generator · Intent Generator<br/>Semantic Search · Publisher"]
-        engine["DynamicWorkflowEngine<br/>DAG Traversal · Parallel A2A Calls<br/>LLM Routing · SSE Push"]
+        engine["OrchestrationEngine<br/>Thin A2A-T Dispatch Channel<br/>SSE Event Forwarding"]
     end
 
     subgraph storage["Storage"]
@@ -221,9 +221,10 @@ flowchart TB
     domain --> engine
     engine --> file
     engine --> pg
-    engine -->|"A2A Protocol<br/>+ A2A-T Negotiation"| a1
-    engine --> a2
-    engine --> a3
+    engine -->|"A2A-T Protocol"| wb["Workbench Agent<br/>(Leader · workflow-engine SDK)"]
+    wb -->|"A2A Protocol<br/>+ A2A-T Negotiation"| a1
+    wb --> a2
+    wb --> a3
 
     style backend fill:#e1f5fe,stroke:#0288d1
     style frontend fill:#e8f5e9,stroke:#388e3c
@@ -375,7 +376,7 @@ The external API (`/api/v1/*`) is protected by mTLS at the TLS layer when `enabl
 
 ## A2A-T SDK Integration
 
-This project integrates a2a-t-sdk for agent fulfillment negotiation:
+This project integrates the workflow-engine SDK for Workbench Agent workflow execution and agent fulfillment negotiation:
 
 ```bash
 A2AT_LLM_PROVIDER=deepseek

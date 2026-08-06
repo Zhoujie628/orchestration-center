@@ -16,7 +16,6 @@
 #    under the License.
 
 import os
-import asyncio
 import ssl
 import sys
 
@@ -138,34 +137,13 @@ class CustomUvicornServer:
             ssl_cert_reqs=self.conf_obj.verify_client,
             ssl_ciphers=CipherConverter.convert(self.server_config.get(TLS_CIPHER)),
             timeout_keep_alive=0,
-            timeout_graceful_shutdown=5,
+            timeout_graceful_shutdown=2,
             log_level="info",
             proxy_headers=True
         )
         server = uvicorn.Server(server_config)
         record_startup_log()
         server.run()
-
-def _suppress_connection_reset_handler():
-    """Silence Windows asyncio ConnectionResetError (WinError 10054).
-
-    On Windows, when a client closes the TCP connection before the server
-    finishes shutting down the socket, asyncio's ProactorEventLoop raises
-    ConnectionResetError in the callback.  This is harmless noise that floods
-    the log.  We install a custom exception handler on the event loop to
-    suppress it.
-    """
-    def _handler(loop, context):
-        exc = context.get("exception")
-        if isinstance(exc, ConnectionResetError):
-            return
-        loop.default_exception_handler(context)
-
-    try:
-        loop = asyncio.get_event_loop()
-        loop.set_exception_handler(_handler)
-    except RuntimeError:
-        logger.warning("Could not set asyncio exception handler")
 
 def main():
     """
@@ -185,7 +163,7 @@ def main():
         else:
             logger.info("Users already exist, skipping admin seed")
     if not is_enable_https:
-        uvicorn.run(app, host=server_config.get('ip', "127.0.0.1"), port=int(server_config.get('port', 5001)), timeout_graceful_shutdown=5)
+        uvicorn.run(app, host=server_config.get('ip', "127.0.0.1"), port=int(server_config.get('port', 5001)), timeout_graceful_shutdown=2)
     else:
         try:
             conf_obj = get_conf_singleton()
