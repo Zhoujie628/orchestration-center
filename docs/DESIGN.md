@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 Copyright (c) 2026 Huawei Technologies Co., Ltd.
 All Rights Reserved.
 
@@ -161,7 +161,7 @@ Frontend (React :3003)
 OrchestrationEngine (编排中心, 薄 A2A-T 分发通道)
     │  A2A-T send_message_stream
     ▼
-Workbench Agent (工作台智能体, Leader, 集成 a2at-engine SDK)
+Workbench Agent (工作台智能体, Leader, 集成 workflow-engine SDK)
     │  A2A Protocol + A2A-T Negotiation
     ▼
 Worker Agents (SPN / 其他业务域 Agent)
@@ -176,7 +176,7 @@ Worker Agents (SPN / 其他业务域 Agent)
 
 ### 3.2 工作台智能体（Workbench Agent）
 
-工作台智能体是工作流执行的宿主，集成 `a2at-engine` SDK，对标 Java 端的 `TransportWorkbenchAgentExecutor` + `WorkbenchOrchestrator`。
+工作台智能体是工作流执行的宿主，集成 `workflow-engine` SDK，对标 Java 端的 `TransportWorkbenchAgentExecutor` + `WorkbenchOrchestrator`。
 
 执行流程：
 
@@ -186,7 +186,7 @@ Worker Agents (SPN / 其他业务域 Agent)
 3. 加载 Agent Cards → 调注册中心获取可用 Agent 列表
 4. 扩展预置 → Authorization-T / Notification-T 预下发
 5. 创建 ControlPoint → on_task / on_self_task / on_route / on_negotiation
-6. execute_psop → a2at-engine SDK 驱动 DAG 遍历
+6. execute_psop → workflow-engine SDK 驱动 DAG 遍历
    ├─ ALL_SUCCESS: asyncio.gather 并行执行
    ├─ ANY_SUCCESS: asyncio.as_completed 首个成功即返回
    ├─ 条件路由: LLM 路由决策 (JumpCondition)
@@ -198,11 +198,11 @@ Worker Agents (SPN / 其他业务域 Agent)
 
 工作台智能体将每个 SDK 事件编码为 A2A-T `TaskStatusUpdateEvent`，原始事件 JSON 保留在 `metadata["__sdk_event__"]` 中。编排中心的 `OrchestrationEngine` 从流式响应中提取该字段，原样转发给前端。
 
-前端视角仍为 11 种事件类型（init、start、agent_request、agent_response、psop_update、negotiation_request、negotiation_resolved、negotiation_failed、complete、error、close），但事件产生方已从编排中心迁移至工作台智能体的 a2at-engine SDK。
+前端视角仍为 11 种事件类型（init、start、agent_request、agent_response、psop_update、negotiation_request、negotiation_resolved、negotiation_failed、complete、error、close），但事件产生方已从编排中心迁移至工作台智能体的 workflow-engine SDK。
 
 ### 3.4 A2A-T 协商支持
 
-协商逻辑由工作台智能体的 `WorkbenchControlPoint` 驱动，通过 a2at-engine SDK 的 `ControlPoint` 接口实现 `on_negotiation` 回调。不可用时降级为普通 A2A 调用。
+协商逻辑由工作台智能体的 `WorkbenchControlPoint` 驱动，通过 workflow-engine SDK 的 `ControlPoint` 接口实现 `on_negotiation` 回调。不可用时降级为普通 A2A 调用。
 
 ---
 
@@ -402,7 +402,7 @@ common/config/llm_config.json   (LLM 提供商配置)
 1. **分层上下文传播**（`layer` + `context_from`）——Layer 0 步骤独立执行，Layer >= 1 步骤通过 `context_from` 声明依赖的前驱步骤，工作台智能体自动收集上游输出注入为上下文。`context_from: ["*"]` 表示接收所有前驱（含间接）输出。
 2. **插件式存储**（`HandlerRegistry`）——通过 `InterfaceType` 枚举 + `persistence_mode` 配置分发操作到 file 或 PostgreSQL handler，新增存储后端实现 handler 接口并注册即可。
 3. **PSOP DAG 模型**——`Step` 包含 `subtasks`（并行任务列表）、`type`（`ALL_SUCCESS` / `ANY_SUCCESS` 执行模式）、`next`（条件跳转列表）。`JumpCondition` 支持声明式转发和 LLM 动态路由两种方式。
-4. **SSE 流式推送**——工作台智能体通过 a2at-engine SDK 产出事件，编码为 A2A-T TaskUpdate metadata；OrchestrationEngine 从流式响应中提取 `__sdk_event__` 并 yield 为 `text/event-stream`。执行记录保存完整 `events` 数组，支持事后回放。
+4. **SSE 流式推送**——工作台智能体通过 workflow-engine SDK 产出事件，编码为 A2A-T TaskUpdate metadata；OrchestrationEngine 从流式响应中提取 `__sdk_event__` 并 yield 为 `text/event-stream`。执行记录保存完整 `events` 数组，支持事后回放。
 5. **Prompt 工程**——PSOP 生成、意图检索、LLM 路由决策均使用结构化 JSON schema 约束输出格式，配合 few-shot 示例减少自由格式偏差。
 6. **原子写入**——文件持久化使用 `tempfile.mkstemp` + `os.replace` 确保写入过程不产生半写文件。
 7. **全链路 async**——Subtask 在工作台智能体中通过 `asyncio.gather` / `asyncio.as_completed` 并行执行，LLM 调用通过 `run_in_executor` 包装避免阻塞事件循环。

@@ -34,7 +34,7 @@ from typing import AsyncIterator
 
 from loguru import logger
 
-from a2at_engine import A2ATransport, WorkflowEngineClient
+from workflow_engine import A2ATransport, WorkflowEngineClient
 
 try:
     from a2a_t.llm.factory import LLMClientFactory as _LLMFactory

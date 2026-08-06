@@ -19,7 +19,7 @@
 
 Leader role: receives the raw intent via A2A-T, searches/loads the PSOP
 workflow from the orchestration center, pre-positions extensions, then
-executes the workflow via the a2at-engine SDK (execute_psop), streaming
+executes the workflow via the workflow-engine SDK (execute_psop), streaming
 SDK events back to the caller as A2A-T TaskUpdate events.
 
 Mirrors the Java demo's TransportWorkbenchAgentExecutor +
@@ -49,7 +49,7 @@ from a2a.types import (
     Message,
 )
 
-from a2at_engine import (
+from workflow_engine import (
     A2ATransport,
     ControlPoint,
     EventCallback,
@@ -506,7 +506,7 @@ class _WorkbenchEventCallback(EventCallback):
 
 
 class WorkbenchAgentExecutor(AgentExecutor):
-    """Workbench Agent -- workflow execution host, integrated with a2at-engine SDK.
+    """Workbench Agent -- workflow execution host, integrated with workflow-engine SDK.
 
     Leader role: receives the raw intent via A2A-T, searches/loads the PSOP
     workflow from the orchestration center, pre-positions extensions, then
@@ -716,7 +716,7 @@ class WorkbenchAgentExecutor(AgentExecutor):
             artifact = Artifact(
                 artifact_id=str(uuid.uuid4()),
                 name=f"notification-{agent_name}",
-                parts=[Part(root=Part.TextPart(text=artifact_text))],
+                parts=[Part(text=artifact_text)],
                 metadata={"notification_agent": agent_name, "notification_state": state, "notification_type": evt_type},
             )
             try:

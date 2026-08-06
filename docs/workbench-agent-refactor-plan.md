@@ -1,9 +1,9 @@
-# 工作台智能体架构重构方案
+﻿# 工作台智能体架构重构方案
 
 > 日期: 2026-07-31
 > 状态: 已实施
 >
-> **注意：本方案已实施完成。** `DynamicWorkflowEngine` 已被 `OrchestrationEngine`（薄 A2A-T 分发通道）替代，工作流执行逻辑已迁移至工作台智能体（`samples/agents/workbench_agent.py`）和 `a2at-engine` SDK。
+> **注意：本方案已实施完成。** `DynamicWorkflowEngine` 已被 `OrchestrationEngine`（薄 A2A-T 分发通道）替代，工作流执行逻辑已迁移至工作台智能体（`samples/agents/workbench_agent.py`）和 `workflow-engine` SDK。
 
 ## 1. 背景与问题
 
@@ -132,7 +132,7 @@ Java demo 中：
 # samples/agents/workbench_agent.py
 
 class WorkbenchAgentExecutor(AgentExecutor):
-    """工作台智能体 -- 工作流执行宿主，集成 a2at_engine SDK。
+    """工作台智能体 -- 工作流执行宿主，集成 workflow_engine SDK。
 
     Leader 角色：统筹工作流中其他智能体，也可处理 self-loop 节点。
     对标 Java TransportWorkbenchAgentExecutor + WorkbenchOrchestrator。

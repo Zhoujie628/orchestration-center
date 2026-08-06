@@ -1,4 +1,4 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 ## Project overview
 
@@ -8,7 +8,7 @@ A2A-T Multi-Agent Orchestration Center — visual workflow designer + thin A2A-T
 |---|---|
 | Backend | Python 3.12+, FastAPI, uvicorn, loguru |
 | Frontend | Node.js, React 18, Vite, Tailwind CSS, React Flow |
-| Agent protocol | a2at-engine (workflow execution + A2A-T transport), a2a-sdk (http-server + grpc) |
+| Agent protocol | workflow-engine (workflow execution + A2A-T transport), a2a-sdk (http-server + grpc) |
 | Storage | File-based JSON (`data/workflow_storage/`) or PostgreSQL |
 
 ## Quick start
@@ -60,7 +60,7 @@ The orchestration center does **NOT** execute workflows itself. It:
 2. Dispatches the intent to the Workbench Agent via A2A-T
 3. Streams back SDK events from TaskUpdate metadata to the frontend SSE
 
-All workflow execution logic (DAG traversal, parallel A2A calls, conditional routing, negotiation) lives in the Workbench Agent (`samples/agents/workbench_agent.py`) and the `a2at-engine` SDK.
+All workflow execution logic (DAG traversal, parallel A2A calls, conditional routing, negotiation) lives in the Workbench Agent (`samples/agents/workbench_agent.py`) and the `workflow-engine` SDK.
 
 ### Entrypoints (all run via `-m`)
 
@@ -88,11 +88,11 @@ The `WorkflowStorage` singleton is accessed via `get_workflow_storage()` (uses `
 
 ### A2A-T SDK config
 
-`.env` for the a2at-engine SDK is auto-generated from `common/config/llm_config.json` via `common/a2at_config.py`.
+`.env` for the workflow-engine SDK is auto-generated from `common/config/llm_config.json` via `common/a2at_config.py`.
 
 ### Agent authentication
 
-Agent authentication (Bearer token obtained via a login endpoint, custom auth headers, `A2A-Extensions` header injection) is handled by the **a2at-engine SDK** (`a2at_engine.client.AuthManager` + `credential_service` + `extension_interceptor`). The `OrchestrationEngine` constructs a `WorkflowEngineClient` (SDK) which auto-builds `AuthInterceptor` / `ExtensionInterceptor` for agents whose AgentCard declares `securitySchemes` / `securityRequirements` / extensions.
+Agent authentication (Bearer token obtained via a login endpoint, custom auth headers, `A2A-Extensions` header injection) is handled by the **workflow-engine SDK** (`workflow_engine.client.AuthManager` + `credential_service` + `extension_interceptor`). The `OrchestrationEngine` constructs a `WorkflowEngineClient` (SDK) which auto-builds `AuthInterceptor` / `ExtensionInterceptor` for agents whose AgentCard declares `securitySchemes` / `securityRequirements` / extensions.
 
 | File | Role |
 |---|---|
@@ -132,7 +132,7 @@ common/                # Shared infra: config, LLM, logging, certs, util
   llm/                 # LLM abstraction (generic HTTP client + auth strategies)
 workflow-designer/     # React frontend (separate Node project)
 samples/               # Sample A2A agents + start script
-  agents/workbench_agent.py  # Workbench Agent (leader, executes PSOP via a2at-engine SDK)
+  agents/workbench_agent.py  # Workbench Agent (leader, executes PSOP via workflow-engine SDK)
 database/              # PostgreSQL support (optional)
 etc/conf/              # server.conf, server.properties, db_config.json, agent_credentials.json
 tests/                 # All tests (pytest, 19 files + conftest.py)

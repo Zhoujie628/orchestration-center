@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 Copyright (c) 2026 Huawei Technologies Co., Ltd.
 All Rights Reserved.
 
@@ -136,8 +136,8 @@ sequenceDiagram
 |------|------|
 | **可视化编排** | 基于 React Flow 的拖拽式工作流设计器，支持自动 Dagre 布局 |
 | **多模式生成** | 支持 PDF 文档导入、手动拖拽编排、自然语言生成三种工作流创建方式 |
-| **A2A-T 协商集成** | 集成 a2at-engine 的 fulfillment 协商能力，协商上下文通过 Task.metadata 携带 |
-| **执行引擎** | `OrchestrationEngine` — 薄 A2A-T 分发通道；PSOP 工作流执行委托给工作台智能体（a2at-engine SDK） |
+| **A2A-T 协商集成** | 集成 workflow-engine 的 fulfillment 协商能力，协商上下文通过 Task.metadata 携带 |
+| **执行引擎** | `OrchestrationEngine` — 薄 A2A-T 分发通道；PSOP 工作流执行委托给工作台智能体（workflow-engine SDK） |
 | **语义检索** | 基于自然语言意图检索历史工作流，快速复用已有流程 |
 | **双 API 层** | 内部 API（`/rest/v1/orchestrate/*`）供前端调用 + 对外 API（`/api/v1/*`）供第三方集成 |
 | **SSE 流式推送** | 11 种事件类型（init、start、agent_request、agent_response、psop_update、negotiation_request、negotiation_resolved、negotiation_failed、complete、error、close）实时推送执行进度 |
@@ -219,7 +219,7 @@ flowchart TB
     domain --> engine
     engine --> file
     engine --> pg
-    engine -->|"A2A-T 协议"| wb["工作台智能体<br/>(Leader · a2at-engine SDK)"]
+    engine -->|"A2A-T 协议"| wb["工作台智能体<br/>(Leader · workflow-engine SDK)"]
     wb -->|"A2A 协议<br/>+ A2A-T 协商"| a1
     wb --> a2
     wb --> a3
@@ -372,7 +372,7 @@ python generate_selfsign_cert.py etc/ssl serverAuth
 
 ## A2A-T SDK 集成
 
-本项目集成了 a2at-engine SDK，用于工作台智能体的工作流执行和 fulfillment 协商：
+本项目集成了 workflow-engine SDK，用于工作台智能体的工作流执行和 fulfillment 协商：
 
 ```env
 A2AT_LLM_PROVIDER=deepseek
