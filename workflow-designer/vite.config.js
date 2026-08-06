@@ -42,6 +42,9 @@ export default ({ mode }) => defineConfig({
         },
     },
     assetsInclude: ["**/*.PNG"],
+    test: {
+        environment: 'jsdom',
+    },
     build: {
         minify: 'esbuild',
         rollupOptions: {
