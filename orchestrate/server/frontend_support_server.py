@@ -18,6 +18,7 @@
 import os
 import secrets
 import tempfile
+import threading
 import json
 import re
 import pathlib
@@ -277,6 +278,38 @@ class ChangePasswordRequest(BaseModel):
     old_password: str = Field(..., min_length=1, max_length=256, description="Current password (SHA-256 hashed)")
     new_password: str = Field(..., min_length=6, max_length=256, description="New password (SHA-256 hashed)")
 
+# Serializes file-mode password changes and makes the server.conf rewrite
+# below atomic (temp file + os.replace instead of truncate-in-place), so a
+# crash or full disk mid-write can never leave a truncated config file.
+_password_file_lock = threading.Lock()
+
+
+def _update_access_password_in_conf(conf_path: str, new_password: str) -> bool:
+    """Rewrite the access_password= line in server.conf. Returns False (no
+    write performed) if the key isn't present in the file."""
+    with _password_file_lock:
+        with open(conf_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        updated = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith("access_password="):
+                lines[i] = f"access_password={new_password}\n"
+                updated = True
+                break
+        if not updated:
+            return False
+        conf_dir = os.path.dirname(conf_path)
+        fd, tmp_path = tempfile.mkstemp(dir=conf_dir, prefix=".server.conf.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.writelines(lines)
+            os.replace(tmp_path, conf_path)
+        except BaseException:
+            os.unlink(tmp_path)
+            raise
+        get_conf.cache_clear()
+        return True
+
 @router.post("/auth/change-password")
 async def change_password(request: ChangePasswordRequest, http_request: Request):
     """Change the current user's password. Requires a valid token."""
@@ -301,25 +334,15 @@ async def change_password(request: ChangePasswordRequest, http_request: Request)
     stored = conf.get("access_password", "")
     if not secrets.compare_digest(request.old_password, stored):
         raise HTTPException(status_code=401, detail="Current password is incorrect")
-    # Write new password hash to server.conf
     conf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "etc", "conf", "server.conf")
-    if os.path.exists(conf_path):
-        with open(conf_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        updated = False
-        for i, line in enumerate(lines):
-            if line.strip().startswith("access_password="):
-                lines[i] = f"access_password={request.new_password}\n"
-                updated = True
-                break
-        if updated:
-            with open(conf_path, "w", encoding="utf-8") as f:
-                f.writelines(lines)
-            # Invalidate the config cache
-            get_conf.cache_clear()
-            logger.info("Password changed (file mode): access_password updated in server.conf")
-            return ok(message="Password changed successfully")
-    raise HTTPException(status_code=500, detail="Failed to change password")
+    if not os.path.exists(conf_path):
+        logger.error(f"Cannot change password: {conf_path} does not exist")
+        raise HTTPException(status_code=500, detail="server.conf not found")
+    if _update_access_password_in_conf(conf_path, request.new_password):
+        logger.info("Password changed (file mode): access_password updated in server.conf")
+        return ok(message="Password changed successfully")
+    logger.error(f"Cannot change password: no access_password key in {conf_path}")
+    raise HTTPException(status_code=500, detail="access_password key not found in server.conf")
 
 # Workflow CRUD
 # ═══════════════════════════════════════════════════════════════════════════════
