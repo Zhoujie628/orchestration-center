@@ -64,6 +64,7 @@ from orchestrate.server.auth import (
     is_auth_enabled,
     get_session_store,
     auth_middleware,
+    require_admin,
 )
 
 app = FastAPI(title="Workflow Orchestration API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None)
@@ -205,15 +206,16 @@ async def login(request: LoginRequest):
         from database.utils.user_store import authenticate_user
         user = authenticate_user(request.username, request.password)
         if user is not None:
-            token, ttl = get_session_store().create(user["username"])
+            role = user.get("role", "user")
+            token, ttl = get_session_store().create(user["username"], role)
             logger.info(f"Login successful (DB): {user['username']}")
-            return ok(data={"auth_required": True, "token": token, "expires_in": ttl, "username": user["username"], "role": user.get("role", "user")})
+            return ok(data={"auth_required": True, "token": token, "expires_in": ttl, "username": user["username"], "role": role})
         logger.warning(f"Login failed: username={request.username}")
         raise HTTPException(status_code=401, detail="Incorrect username or password")
     # File mode: config-based auth
     stored = conf.get("access_password", "")
     if request.username == "admin" and stored and secrets.compare_digest(request.password, stored):
-        token, ttl = get_session_store().create("admin")
+        token, ttl = get_session_store().create("admin", "admin")
         logger.info("Login successful (config): admin")
         return ok(data={"auth_required": True, "token": token, "expires_in": ttl, "username": "admin", "role": "admin"})
     logger.warning(f"Login failed: username={request.username}")
@@ -256,12 +258,12 @@ async def auth_check(request: Request):
     return ok(data={"auth_required": True, "authenticated": False, "registration_enabled": registration_enabled})
 
 @router.get("/auth/users")
-async def list_users_endpoint():
+async def list_users_endpoint(_: Any = Depends(require_admin)):
     from database.utils.user_store import list_users
     return ok(data=list_users())
 
 @router.delete("/auth/users/{username}")
-async def delete_user_endpoint(username: str):
+async def delete_user_endpoint(username: str, _: Any = Depends(require_admin)):
     if username == "admin":
         raise HTTPException(status_code=403, detail="Cannot delete admin user")
     from database.utils.user_store import delete_user
