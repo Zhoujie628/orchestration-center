@@ -30,7 +30,14 @@ class TestCreateTables:
             queries = [call.args[1] for call in mock_exec.call_args_list]
             assert any("ADD COLUMN IF NOT EXISTS must_change_password" in q for q in queries)
 
-    def test_raises_when_migration_fails(self):
+    def test_runs_password_scheme_migration(self):
+        with patch.object(table_creation, "create_connection", return_value=MagicMock()), \
+             patch.object(table_creation, "execute_query", return_value=(None, None)) as mock_exec:
+            table_creation.create_tables()
+            queries = [call.args[1] for call in mock_exec.call_args_list]
+            assert any("ADD COLUMN IF NOT EXISTS password_scheme" in q for q in queries)
+
+    def test_raises_when_must_change_password_migration_fails(self):
         def _fake_execute(conn, query, *args, **kwargs):
             if "ALTER TABLE" in query and "must_change_password" in query:
                 return None, RuntimeError("boom")
@@ -38,7 +45,18 @@ class TestCreateTables:
 
         with patch.object(table_creation, "create_connection", return_value=MagicMock()), \
              patch.object(table_creation, "execute_query", side_effect=_fake_execute):
-            with pytest.raises(RuntimeError, match="Failed to migrate users table"):
+            with pytest.raises(RuntimeError, match="Failed to migrate users table \\(must_change_password\\)"):
+                table_creation.create_tables()
+
+    def test_raises_when_password_scheme_migration_fails(self):
+        def _fake_execute(conn, query, *args, **kwargs):
+            if "ALTER TABLE" in query and "password_scheme" in query:
+                return None, RuntimeError("boom")
+            return None, None
+
+        with patch.object(table_creation, "create_connection", return_value=MagicMock()), \
+             patch.object(table_creation, "execute_query", side_effect=_fake_execute):
+            with pytest.raises(RuntimeError, match="Failed to migrate users table \\(password_scheme\\)"):
                 table_creation.create_tables()
 
     def test_raises_when_no_connection(self):
