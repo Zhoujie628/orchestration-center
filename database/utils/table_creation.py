@@ -51,8 +51,16 @@ def create_tables():
                             password_hash VARCHAR(128) NOT NULL,
                             salt          VARCHAR(64) NOT NULL,
                             role          VARCHAR(16) DEFAULT 'user',
+                            must_change_password BOOLEAN DEFAULT FALSE,
                             created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                        )
+                       """
+    # CREATE TABLE IF NOT EXISTS above does not alter an existing table, so
+    # installs that already have a `users` table from before this column
+    # existed need an explicit migration.
+    migrate_users_must_change_password_sql = """
+                       ALTER TABLE users
+                       ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE
                        """
     conn = create_connection()
     if conn is None:
@@ -67,6 +75,9 @@ def create_tables():
         _, err3 = execute_query(conn, create_users_sql)
         if err3:
             raise RuntimeError(f"Failed to create users table: {err3}")
+        _, err4 = execute_query(conn, migrate_users_must_change_password_sql)
+        if err4:
+            raise RuntimeError(f"Failed to migrate users table (must_change_password): {err4}")
         logger.info("Database tables verified/created: psop, execution_records, users")
     finally:
         conn.close()
