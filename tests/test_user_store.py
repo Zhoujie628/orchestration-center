@@ -217,3 +217,68 @@ class TestListUsers:
                 "username": "alice", "role": "admin",
                 "must_change_password": True, "created_at": "2026-01-01 00:00:00",
             }]
+
+
+class TestDeleteUser:
+    def test_returns_true_on_success(self):
+        with patch.object(user_store, "create_connection", return_value=_mock_conn()), \
+             patch.object(user_store, "execute_query", return_value=(None, None)) as mock_exec:
+            assert user_store.delete_user("alice") is True
+            query = mock_exec.call_args[0][1]
+            params = mock_exec.call_args[0][2]
+            assert "DELETE FROM users" in query
+            assert params == ("alice",)
+
+    def test_returns_false_on_db_error(self):
+        with patch.object(user_store, "create_connection", return_value=_mock_conn()), \
+             patch.object(user_store, "execute_query", return_value=(None, RuntimeError("boom"))):
+            assert user_store.delete_user("alice") is False
+
+    def test_returns_false_when_no_connection(self):
+        with patch.object(user_store, "create_connection", return_value=None):
+            assert user_store.delete_user("alice") is False
+
+
+class TestHasAnyUser:
+    def test_true_when_a_row_exists(self):
+        with patch.object(user_store, "create_connection", return_value=_mock_conn()), \
+             patch.object(user_store, "execute_query", return_value=([(1,)], None)):
+            assert user_store.has_any_user() is True
+
+    def test_false_when_table_is_empty(self):
+        with patch.object(user_store, "create_connection", return_value=_mock_conn()), \
+             patch.object(user_store, "execute_query", return_value=([], None)):
+            assert user_store.has_any_user() is False
+
+    def test_false_on_db_error(self):
+        with patch.object(user_store, "create_connection", return_value=_mock_conn()), \
+             patch.object(user_store, "execute_query", return_value=(None, RuntimeError("boom"))):
+            assert user_store.has_any_user() is False
+
+    def test_false_when_no_connection(self):
+        with patch.object(user_store, "create_connection", return_value=None):
+            assert user_store.has_any_user() is False
+
+
+class TestSaltUniqueness:
+    def test_generate_salt_does_not_repeat(self):
+        salts = {user_store._generate_salt() for _ in range(1000)}
+        assert len(salts) == 1000
+
+    def test_same_password_hashes_differently_per_user(self):
+        """Two users who happen to pick the same password must not end up
+        with the same password_hash -- that would let a stolen hash for one
+        account fingerprint every other account sharing that password."""
+        captured_hashes = []
+
+        def _capture(conn, query, params):
+            captured_hashes.append(params[1])  # password_hash
+            return None, None
+
+        with patch.object(user_store, "create_connection", return_value=_mock_conn()), \
+             patch.object(user_store, "execute_query", side_effect=_capture):
+            user_store.create_user("alice", "SamePassw0rd!")
+            user_store.create_user("bob", "SamePassw0rd!")
+
+        assert len(captured_hashes) == 2
+        assert captured_hashes[0] != captured_hashes[1]
