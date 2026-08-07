@@ -70,19 +70,28 @@ from orchestrate.server.auth import (
     mark_must_change_password,
     clear_must_change_password,
     username_must_change_password,
+    extract_token,
+    set_session_cookie,
+    clear_session_cookie,
 )
 
 app = FastAPI(title="Workflow Orchestration API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None)
 
 config = get_conf()
 
-# CORS: restrict origins in production via CORS_ORIGINS env var (comma-separated)
+# CORS: restrict origins in production via CORS_ORIGINS env var (comma-separated).
+# allow_credentials=True is required for the session cookie to be sent on a
+# cross-origin request. The two shipped topologies (nginx in front of both
+# in docker-compose, the Vite dev proxy for `npm run dev`) put the frontend
+# and this API on the same origin from the browser's perspective, so CORS
+# never engages for them at all; CORS_ORIGINS only matters for a deployment
+# that deliberately talks to this API from a genuinely different origin.
 _cors_origins_env = os.environ.get("CORS_ORIGINS", "*")
 _cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -125,12 +134,11 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content=error(422, "; ".join(messages)),
     )
 
-# Query param keys that commonly carry credentials. access_token in
-# particular is how the session token reaches the backend for SSE
-# execution requests -- EventSource can't set an Authorization header, so
-# api.js puts it in the URL instead (see orchestrate/server/auth.py's
-# _extract_token). Logging it verbatim would write a live, still-valid
-# bearer token into the application log on every workflow execution.
+# Query param keys that commonly carry credentials. access_token no longer
+# reaches the backend this way -- the session token now travels as an
+# httpOnly cookie, which EventSource sends automatically without needing a
+# URL param -- but the key stays in this set as a defense-in-depth net for
+# any future/third-party caller that still passes a token via query string.
 _SENSITIVE_QUERY_PARAM_KEYS = frozenset({"token", "access_token", "password", "api_key", "secret"})
 
 
@@ -218,9 +226,9 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=8, max_length=256, description="Password (plaintext, sent over TLS)")
 
 @router.post("/auth/login")
-async def login(request: LoginRequest, _: Any = Depends(LoginRateLimiter(config))):
+async def login(request: LoginRequest, response: Response, _: Any = Depends(LoginRateLimiter(config))):
     if not is_auth_enabled():
-        return ok(data={"auth_required": False, "token": None}, message="Authentication disabled")
+        return ok(data={"auth_required": False}, message="Authentication disabled")
     conf = get_conf()
     is_db_mode = conf.get("persistence_mode", "file").lower() == "postgresql"
     if is_db_mode:
@@ -234,9 +242,10 @@ async def login(request: LoginRequest, _: Any = Depends(LoginRateLimiter(config)
             else:
                 clear_must_change_password(user["username"])
             token, ttl = get_session_store().create(user["username"], role)
+            set_session_cookie(response, token, ttl)
             logger.info(f"Login successful (DB): {user['username']}")
             return ok(data={
-                "auth_required": True, "token": token, "expires_in": ttl,
+                "auth_required": True, "expires_in": ttl,
                 "username": user["username"], "role": role,
                 "must_change_password": must_change,
             })
@@ -249,8 +258,9 @@ async def login(request: LoginRequest, _: Any = Depends(LoginRateLimiter(config)
     computed = hashlib.sha256(request.password.encode()).hexdigest()
     if request.username == "admin" and stored and secrets.compare_digest(computed, stored):
         token, ttl = get_session_store().create("admin", "admin")
+        set_session_cookie(response, token, ttl)
         logger.info("Login successful (config): admin")
-        return ok(data={"auth_required": True, "token": token, "expires_in": ttl, "username": "admin", "role": "admin"})
+        return ok(data={"auth_required": True, "expires_in": ttl, "username": "admin", "role": "admin"})
     logger.warning(f"Login failed: username={request.username}")
     raise HTTPException(status_code=401, detail="Incorrect username or password")
 
@@ -274,11 +284,11 @@ async def register(request: RegisterRequest):
     raise HTTPException(status_code=500, detail="Failed to register user")
 
 @router.post("/auth/logout")
-async def logout(request: Request):
-    auth_header = request.headers.get("Authorization", "")
-    token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
+async def logout(request: Request, response: Response):
+    token = extract_token(request)
     if token:
         get_session_store().revoke(token)
+    clear_session_cookie(response)
     return ok(message="Logged out")
 
 @router.get("/auth/check")
@@ -287,8 +297,7 @@ async def auth_check(request: Request):
     registration_enabled = conf.get("persistence_mode", "file").lower() == "postgresql"
     if not is_auth_enabled():
         return ok(data={"auth_required": False, "registration_enabled": registration_enabled})
-    auth_header = request.headers.get("Authorization", "")
-    token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
+    token = extract_token(request)
     if token and get_session_store().validate(token):
         username = get_session_store().get_username(token)
         return ok(data={
@@ -355,8 +364,7 @@ async def change_password(request: ChangePasswordRequest, http_request: Request)
     """Change the current user's password. Requires a valid token."""
     conf = get_conf()
     is_db_mode = conf.get("persistence_mode", "file").lower() == "postgresql"
-    auth_header = http_request.headers.get("Authorization", "")
-    token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
+    token = extract_token(http_request)
     username = get_session_store().get_username(token) if token else None
     if not username:
         raise HTTPException(status_code=401, detail="Not authenticated")

@@ -560,7 +560,7 @@ const ExecutionCenter = ({ isDark }) => {
         setEdges([]);
 
         const url = getDispatchStreamUrl(userIntent, selectedAgent, i18n.language);
-        const es = new EventSource(url);
+        const es = new EventSource(url, { withCredentials: true });
 
         es.onmessage = (event) => {
             try {
@@ -952,7 +952,7 @@ const ExecutionCenter = ({ isDark }) => {
         setSelectedExecutionId(null);
 
         const url = getStartProcessStreamUrl(idToRun, userIntent, i18n.language, selectedAgent);
-        const es = new EventSource(url);
+        const es = new EventSource(url, { withCredentials: true });
 
         es.onmessage = (event) => {
             try {

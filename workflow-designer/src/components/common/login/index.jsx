@@ -30,7 +30,10 @@ const {t, i18n} = useTranslation();
         setError("");
         try {
            const data = await login(username, password);
-           if (data && data.token) {
+           if (data && data.auth_required) {
+                // The session token is an httpOnly cookie now -- it's never
+                // in this body, so a successful authenticated login is
+                // distinguished by auth_required being true, not a token.
                 onLoginWithUser ? onLoginWithUser(data.username, data.must_change_password) : onLoginSuccess();
            } else if (data && data.auth_required === false) {
                onLoginSuccess();
@@ -63,8 +66,10 @@ const {t, i18n} = useTranslation();
         try {
             await register(username, password);
             const data = await login(username, password);
-           if (data && data.token) {
+           if (data && data.auth_required) {
                 onLoginWithUser ? onLoginWithUser(data.username, data.must_change_password) : onLoginSuccess();
+            } else if (data && data.auth_required === false) {
+                onLoginSuccess();
             }
        } catch (err) {
             const msg = err?.response?.data?.message || err?.message || "";

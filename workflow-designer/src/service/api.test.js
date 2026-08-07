@@ -37,8 +37,6 @@ import {
   getExecutionRecords,
   getExecutionRecord,
   deleteExecutionRecord,
-  getAuthToken,
-  setAuthToken,
   authCheck,
   login,
   logout,
@@ -95,9 +93,9 @@ describe('api service', () => {
   });
 
   describe('getBaseUrl', () => {
-    it('should return default URL when localStorage is empty', () => {
+    it('should return the gateway URL when localStorage is empty', () => {
       const url = getBaseUrl();
-      expect(url).toBe(`http://${defaultIp}:${defaultPort}`);
+      expect(url).toBe(defaultGateway);
     });
 
     it('should return custom URL when localStorage has config', () => {
@@ -140,6 +138,11 @@ describe('api service', () => {
     });
 
     describe('with no saved config, on a non-standard port', () => {
+      // Regression coverage for 9b: the session cookie only attaches on a
+      // same-origin request, so the gateway path (proxied by nginx in
+      // docker-compose, or by Vite's dev server for `npm run dev`) must be
+      // the default everywhere -- including localhost:3003, which used to
+      // default to a cross-origin direct-IP call that a cookie can't reach.
       const originalLocation = window.location;
 
       const setHostname = (hostname) => {
@@ -153,22 +156,22 @@ describe('api service', () => {
         Object.defineProperty(window, 'location', { value: originalLocation, configurable: true });
       });
 
-      it('falls back to the nginx gateway for a remote hostname (regression: was defaulting to 127.0.0.1, unreachable from a real client)', () => {
+      it('uses the gateway for a remote hostname (regression: was defaulting to 127.0.0.1, unreachable from a real client)', () => {
         setHostname('10.220.239.88');
         expect(shouldDefaultToGateway()).toBe(true);
         expect(getBaseUrl()).toBe(defaultGateway);
       });
 
-      it('still uses direct-IP mode when loaded from localhost (local `npm run dev` workflow)', () => {
+      it('uses the gateway when loaded from localhost (local `npm run dev` workflow, proxied by vite.config.js)', () => {
         setHostname('localhost');
-        expect(shouldDefaultToGateway()).toBe(false);
-        expect(getBaseUrl()).toBe(`http://${defaultIp}:${defaultPort}`);
+        expect(shouldDefaultToGateway()).toBe(true);
+        expect(getBaseUrl()).toBe(defaultGateway);
       });
 
-      it('still uses direct-IP mode when loaded from 127.0.0.1', () => {
+      it('uses the gateway when loaded from 127.0.0.1', () => {
         setHostname('127.0.0.1');
-        expect(shouldDefaultToGateway()).toBe(false);
-        expect(getBaseUrl()).toBe(`http://${defaultIp}:${defaultPort}`);
+        expect(shouldDefaultToGateway()).toBe(true);
+        expect(getBaseUrl()).toBe(defaultGateway);
       });
     });
   });
@@ -363,42 +366,19 @@ describe('api service', () => {
   });
 
   // Regression coverage for #16: this file previously had zero tests for
-  // login/register/changePassword or the two axios interceptors, despite
+  // login/register/changePassword or the response interceptor, despite
   // #9 (9a) changing exactly what these functions send over the wire.
+  // Regression coverage for 9b: the session token moved from a JSON body
+  // field (read into localStorage, replayed as an Authorization header) to
+  // an httpOnly cookie the browser handles entirely on its own -- api.js no
+  // longer touches the token value at all, so there's nothing left here to
+  // assert about token storage or a request interceptor (both removed).
   describe('Access authentication', () => {
-    // Interceptors are registered once, at module import time -- before any
-    // beforeEach in this suite runs and calls vi.clearAllMocks(). Capture
-    // the real callbacks here, during test collection, not inside an it().
+    // The response interceptor is registered once, at module import time --
+    // before any beforeEach in this suite runs and calls vi.clearAllMocks().
+    // Capture the real callback here, during test collection, not inside an it().
     const mockApi = axios.create();
-    const requestInterceptor = mockApi.interceptors.request.use.mock.calls[0][0];
     const [responseSuccessInterceptor, responseErrorInterceptor] = mockApi.interceptors.response.use.mock.calls[0];
-
-    describe('token storage', () => {
-      it('getAuthToken reads what setAuthToken wrote', () => {
-        setAuthToken('my-token');
-        expect(getAuthToken()).toBe('my-token');
-      });
-
-      it('setAuthToken(null) clears the stored token', () => {
-        setAuthToken('my-token');
-        setAuthToken(null);
-        expect(getAuthToken()).toBeNull();
-      });
-    });
-
-    describe('request interceptor', () => {
-      it('injects Authorization when a token is stored', () => {
-        setAuthToken('my-token');
-        const config = requestInterceptor({ headers: {} });
-        expect(config.headers.Authorization).toBe('Bearer my-token');
-      });
-
-      it('leaves Authorization unset when no token is stored', () => {
-        setAuthToken(null);
-        const config = requestInterceptor({ headers: {} });
-        expect(config.headers.Authorization).toBeUndefined();
-      });
-    });
 
     describe('response interceptor', () => {
       it('unwraps response.data on success', () => {
@@ -406,38 +386,37 @@ describe('api service', () => {
         expect(result).toEqual({ status: 'success' });
       });
 
-      it('clears the token and dispatches auth-expired on a 401', async () => {
-        setAuthToken('my-token');
+      it('dispatches auth-expired on a 401', async () => {
         const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
         const error = { response: { status: 401 } };
 
         await expect(responseErrorInterceptor(error)).rejects.toBe(error);
-        expect(getAuthToken()).toBeNull();
         expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'auth-expired' }));
         dispatchSpy.mockRestore();
       });
 
-      it('leaves the token alone on a non-401 error', async () => {
-        setAuthToken('my-token');
+      it('does not dispatch auth-expired on a non-401 error', async () => {
         const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
         const error = { response: { status: 500 } };
 
         await expect(responseErrorInterceptor(error)).rejects.toBe(error);
-        expect(getAuthToken()).toBe('my-token');
         expect(dispatchSpy).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'auth-expired' }));
         dispatchSpy.mockRestore();
       });
 
-      it('leaves the token alone on a network error with no response', async () => {
+      it('does not dispatch auth-expired on a network error with no response', async () => {
+        const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
         const error = {};
+
         await expect(responseErrorInterceptor(error)).rejects.toBe(error);
-        // Must not throw on error.response being undefined.
+        expect(dispatchSpy).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'auth-expired' }));
+        dispatchSpy.mockRestore();
       });
     });
 
     describe('login/register/changePassword send plaintext (regression for #9)', () => {
       it('login sends the password as-is, not a SHA-256 digest of it', async () => {
-        mockApi.post.mockResolvedValue({ data: { token: 'abc123', username: 'alice', role: 'user' } });
+        mockApi.post.mockResolvedValue({ data: { username: 'alice', role: 'user' } });
 
         await login('alice', 'MyRealPassword1!');
         expect(mockApi.post).toHaveBeenCalledWith(
@@ -446,19 +425,11 @@ describe('api service', () => {
         );
       });
 
-      it('login stores the returned token', async () => {
-        mockApi.post.mockResolvedValue({ data: { token: 'abc123', username: 'alice', role: 'user' } });
+      it('login returns the response data as-is (the session token is a cookie, never in this body)', async () => {
+        mockApi.post.mockResolvedValue({ data: { username: 'alice', role: 'user' } });
 
-        await login('alice', 'MyRealPassword1!');
-        expect(getAuthToken()).toBe('abc123');
-      });
-
-      it('login does not store a token when auth is disabled', async () => {
-        mockApi.post.mockResolvedValue({ data: { auth_required: false, token: null } });
-
-        setAuthToken(null);
-        await login('alice', 'anything');
-        expect(getAuthToken()).toBeNull();
+        const result = await login('alice', 'MyRealPassword1!');
+        expect(result).toEqual({ username: 'alice', role: 'user' });
       });
 
       it('register sends the password as-is, not a SHA-256 digest of it', async () => {
@@ -490,21 +461,17 @@ describe('api service', () => {
         expect(result).toEqual({ authenticated: false });
       });
 
-      it('logout posts to /auth/logout and clears the token', async () => {
-        setAuthToken('my-token');
+      it('logout posts to /auth/logout (the server clears the cookie via Set-Cookie)', async () => {
         mockApi.post.mockResolvedValue({ data: {} });
 
         await logout();
         expect(mockApi.post).toHaveBeenCalledWith(expect.stringContaining('/auth/logout'));
-        expect(getAuthToken()).toBeNull();
       });
 
-      it('logout clears the token even if the request fails', async () => {
-        setAuthToken('my-token');
+      it('logout propagates a request failure', async () => {
         mockApi.post.mockRejectedValue(new Error('network error'));
 
         await expect(logout()).rejects.toThrow('network error');
-        expect(getAuthToken()).toBeNull();
       });
 
       it('listUsers calls GET /auth/users', async () => {

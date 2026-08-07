@@ -31,12 +31,11 @@ from orchestrate.server import auth as auth_module
 from orchestrate.server.auth import _SessionStore, auth_middleware, _PUBLIC_AUTH_PATHS
 
 
-def _make_request(path, token=None, method="GET", as_query_param=False):
+def _make_request(path, token=None, method="GET", as_cookie=False):
     headers = []
-    query_string = b""
     if token:
-        if as_query_param:
-            query_string = f"access_token={token}".encode()
+        if as_cookie:
+            headers.append((b"cookie", f"session_token={token}".encode()))
         else:
             headers.append((b"authorization", f"Bearer {token}".encode()))
     scope = {
@@ -44,7 +43,7 @@ def _make_request(path, token=None, method="GET", as_query_param=False):
         "method": method,
         "path": path,
         "headers": headers,
-        "query_string": query_string,
+        "query_string": b"",
     }
     return Request(scope)
 
@@ -166,15 +165,32 @@ class TestAuthMiddleware:
         finally:
             store.revoke(token)
 
-    async def test_valid_token_via_query_param_passes_through(self, monkeypatch):
-        """SSE/EventSource can't set headers, so the token may arrive as
-        ?access_token=... instead of an Authorization header."""
+    async def test_valid_token_via_cookie_passes_through(self, monkeypatch):
+        """The session cookie is the primary path -- EventSource sends it
+        automatically without needing a header or URL param."""
         monkeypatch.setattr(auth_module, "is_auth_enabled", lambda: True)
         store = auth_module.get_session_store()
         token, _ = store.create("alice")
         try:
-            request = _make_request("/rest/v1/orchestrate/workflows", token=token, as_query_param=True)
+            request = _make_request("/rest/v1/orchestrate/workflows", token=token, as_cookie=True)
             response = await auth_middleware(request, _call_next)
             assert response.status_code == 200
+        finally:
+            store.revoke(token)
+
+    async def test_query_param_token_no_longer_accepted(self, monkeypatch):
+        """?access_token=... is the pre-migration scheme this replaces (see
+        #39) -- it must not be honored anymore."""
+        monkeypatch.setattr(auth_module, "is_auth_enabled", lambda: True)
+        store = auth_module.get_session_store()
+        token, _ = store.create("alice")
+        try:
+            scope = {
+                "type": "http", "method": "GET",
+                "path": "/rest/v1/orchestrate/workflows", "headers": [],
+                "query_string": f"access_token={token}".encode(),
+            }
+            response = await auth_middleware(Request(scope), _call_next)
+            assert response.status_code == 401
         finally:
             store.revoke(token)

@@ -19,7 +19,7 @@ import {useEffect, useState} from "react";
 import Header from "@/components/common/header/index.jsx";
 import Login from "@/components/common/login/index.jsx";
 import PasswordChangeModal from "@/components/common/password_change/index.jsx";
-import {authCheck, setAuthToken} from "@/service/api.js";
+import {authCheck, logout} from "@/service/api.js";
 import AgentRegistry from "./components/registry_center/index.jsx";
 import OrchestrationCenter from "@/components/orchestration_center/index.jsx";
 import ExecutionCenter from "@/components/execution_center/index.jsx";
@@ -64,11 +64,16 @@ const MainContainer = () => {
         return () => window.removeEventListener('auth-expired', handleAuthExpired);
     }, []);
 
-   const handleLogout = () => {
-       setAuthToken(null);
-       setAuthState('unauthenticated');
-       setCurrentUser(null);
-       setMustChangePassword(false);
+   const handleLogout = async () => {
+       // The session cookie is httpOnly -- only the server can clear it, so
+       // this has to hit /auth/logout rather than just resetting local state.
+       try {
+           await logout();
+       } finally {
+           setAuthState('unauthenticated');
+           setCurrentUser(null);
+           setMustChangePassword(false);
+       }
    };
 
    const [activeTab, setActiveTab] = useState(() => {

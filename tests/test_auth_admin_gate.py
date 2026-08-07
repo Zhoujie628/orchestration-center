@@ -24,20 +24,16 @@ from orchestrate.server import auth as auth_module
 from orchestrate.server.auth import _SessionStore, require_admin
 
 
-def _make_request(token: str | None = None, as_query_param: bool = False) -> Request:
+def _make_request(token: str | None = None) -> Request:
     headers = []
-    query_string = b""
     if token:
-        if as_query_param:
-            query_string = f"access_token={token}".encode()
-        else:
-            headers.append((b"authorization", f"Bearer {token}".encode()))
+        headers.append((b"authorization", f"Bearer {token}".encode()))
     scope = {
         "type": "http",
         "method": "GET",
         "path": "/rest/v1/orchestrate/auth/users",
         "headers": headers,
-        "query_string": query_string,
+        "query_string": b"",
     }
     return Request(scope)
 

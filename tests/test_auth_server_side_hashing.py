@@ -22,6 +22,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import HTTPException, Request
 from pydantic import ValidationError
+from starlette.responses import Response
 
 os.environ.setdefault("TESTING", "True")
 
@@ -47,8 +48,10 @@ class TestLoginFileMode:
         monkeypatch.setattr(srv, "get_conf", lambda: {
             "persistence_mode": "file", "access_password": stored_hash,
         })
-        result = await srv.login(srv.LoginRequest(username="admin", password="MyRealPassword1!"))
-        assert result["data"]["token"] is not None
+        response = Response()
+        result = await srv.login(srv.LoginRequest(username="admin", password="MyRealPassword1!"), response)
+        assert result["data"]["auth_required"] is True
+        assert "session_token=" in response.headers["set-cookie"]
 
     async def test_wrong_plaintext_password_rejected(self, monkeypatch):
         monkeypatch.setattr(srv, "is_auth_enabled", lambda: True)
@@ -57,7 +60,7 @@ class TestLoginFileMode:
             "persistence_mode": "file", "access_password": stored_hash,
         })
         with pytest.raises(HTTPException) as exc_info:
-            await srv.login(srv.LoginRequest(username="admin", password="wrong-password"))
+            await srv.login(srv.LoginRequest(username="admin", password="wrong-password"), Response())
         assert exc_info.value.status_code == 401
 
     async def test_previously_client_hashed_value_no_longer_works(self, monkeypatch):
@@ -70,7 +73,7 @@ class TestLoginFileMode:
         })
         old_client_hash = hashlib.sha256(b"MyRealPassword1!").hexdigest()
         with pytest.raises(HTTPException) as exc_info:
-            await srv.login(srv.LoginRequest(username="admin", password=old_client_hash))
+            await srv.login(srv.LoginRequest(username="admin", password=old_client_hash), Response())
         assert exc_info.value.status_code == 401
 
 
