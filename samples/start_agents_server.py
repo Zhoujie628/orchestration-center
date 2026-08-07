@@ -17,6 +17,7 @@
 
 import asyncio
 import json
+import os
 import signal
 from pathlib import Path
 
@@ -30,7 +31,7 @@ from starlette.responses import JSONResponse
 from google.protobuf.json_format import MessageToDict
 from loguru import logger
 from typing import List
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from common.custom import HandlerRegistry, InterfaceType
 from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
@@ -58,6 +59,19 @@ _agent_executors = []
 
 def _agent_card_to_dict(agent_card: AgentCard) -> dict:
     return MessageToDict(agent_card)
+
+
+def _override_advertised_host(agent_card: AgentCard, host: str) -> None:
+    """Rewrite the host each interface URL advertises (for registration and
+    for other containers to call back), independent of what uvicorn binds to.
+    Loopback-hardcoded sample agent cards otherwise only work when the caller
+    shares the host with the agent process."""
+    for iface in agent_card.supported_interfaces:
+        if not iface.url:
+            continue
+        parsed = urlparse(iface.url)
+        netloc = f"{host}:{parsed.port}" if parsed.port else host
+        iface.url = urlunparse(parsed._replace(netloc=netloc))
 
 
 def _is_agent_card_changed(local_dict: dict, remote_dict: dict) -> bool:
@@ -237,7 +251,28 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
         pass
 
 
+def _warn_if_chat_llm_unconfigured() -> None:
+    """Negotiation-capable sample agents need a real chat model. Agents still
+    start without one (see common/llm/config/llm_config.py's degrade-not-crash
+    guard) but every negotiation call will fail, so make that loud at startup
+    instead of leaving it to surface as a per-call error later."""
+    try:
+        from common.llm.config.llm_config import get_model_config, missing_required_fields, describe_missing_fields
+
+        config = get_model_config("chat")
+        missing = missing_required_fields(config) if config else ["url", "model", "api_key"]
+        if missing:
+            logger.warning(
+                f"Sample agents starting without a configured chat LLM: "
+                f"{describe_missing_fields('chat', missing)}"
+            )
+    except Exception as e:
+        logger.warning(f"Could not verify chat LLM configuration at startup: {e}")
+
+
 async def main() -> None:
+    _warn_if_chat_llm_unconfigured()
+
     try:
         pre_insert_psop()
     except Exception as e:
@@ -249,6 +284,16 @@ async def main() -> None:
     except Exception as e:
         logger.error(f"Failed to load agent cards: {e}")
         return
+
+    # SAMPLE_AGENTS_HOST lets these cards advertise a Docker service name (or
+    # any reachable host) instead of the hardcoded 127.0.0.1 from the JSON,
+    # so a container other than this one can reach and register them. Unset,
+    # behavior is unchanged (loopback, same-host processes).
+    advertise_host = os.environ.get("SAMPLE_AGENTS_HOST", "").strip()
+    if advertise_host:
+        for agent_card in agent_cards:
+            _override_advertised_host(agent_card, advertise_host)
+        logger.info(f"Advertising sample agent cards on host '{advertise_host}'")
 
     factory = None
     try:
@@ -269,8 +314,12 @@ async def main() -> None:
             logger.warning(f"Skipping agent '{agent_name}': no supported interfaces")
             continue
         parsed = urlparse(agent_card.supported_interfaces[0].url)
+        # Bind to all interfaces when advertising a different host (a Docker
+        # service name isn't a local bind address); otherwise bind exactly
+        # what the card says, matching prior same-host behavior.
+        bind_host = "0.0.0.0" if advertise_host else parsed.hostname
         task = asyncio.create_task(
-            start_server(agent_card, port=parsed.port, host=parsed.hostname),
+            start_server(agent_card, port=parsed.port, host=bind_host),
             name=f"server_{agent_name}"
         )
         tasks.append(task)
