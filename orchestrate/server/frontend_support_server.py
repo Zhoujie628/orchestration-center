@@ -57,7 +57,7 @@ from orchestrate.server.external_api import router as external_router
 from orchestrate.core.psop_generator import PsopGenerator
 from orchestrate.core.intent_psop_generator import IntentPsopGenerator
 from orchestrate.core.workflow_search_result import WorkflowSearchResult
-from orchestrate.server.middleware import ConnectionLimitMiddleware, TimeoutMiddleware, RateLimiter
+from orchestrate.server.middleware import ConnectionLimitMiddleware, TimeoutMiddleware, RateLimiter, LoginRateLimiter
 from orchestrate.server.shared_handlers import SharedHandlers
 from orchestrate.solution_package.parse_flow import SolutionPackageParser
 from orchestrate.server.auth import (
@@ -197,7 +197,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=6, max_length=256, description="Password (SHA-256 hashed by frontend)")
 
 @router.post("/auth/login")
-async def login(request: LoginRequest):
+async def login(request: LoginRequest, _: Any = Depends(LoginRateLimiter(config))):
     if not is_auth_enabled():
         return ok(data={"auth_required": False, "token": None}, message="Authentication disabled")
     conf = get_conf()
