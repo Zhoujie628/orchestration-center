@@ -16,6 +16,7 @@
 #    under the License.
 
 import os
+import hashlib
 import secrets
 import tempfile
 import threading
@@ -194,11 +195,11 @@ router = APIRouter(prefix="/rest/v1/orchestrate")
 
 class LoginRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=64, description="Username")
-    password: str = Field(..., min_length=1, max_length=256, description="Password (SHA-256 hashed by frontend)")
+    password: str = Field(..., min_length=1, max_length=256, description="Password (plaintext, sent over TLS)")
 
 class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=64, description="Username")
-    password: str = Field(..., min_length=6, max_length=256, description="Password (SHA-256 hashed by frontend)")
+    password: str = Field(..., min_length=8, max_length=256, description="Password (plaintext, sent over TLS)")
 
 @router.post("/auth/login")
 async def login(request: LoginRequest, _: Any = Depends(LoginRateLimiter(config))):
@@ -225,9 +226,12 @@ async def login(request: LoginRequest, _: Any = Depends(LoginRateLimiter(config)
             })
         logger.warning(f"Login failed: username={request.username}")
         raise HTTPException(status_code=401, detail="Incorrect username or password")
-    # File mode: config-based auth
+    # File mode: config-based auth. access_password stores sha256(plaintext)
+    # (see generate_access_password.py); hash the incoming plaintext the
+    # same way before comparing.
     stored = conf.get("access_password", "")
-    if request.username == "admin" and stored and secrets.compare_digest(request.password, stored):
+    computed = hashlib.sha256(request.password.encode()).hexdigest()
+    if request.username == "admin" and stored and secrets.compare_digest(computed, stored):
         token, ttl = get_session_store().create("admin", "admin")
         logger.info("Login successful (config): admin")
         return ok(data={"auth_required": True, "token": token, "expires_in": ttl, "username": "admin", "role": "admin"})
@@ -241,6 +245,10 @@ async def register(request: RegisterRequest):
         raise HTTPException(status_code=400, detail="Registration requires PostgreSQL persistence mode")
     if not re.fullmatch(r"^[a-zA-Z][a-zA-Z0-9_-]{2,63}$", request.username):
         raise HTTPException(status_code=400, detail="Username must start with a letter and contain only letters, digits, underscores or hyphens (3-64 chars)")
+    from common.util.password_util import validate_password_complexity
+    is_valid, reason = validate_password_complexity(request.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"Password does not meet complexity requirements: {reason}")
     from database.utils.user_store import create_user, user_exists
     if user_exists(request.username):
         raise HTTPException(status_code=409, detail="Username already exists")
@@ -291,8 +299,8 @@ async def delete_user_endpoint(username: str, _: Any = Depends(require_admin)):
 
 
 class ChangePasswordRequest(BaseModel):
-    old_password: str = Field(..., min_length=1, max_length=256, description="Current password (SHA-256 hashed)")
-    new_password: str = Field(..., min_length=6, max_length=256, description="New password (SHA-256 hashed)")
+    old_password: str = Field(..., min_length=1, max_length=256, description="Current password (plaintext, sent over TLS)")
+    new_password: str = Field(..., min_length=8, max_length=256, description="New password (plaintext, sent over TLS)")
 
 # Serializes file-mode password changes and makes the server.conf rewrite
 # below atomic (temp file + os.replace instead of truncate-in-place), so a
@@ -337,6 +345,10 @@ async def change_password(request: ChangePasswordRequest, http_request: Request)
     if not username:
         raise HTTPException(status_code=401, detail="Not authenticated")
     if is_db_mode:
+        from common.util.password_util import validate_password_complexity
+        is_valid, reason = validate_password_complexity(request.new_password)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"Password does not meet complexity requirements: {reason}")
         from database.utils.user_store import authenticate_user, update_password
         # Verify old password
         user = authenticate_user(username, request.old_password)
@@ -347,15 +359,19 @@ async def change_password(request: ChangePasswordRequest, http_request: Request)
             logger.info(f"Password changed for user '{username}'")
             return ok(message="Password changed successfully")
         raise HTTPException(status_code=500, detail="Failed to change password")
-    # File mode: update access_password in server.conf
+    # File mode: update access_password in server.conf. Stored value is
+    # sha256(plaintext) (see generate_access_password.py); hash both the
+    # incoming old and new plaintext passwords the same way.
     stored = conf.get("access_password", "")
-    if not secrets.compare_digest(request.old_password, stored):
+    old_computed = hashlib.sha256(request.old_password.encode()).hexdigest()
+    if not secrets.compare_digest(old_computed, stored):
         raise HTTPException(status_code=401, detail="Current password is incorrect")
+    new_computed = hashlib.sha256(request.new_password.encode()).hexdigest()
     conf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "etc", "conf", "server.conf")
     if not os.path.exists(conf_path):
         logger.error(f"Cannot change password: {conf_path} does not exist")
         raise HTTPException(status_code=500, detail="server.conf not found")
-    if _update_access_password_in_conf(conf_path, request.new_password):
+    if _update_access_password_in_conf(conf_path, new_computed):
         logger.info("Password changed (file mode): access_password updated in server.conf")
         return ok(message="Password changed successfully")
     logger.error(f"Cannot change password: no access_password key in {conf_path}")
