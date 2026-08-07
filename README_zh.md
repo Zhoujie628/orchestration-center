@@ -371,7 +371,7 @@ python generate_selfsign_cert.py etc/ssl serverAuth
 |----------|------|
 | `etc/conf/server.conf` | 服务 IP、端口、TLS 证书、持久化模式、注册中心 URL, access password |
 | `etc/conf/server.properties` | TLS 版本、密码套件、流控参数、连接限制, client_verify_server |
-| `etc/conf/db_config.json` | PostgreSQL 连接配置 |
+| `etc/conf/db_config.json` | PostgreSQL 连接配置——已加入 .gitignore；复制 `etc/conf/db_config.json.template` 作为起点（仅 `persistence_mode=postgresql` 时需要） |
 | `common/config/llm_config.json` | LLM/Embedding/Rerank 模型端点（可通过 `LLM_*` 覆盖，见下文） |
 | `.env` | 本地覆盖配置 — 已加入 gitignore。协商 SDK 也直接从这里读取 `A2AT_*` 变量（见下文） |
 | `common/config/README_zh.md` | LLM 配置指南 |
