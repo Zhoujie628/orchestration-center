@@ -42,6 +42,16 @@ const isStandardPort = () => {
     return !p || p === '80' || p === '443';
 };
 
+const isLocalHost = () => ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+
+// A remote client can never reach a backend at 127.0.0.1 (the browser's own
+// loopback), so direct-IP mode is only a safe unconfigured default when the
+// page itself was loaded from localhost (the local `npm run dev` workflow).
+// Anywhere else (including this project's own docker-compose deployment,
+// which serves the nginx-fronted UI on the non-standard port 3003) must
+// default to the nginx gateway path instead.
+export const shouldDefaultToGateway = () => isStandardPort() || !isLocalHost();
+
 export const getBaseUrl = () => {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
@@ -54,7 +64,7 @@ export const getBaseUrl = () => {
            }
             return trimTrailingSlash(config.nginxUrl || config.gatewayUrl || defaultGateway);
         }
-       if (isStandardPort()) {
+       if (shouldDefaultToGateway()) {
            return trimTrailingSlash(defaultGateway);
        }
         return `${defaultProtocol}${defaultIp}:${defaultPort}`;
@@ -121,13 +131,24 @@ export async function importTemplate(templateId) {
     return api.post(`${ORCHESTRATE_BASE()}/templates/${templateId}/import`);
 }
 
+// Backend envelope is {code, message, status, data} (see response_utils.py). A
+// non-2xx response already rejects via axios; this catches the "200 OK but
+// status: error" case so callers relying on try/catch (e.g. the PDF import
+// flow) actually see a rejection instead of silently getting `undefined`.
+function unwrapEnvelope(body) {
+    if (body.status === 'error') {
+        throw new Error(body.message || 'Request failed');
+    }
+    return body.data;
+}
+
 // ──── PDF Parsing ────
 
 export async function parsePdf(file) {
     const formData = new FormData();
     formData.append('file', file);
     const body = await api.post(`${ORCHESTRATE_BASE()}/parse-pdf`, formData);
-    return body.data;
+    return unwrapEnvelope(body);
 }
 
 // ──── Workflow Generation ────
@@ -137,7 +158,7 @@ export async function handlePlan(preflow, agentCards) {
         preflow: preflow,
         agent_cards: agentCards
     });
-    return body.data;
+    return unwrapEnvelope(body);
 }
 
 export async function generateWorkflowFromIntent(intent, name = "Generated Workflow") {
@@ -145,7 +166,7 @@ export async function generateWorkflowFromIntent(intent, name = "Generated Workf
         user_intent: intent,
         workflow_name: name
     });
-    return body.data || body;
+    return unwrapEnvelope(body) || body;
 }
 
 export async function matchWorkflows(intent) {
