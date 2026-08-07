@@ -441,7 +441,7 @@ The external API (`/api/v1/*`) is protected by mTLS at the TLS layer when `enabl
 |-------------|---------|
 | `etc/conf/server.conf` | Server IP, port, TLS certificates, persistence mode, registry URL, access password |
 | `etc/conf/server.properties` | TLS versions, ciphers, rate limiting, connection limits, client_verify_server |
-| `etc/conf/db_config.json` | PostgreSQL connection settings |
+| `etc/conf/db_config.json` | PostgreSQL connection settings — gitignored; copy `etc/conf/db_config.json.template` to get started (only needed for `persistence_mode=postgresql`) |
 | `common/config/llm_config.json` | LLM/embed/rerank model endpoints (overridable via `LLM_*`, see below) |
 | `.env` | Your local overrides — gitignored. Also where the negotiation SDK reads its `A2AT_*` variables directly (see below) |
 | `common/config/README_en.md` | LLM configuration guide |
