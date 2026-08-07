@@ -368,6 +368,8 @@ The internal API (`/rest/v1/orchestrate/*`) is protected by token-based authenti
 
 The frontend hashes the password with SHA-256 (`crypto.subtle`) before sending. Tokens are in-memory with TTL, passed via `Authorization: Bearer` header or `access_token` query parameter (for SSE/EventSource).
 
+> **Session storage is single-process only.** Tokens live in an in-memory dict inside the running Python process. Running with multiple `uvicorn` workers, or multiple replicas behind a load balancer, will intermittently reject valid tokens -- a token minted by one worker isn't visible to another. Every process restart also logs out all active sessions (harmless in itself given the token TTL, but worth expecting). Both bundled launch paths (`orchestrate/start.py`) run single-process today, so this doesn't bite out of the box -- but if multi-worker or multi-replica deployment is ever needed, session storage must move to a shared backend (e.g. the same PostgreSQL database, or Redis) first.
+
 Generate the password hash (file mode):
 ```bash
 python generate_access_password.py
