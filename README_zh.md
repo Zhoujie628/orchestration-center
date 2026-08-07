@@ -295,6 +295,8 @@ flowchart TB
 
 前端使用 `crypto.subtle` 对密码做 SHA-256 哈希后发送。令牌存储在内存中，通过 `Authorization: Bearer` 请求头或 `access_token` 查询参数（用于 SSE/EventSource）传递。
 
+> **会话存储仅限单进程。** 令牌保存在运行中 Python 进程的内存字典中。若以多个 `uvicorn` worker 运行，或在负载均衡后部署多个副本，会间歇性地拒绝本应有效的令牌——因为某个 worker 签发的令牌对其他 worker 不可见。每次进程重启也会导致所有活动会话登出（鉴于令牌本身有 TTL，这本身无害，但仍需提前预期）。当前内置的两条启动路径（`orchestrate/start.py`）都是单进程运行，因此默认情况下不会触发此问题——但如果之后需要多 worker 或多副本部署，必须先将会话存储迁移到共享后端（例如现有的 PostgreSQL 数据库，或 Redis）。
+
 生成密码哈希（file 模式）：
 ```bash
 python generate_access_password.py

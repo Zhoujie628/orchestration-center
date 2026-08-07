@@ -80,7 +80,15 @@ def _get_ttl() -> int:
 
 
 class _SessionStore:
-    """Thread-safe in-memory token store with TTL."""
+    """Thread-safe in-memory token store with TTL.
+
+    Single-process only (see #14): a token minted by one worker/replica
+    isn't visible to another, and every restart drops all sessions. Fine
+    for the single-process launch paths this project ships today; revisit
+    with a shared backend (DB/Redis) before ever running multiple workers
+    or replicas. See the "Session storage is single-process only" note in
+    README.md for the operator-facing version of this.
+    """
 
     def __init__(self):
         # token -> (username, expiry epoch)
