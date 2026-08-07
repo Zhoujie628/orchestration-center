@@ -159,7 +159,7 @@ def main():
         import hashlib
         default_pw_hash = hashlib.sha256(b"OpenAN@2026").hexdigest()
         if seed_admin_if_empty(default_pw_hash):
-            logger.info("Default admin user created (password: OpenAN@2026)")
+            logger.info("Default admin user 'admin' created; a password change is required on first login")
         else:
             logger.info("Users already exist, skipping admin seed")
     if not is_enable_https:

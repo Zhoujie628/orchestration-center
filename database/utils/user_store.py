@@ -40,7 +40,7 @@ def _generate_salt() -> str:
     return _secrets.token_hex(16)
 
 
-def create_user(username: str, password: str, role: str = "user") -> bool:
+def create_user(username: str, password: str, role: str = "user", must_change_password: bool = False) -> bool:
     """Create a new user. Returns True on success."""
     conn = create_connection()
     if conn is None:
@@ -50,8 +50,8 @@ def create_user(username: str, password: str, role: str = "user") -> bool:
         password_hash = _hash_password(password, salt)
         _, err = execute_query(
             conn,
-            "INSERT INTO users (username, password_hash, salt, role) VALUES (%s, %s, %s, %s)",
-            (username, password_hash, salt, role),
+            "INSERT INTO users (username, password_hash, salt, role, must_change_password) VALUES (%s, %s, %s, %s, %s)",
+            (username, password_hash, salt, role, must_change_password),
         )
         if err:
             logger.warning(f"Failed to create user '{username}': {err}")
@@ -70,7 +70,7 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
     try:
         result, err = execute_query(
             conn,
-            "SELECT username, password_hash, salt, role FROM users WHERE username = %s",
+            "SELECT username, password_hash, salt, role, must_change_password FROM users WHERE username = %s",
             (username,),
         )
         if err or not result:
@@ -79,9 +79,10 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
         stored_hash = row[1]
         salt = row[2]
         role = row[3]
+        must_change_password = bool(row[4])
         input_hash = _hash_password(password, salt)
         if _secrets.compare_digest(input_hash, stored_hash):
-            return {"username": row[0], "role": role}
+            return {"username": row[0], "role": role, "must_change_password": must_change_password}
         return None
     finally:
         conn.close()
@@ -110,12 +111,15 @@ def list_users() -> list[dict]:
     try:
         result, err = execute_query(
             conn,
-            "SELECT username, role, created_at FROM users ORDER BY created_at",
+            "SELECT username, role, must_change_password, created_at FROM users ORDER BY created_at",
             None,
         )
         if err or not result:
             return []
-        return [{"username": r[0], "role": r[1], "created_at": str(r[2])} for r in result]
+        return [
+            {"username": r[0], "role": r[1], "must_change_password": bool(r[2]), "created_at": str(r[3])}
+            for r in result
+        ]
     finally:
         conn.close()
 
@@ -151,7 +155,10 @@ def has_any_user() -> bool:
 
 
 def update_password(username: str, new_password: str) -> bool:
-    """Update a user's password. Returns True on success."""
+    """Update a user's password and clear any pending forced-change flag.
+
+    Returns True on success.
+    """
     conn = create_connection()
     if conn is None:
         return False
@@ -160,7 +167,7 @@ def update_password(username: str, new_password: str) -> bool:
         password_hash = _hash_password(new_password, salt)
         _, err = execute_query(
             conn,
-            "UPDATE users SET password_hash = %s, salt = %s WHERE username = %s",
+            "UPDATE users SET password_hash = %s, salt = %s, must_change_password = FALSE WHERE username = %s",
             (password_hash, salt, username),
         )
         if err:
@@ -172,7 +179,11 @@ def update_password(username: str, new_password: str) -> bool:
         conn.close()
 
 def seed_admin_if_empty(default_password: str = "OpenAN@2026") -> bool:
-    """Create default admin user if no users exist."""
+    """Create default admin user if no users exist.
+
+    The seeded admin is flagged must_change_password so the well-known
+    default credential can't be used indefinitely (see #12).
+    """
     if has_any_user():
         return False
-    return create_user("admin", default_password, "admin")
+    return create_user("admin", default_password, "admin", must_change_password=True)

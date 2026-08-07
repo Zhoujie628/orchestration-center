@@ -184,6 +184,40 @@ def require_admin(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Admin role required")
 
 
+# Usernames that must change their password before anything else is allowed.
+# Populated at login from the DB (see #12) rather than re-queried per
+# request, matching the session-role pattern -- avoids a DB round trip on
+# every authenticated request. Self-healing across restarts: the set is
+# empty on startup, but the next login for a still-pending user repopulates
+# it from the DB's own must_change_password column.
+_pending_password_change: set[str] = set()
+_pending_password_change_lock = threading.Lock()
+
+# Authenticated paths that must stay reachable for a user stuck in the
+# forced-change state, or they'd have no way to actually clear it.
+_PASSWORD_CHANGE_EXEMPT_PATHS = {
+    "/rest/v1/orchestrate/auth/change-password",
+    "/rest/v1/orchestrate/auth/logout",
+}
+
+
+def mark_must_change_password(username: str) -> None:
+    with _pending_password_change_lock:
+        _pending_password_change.add(username)
+
+
+def clear_must_change_password(username: str) -> None:
+    with _pending_password_change_lock:
+        _pending_password_change.discard(username)
+
+
+def username_must_change_password(username: str | None) -> bool:
+    if not username:
+        return False
+    with _pending_password_change_lock:
+        return username in _pending_password_change
+
+
 async def auth_middleware(request: Request, call_next):
     """Token-based auth for internal API; mTLS handles external API at TLS layer.
 
@@ -216,6 +250,13 @@ async def auth_middleware(request: Request, call_next):
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content=error(401, "Unauthorized: valid token required"),
+        )
+
+    username = _session_store.get_username(token)
+    if username_must_change_password(username) and path not in _PASSWORD_CHANGE_EXEMPT_PATHS:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content=error(403, "Password change required", data={"must_change_password": True}),
         )
 
     return await call_next(request)

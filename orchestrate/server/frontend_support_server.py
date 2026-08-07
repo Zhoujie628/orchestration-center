@@ -66,6 +66,9 @@ from orchestrate.server.auth import (
     get_session_store,
     auth_middleware,
     require_admin,
+    mark_must_change_password,
+    clear_must_change_password,
+    username_must_change_password,
 )
 
 app = FastAPI(title="Workflow Orchestration API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None)
@@ -208,9 +211,18 @@ async def login(request: LoginRequest, _: Any = Depends(LoginRateLimiter(config)
         user = authenticate_user(request.username, request.password)
         if user is not None:
             role = user.get("role", "user")
+            must_change = user.get("must_change_password", False)
+            if must_change:
+                mark_must_change_password(user["username"])
+            else:
+                clear_must_change_password(user["username"])
             token, ttl = get_session_store().create(user["username"], role)
             logger.info(f"Login successful (DB): {user['username']}")
-            return ok(data={"auth_required": True, "token": token, "expires_in": ttl, "username": user["username"], "role": role})
+            return ok(data={
+                "auth_required": True, "token": token, "expires_in": ttl,
+                "username": user["username"], "role": role,
+                "must_change_password": must_change,
+            })
         logger.warning(f"Login failed: username={request.username}")
         raise HTTPException(status_code=401, detail="Incorrect username or password")
     # File mode: config-based auth
@@ -255,7 +267,11 @@ async def auth_check(request: Request):
     token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
     if token and get_session_store().validate(token):
         username = get_session_store().get_username(token)
-        return ok(data={"auth_required": True, "authenticated": True, "username": username, "registration_enabled": registration_enabled})
+        return ok(data={
+            "auth_required": True, "authenticated": True, "username": username,
+            "registration_enabled": registration_enabled,
+            "must_change_password": username_must_change_password(username),
+        })
     return ok(data={"auth_required": True, "authenticated": False, "registration_enabled": registration_enabled})
 
 @router.get("/auth/users")
@@ -327,6 +343,7 @@ async def change_password(request: ChangePasswordRequest, http_request: Request)
         if user is None:
             raise HTTPException(status_code=401, detail="Current password is incorrect")
         if update_password(username, request.new_password):
+            clear_must_change_password(username)
             logger.info(f"Password changed for user '{username}'")
             return ok(message="Password changed successfully")
         raise HTTPException(status_code=500, detail="Failed to change password")
