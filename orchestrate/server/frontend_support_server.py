@@ -80,18 +80,27 @@ app = FastAPI(title="Workflow Orchestration API", version="1.0.0", docs_url=None
 config = get_conf()
 
 # CORS: restrict origins in production via CORS_ORIGINS env var (comma-separated).
-# allow_credentials=True is required for the session cookie to be sent on a
-# cross-origin request. The two shipped topologies (nginx in front of both
-# in docker-compose, the Vite dev proxy for `npm run dev`) put the frontend
-# and this API on the same origin from the browser's perspective, so CORS
-# never engages for them at all; CORS_ORIGINS only matters for a deployment
-# that deliberately talks to this API from a genuinely different origin.
+# Credentials (the session cookie) are only ever allowed alongside an
+# explicit, non-wildcard CORS_ORIGINS. Starlette's CORSMiddleware doesn't
+# reject allow_origins=["*"] + allow_credentials=True the way a browser
+# would reject a literal wildcard on the wire -- it silently echoes back
+# whatever Origin the request carries instead, which would let any origin
+# make a credentialed request to the internal API. This app also serves
+# /api/v1/* (external, mTLS-protected, meant to be reachable from a
+# third-party's own browser code), which is why the default stays
+# wildcard-permissive rather than locked down -- it just never gets
+# paired with allow_credentials unless an operator opts in by setting
+# CORS_ORIGINS to their real frontend origin (needed for the session
+# cookie to attach cross-origin at all; both shipped topologies, nginx in
+# docker-compose and the Vite dev proxy for `npm run dev`, are same-origin
+# and never hit this path regardless).
 _cors_origins_env = os.environ.get("CORS_ORIGINS", "*")
 _cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+_cors_allow_all_origins = "*" in _cors_origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_credentials=True,
+    allow_credentials=not _cors_allow_all_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

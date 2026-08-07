@@ -129,6 +129,24 @@ class TestLogoutClearsSessionCookie:
         assert auth_module.get_session_store().validate(token) is False
 
 
+class TestCorsCredentialsNeverPairWithWildcard:
+    """Regression coverage: Starlette's CORSMiddleware doesn't reject
+    allow_origins=["*"] + allow_credentials=True the way a browser rejects a
+    literal wildcard on the wire -- it silently echoes back whatever Origin
+    the request carries, which would let any origin make a credentialed
+    (cookie-carrying) request to the internal API. allow_credentials must
+    never be True while the origin allowlist is still the wildcard default.
+    """
+
+    def test_cors_middleware_does_not_pair_wildcard_origin_with_credentials(self):
+        cors = next(
+            m for m in srv.app.user_middleware
+            if m.cls.__name__ == "CORSMiddleware"
+        )
+        if "*" in cors.kwargs["allow_origins"]:
+            assert cors.kwargs["allow_credentials"] is False
+
+
 class TestExtractTokenPrecedence:
     def test_cookie_used_when_present(self):
         response = Response()
