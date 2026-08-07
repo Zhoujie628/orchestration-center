@@ -31,7 +31,7 @@ import secrets
 import threading
 import time
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from loguru import logger
 from starlette import status
 from starlette.responses import JSONResponse
@@ -83,19 +83,24 @@ class _SessionStore:
     """Thread-safe in-memory token store with TTL."""
 
     def __init__(self):
-        # token -> (username, expiry epoch)
-        self._tokens: dict[str, tuple[str, float]] = {}
+        # token -> (username, role, expiry epoch)
+        self._tokens: dict[str, tuple[str, str, float]] = {}
         self._lock = threading.Lock()
 
-    def create(self, username: str) -> tuple[str, int]:
-        """Create a new session token for the given user."""
+    def create(self, username: str, role: str = "user") -> tuple[str, int]:
+        """Create a new session token for the given user and role.
+
+        ``role`` is stamped once at login rather than re-resolved per
+        request, so admin-only checks don't add a DB lookup to every
+        authenticated request.
+        """
         token = secrets.token_urlsafe(32)
         ttl = _get_ttl()
         expiry = time.time() + ttl
         with self._lock:
             self._cleanup_locked()
-            self._tokens[token] = (username, expiry)
-        logger.info(f"Session token created for user '{username}', expires in {ttl}s")
+            self._tokens[token] = (username, role, expiry)
+        logger.info(f"Session token created for user '{username}' (role={role}), expires in {ttl}s")
         return token, ttl
 
     def validate(self, token: str) -> bool:
@@ -107,7 +112,7 @@ class _SessionStore:
             entry = self._tokens.get(token)
             if entry is None:
                 return False
-            if now >= entry[1]:
+            if now >= entry[2]:
                 del self._tokens[token]
                 return False
             return True
@@ -119,10 +124,22 @@ class _SessionStore:
         now = time.time()
         with self._lock:
             entry = self._tokens.get(token)
-            if entry is None or now >= entry[1]:
+            if entry is None or now >= entry[2]:
                 self._tokens.pop(token, None)
                 return None
             return entry[0]
+
+    def get_role(self, token: str) -> str | None:
+        """Return the role associated with the token, or None."""
+        if not token:
+            return None
+        now = time.time()
+        with self._lock:
+            entry = self._tokens.get(token)
+            if entry is None or now >= entry[2]:
+                self._tokens.pop(token, None)
+                return None
+            return entry[1]
 
     def revoke(self, token: str) -> None:
         with self._lock:
@@ -131,7 +148,7 @@ class _SessionStore:
     def _cleanup_locked(self) -> None:
         """Remove expired tokens (caller must hold the lock)."""
         now = time.time()
-        expired = [t for t, (_, exp) in self._tokens.items() if now >= exp]
+        expired = [t for t, (_, _, exp) in self._tokens.items() if now >= exp]
         for t in expired:
             del self._tokens[t]
 
@@ -150,6 +167,21 @@ def _extract_token(request: Request) -> str | None:
     if auth_header.startswith("Bearer "):
         return auth_header[7:].strip()
     return request.query_params.get("access_token")
+
+
+def require_admin(request: Request) -> None:
+    """FastAPI dependency: reject the request unless the session role is 'admin'.
+
+    No-op when auth is disabled: ``auth_middleware`` already lets every
+    request through in that mode, so re-checking here would just lock
+    everyone out of a deployment that has authentication turned off.
+    """
+    if not is_auth_enabled():
+        return
+    token = _extract_token(request)
+    role = _session_store.get_role(token) if token else None
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
 
 
 async def auth_middleware(request: Request, call_next):
