@@ -64,6 +64,7 @@ from workflow_engine import (
     search_psop,
     RegistryClient,
 )
+from workflow_engine.client.extension_handlers import TaskTHandler, NegotiationTHandler
 
 try:
     from a2a_t.llm.factory import LLMClientFactory as _LLMFactory
@@ -620,7 +621,11 @@ class WorkbenchAgentExecutor(AgentExecutor):
                 credentials_config=self._cred_path,
                 ssl_verify=self._ssl_verify,
             )
-            engine_client = WorkflowEngineClient(transport, max_negotiation_rounds=3)
+            engine_client = WorkflowEngineClient(
+                transport,
+                custom_handlers=[TaskTHandler(), NegotiationTHandler()],
+                max_negotiation_rounds=3,
+            )
 
             sender = await self._pre_position_extensions(transport, agent_cards, workflow=workflow, event_queue=event_queue, context=context)
 
@@ -758,19 +763,14 @@ class WorkbenchAgentExecutor(AgentExecutor):
             except Exception as e:
                 logger.warning(f"[WorkbenchAgent] Failed to enqueue notification artifact: {e}")
 
-    # Event types that carry artifact content (not just status)
-    _ARTIFACT_EVENTS = frozenset({"agent_request", "agent_response", "step_complete"})
-
     def _event_to_task_update(self, event: dict, context: RequestContext):
-        """Convert an SDK event dict to an A2A-T TaskUpdate.
+        """Convert an SDK event dict to an A2A-T TaskStatusUpdateEvent.
 
-        Per the plan encoding table:
-        - Status events (step_start, route_decision, negotiation_*, etc.)
-          -> TaskStatusUpdateEvent (WORKING)
-        - Artifact events (agent_request, agent_response, step_complete)
-          -> TaskArtifactUpdateEvent (text summary)
-        - Terminal events (complete, error, close)
-          -> TaskStatusUpdateEvent (COMPLETED/FAILED)
+        All events use TaskStatusUpdateEvent (not TaskArtifactUpdateEvent)
+        because the A2A SDK server's replace_status_update_with_task=True
+        merges TaskStatusUpdateEvent.metadata into the Task via MergeFrom,
+        but does NOT merge TaskArtifactUpdateEvent.metadata. Using
+        TaskArtifactUpdateEvent would cause __sdk_event__ to be lost.
 
         The raw SDK event is preserved in metadata["__sdk_event__"] so the
         orchestration center can forward it verbatim to the frontend.
@@ -779,19 +779,6 @@ class WorkbenchAgentExecutor(AgentExecutor):
         data = event.get("data", {})
         summary = self._event_summary(etype, data)
         metadata = {"__sdk_event__": json.dumps(event, ensure_ascii=False, default=str)}
-
-        if etype in self._ARTIFACT_EVENTS:
-            return TaskArtifactUpdateEvent(
-                task_id=context.task_id,
-                context_id=context.context_id,
-                artifact=Artifact(
-                    artifact_id=str(uuid.uuid4()),
-                    name=etype,
-                    parts=[Part(text=summary)],
-                ),
-                metadata=metadata,
-                last_chunk=False,
-            )
 
         state = (
             TaskState.TASK_STATE_COMPLETED if etype in ("complete", "close")

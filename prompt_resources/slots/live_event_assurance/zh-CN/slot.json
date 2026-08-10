@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "任务角色": {
+      "type": "string",
+      "description": "执行本次任务的Agent角色，如赛事直播Agent、运营商业务保障Agent、厂商无线Agent等",
+      "examples": [
+        "作为赛事直播Agent",
+        "作为运营商业务保障Agent",
+        "作为厂商无线Agent"
+      ],
+      "x-a2at-value-constraint": "任务中明确指定的Agent角色身份。"
+    },
+    "任务描述": {
+      "type": "string",
+      "description": "本次任务的具体执行内容和动作描述",
+      "examples": [
+        "解析本月月度马拉松赛事需求，输出结构化赛事信息",
+        "接收劣化事件并启动分析，决策要求无线Agent关闭全部节能措施",
+        "恢复基站初始配置，重新启用此前关闭的节能任务"
+      ],
+      "x-a2at-value-constraint": "任务的核心执行动作和预期行为描述。"
+    },
+    "任务上下文": {
+      "type": "string",
+      "description": "任务执行的背景信息，包括赛事信息、前序步骤输出、网络状态等",
+      "examples": [
+        "上海青浦区10月25日马拉松赛事直播保障，赛事路线覆盖多个小区",
+        "赛事进行中发现部分小区人员密集导致KQI指标下滑，直击出现卡顿"
+      ],
+      "x-a2at-value-constraint": "提供任务执行的背景信息、前序步骤结果或当前网络状态。"
+    },
+    "约束条件": {
+      "type": "string",
+      "description": "任务执行中必须遵守的规则、限制和边界条件，如SLA冲突、保障优先级等",
+      "examples": [
+        "关闭全部节能措施需与节能SLA协商，避免单方面执行",
+        "赛前2小时启动保障，对赛事路线覆盖小区启动带宽保障"
+      ],
+      "x-a2at-value-constraint": "任务执行中的约束、限制、冲突条件或优先级要求。"
+    }
+  },
+  "required": [
+    "任务描述"
+  ]
+}

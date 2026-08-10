@@ -6,7 +6,7 @@
   "steps": [
     {
       "name": "step1",
-      "type": "AllSuccess",
+      "type": "SelfLoop",
       "subtasks": [
         {
           "task_id": "task_1_1",
@@ -69,7 +69,7 @@
     },
     {
       "name": "step4",
-      "type": "AllSuccess",
+      "type": "SelfLoop",
       "subtasks": [
         {
           "task_id": "task_4_1",
@@ -132,7 +132,7 @@
     },
     {
       "name": "step7",
-      "type": "AllSuccess",
+      "type": "SelfLoop",
       "subtasks": [
         {
           "task_id": "task_7_1",

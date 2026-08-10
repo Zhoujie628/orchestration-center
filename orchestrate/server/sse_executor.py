@@ -24,6 +24,7 @@ TaskUpdate metadata (__sdk_event__). This module drains the stream
 and forwards events to the frontend SSE.
 """
 
+import asyncio
 import json
 import time
 from datetime import datetime, timezone
@@ -79,8 +80,33 @@ async def dispatch_intent_sse(
         record_status = ExecutionStatus.SUCCESS
         record_error = None
 
+        HEARTBEAT_INTERVAL = 15
+
+        event_queue = asyncio.Queue()
+        done_sentinel = object()
+
+        async def _drain_engine():
+            try:
+                async for event in engine.events(intent):
+                    await event_queue.put(event)
+            except Exception as e:
+                await event_queue.put({"type": "error", "data": {"error": str(e)}, "timestamp": time.time()})
+            finally:
+                await event_queue.put(done_sentinel)
+
+        drain_task = asyncio.create_task(_drain_engine())
+
         try:
-            async for event in engine.events(intent):
+            while True:
+                try:
+                    event = await asyncio.wait_for(event_queue.get(), timeout=HEARTBEAT_INTERVAL)
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+                    continue
+
+                if event is done_sentinel:
+                    break
+
                 collected_events.append(event)
                 evt_type = event.get("type", "")
                 evt_data = event.get("data", {})
@@ -117,6 +143,7 @@ async def dispatch_intent_sse(
             record_error = str(e)
             logger.error(f"[SSE] Stream error: {e}", exc_info=True)
         finally:
+            drain_task.cancel()
             if not psop_id:
                 psop_id = f"dispatch-{int(time.time())}"
             if not psop_name:

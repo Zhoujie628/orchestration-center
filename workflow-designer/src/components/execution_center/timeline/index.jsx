@@ -221,7 +221,7 @@ const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
     const isRequest = direction === 'request';
     const raw = isRequest ? data.request : data.response;
     const text = typeof raw === 'string' ? raw : (raw?.text || raw?.request || raw?.response || JSON.stringify(raw, null, 2));
-    const metadata = data.metadata || raw?.metadata || {};
+    const metadata = (typeof raw === 'object' && raw?.metadata) || data.metadata || {};
     const hasMetadata = Object.keys(metadata).length > 0;
     const state = data.state || data.task_state;
     const hasAuth = data.authorization;

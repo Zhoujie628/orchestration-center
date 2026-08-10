@@ -225,24 +225,29 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
             app.routes.extend(rest_routes)
             logger.info(f"Agent '{agent_name}' REST endpoint: {path}")
 
-    # Enable HTTPS using the orchestration center self-signed certificate so the
-    # agent server matches the https:// URLs declared in the agent card.
-    ssl_dir = Path(__file__).resolve().parent.parent / "etc" / "ssl"
-    cert_path = ssl_dir / "server.cer"
-    key_path = ssl_dir / "server_key.pem"
-    nopass_key_path = ssl_dir / "server_key_nopass.pem"
+    agent_url = ""
+    if agent_card.supported_interfaces:
+        agent_url = agent_card.supported_interfaces[0].url or ""
+    want_https = agent_url.startswith("https://")
+
     ssl_kwargs = {}
-    if cert_path.is_file() and key_path.is_file():
-        # Prefer the unencrypted key to avoid "Enter PEM pass phrase:" prompts
-        actual_key = nopass_key_path if nopass_key_path.is_file() else key_path
-        ssl_kwargs = {"ssl_certfile": str(cert_path), "ssl_keyfile": str(actual_key)}
-        if not nopass_key_path.is_file():
-            pwd_path = ssl_dir / "cert_pwd"
-            if pwd_path.is_file():
-                ssl_kwargs["ssl_keyfile_password"] = pwd_path.read_text(encoding="utf-8").strip()
-        logger.info(f"Agent {agent_name!r} starting with HTTPS (cert={cert_path.name})")
+    if want_https:
+        ssl_dir = Path(__file__).resolve().parent.parent / "etc" / "ssl"
+        cert_path = ssl_dir / "server.cer"
+        key_path = ssl_dir / "server_key.pem"
+        nopass_key_path = ssl_dir / "server_key_nopass.pem"
+        if cert_path.is_file() and key_path.is_file():
+            actual_key = nopass_key_path if nopass_key_path.is_file() else key_path
+            ssl_kwargs = {"ssl_certfile": str(cert_path), "ssl_keyfile": str(actual_key)}
+            if not nopass_key_path.is_file():
+                pwd_path = ssl_dir / "cert_pwd"
+                if pwd_path.is_file():
+                    ssl_kwargs["ssl_keyfile_password"] = pwd_path.read_text(encoding="utf-8").strip()
+            logger.info(f"Agent {agent_name!r} starting with HTTPS (cert={cert_path.name})")
+        else:
+            logger.warning(f"Agent {agent_name!r} URL is https but SSL certs not found at {ssl_dir}, starting HTTP")
     else:
-        logger.warning(f"Agent {agent_name!r} SSL certs not found at {ssl_dir}, starting HTTP")
+        logger.info(f"Agent {agent_name!r} starting with HTTP")
     config = uvicorn.Config(app, host=host, port=port, timeout_graceful_shutdown=2, **ssl_kwargs)
     uvicorn_server = uvicorn.Server(config)
     try:

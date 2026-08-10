@@ -2,11 +2,11 @@
   "id": "psop_live_event_assurance",
   "name": "赛事直播应急保障",
   "description": "面向本市马拉松赛事的端到端通信保障闭环：赛事信息解析与订阅下发、资管转换与带宽保障及功率提升任务下发、无线Agent执行时发现节能SLA冲突经A2A-T协商后关闭一半节能、KQI监控与劣化上报、全量节能关闭与临站协同优化、KQI恢复、赛事结束恢复初始配置。节能SLA冲突协商在无线Agent单步内经引擎协商机制完成，协商内容通过SSE实时推送至前端，不作为独立工作流步骤。",
-  "created_at": "2026-06-01T00:00:00Z",
+  "created_at": "2026-08-10T07:11:43.427825Z",
   "steps": [
     {
       "name": "step1",
-      "type": "AllSuccess",
+      "type": "SelfLoop",
       "subtasks": [
         {
           "task_id": "task-live-001",
@@ -43,7 +43,7 @@
           "condition": ""
         }
       ],
-      "layer": 1,
+      "layer": 0,
       "context_from": null
     },
     {
@@ -64,12 +64,12 @@
           "condition": ""
         }
       ],
-      "layer": 1,
+      "layer": 0,
       "context_from": null
     },
     {
       "name": "step4",
-      "type": "AllSuccess",
+      "type": "SelfLoop",
       "subtasks": [
         {
           "task_id": "task-live-004",
@@ -85,7 +85,7 @@
           "condition": ""
         }
       ],
-      "layer": 1,
+      "layer": 0,
       "context_from": null
     },
     {
@@ -106,7 +106,7 @@
           "condition": ""
         }
       ],
-      "layer": 1,
+      "layer": 0,
       "context_from": null
     },
     {
@@ -127,12 +127,12 @@
           "condition": ""
         }
       ],
-      "layer": 1,
+      "layer": 0,
       "context_from": null
     },
     {
       "name": "step7",
-      "type": "AllSuccess",
+      "type": "SelfLoop",
       "subtasks": [
         {
           "task_id": "task-live-007",
@@ -148,7 +148,7 @@
           "condition": ""
         }
       ],
-      "layer": 1,
+      "layer": 0,
       "context_from": null
     },
     {
@@ -169,7 +169,7 @@
           "condition": ""
         }
       ],
-      "layer": 1,
+      "layer": 0,
       "context_from": [
         "*"
       ]
@@ -192,19 +192,12 @@
           "condition": ""
         }
       ],
-      "layer": 1,
+      "layer": 0,
       "context_from": null
     }
   ],
   "related_preflow": null,
-  "user_intent": "对本月本市举行的马拉松赛事进行通信保障。需要赛事直播Agent提供赛事时间/路线/人数预估并向保障Agent下发订阅任务；保障Agent调用资管系统把路线转为站点ID与带宽要求、赛前1小时启动带宽保障并向无线Agent下发提升功率任务；无线Agent执行时发现自身节能任务SLA冲突，与保障Agent协商关闭一半节能；直播Agent监控KQI发现劣化并上报；保障Agent分析后要求关闭全部节能并启动临站协同优化；KQI改善赛事结束后，保障Agent通知无线Agent恢复初始配置。",
-  "tags": [
-    "LiveStreaming",
-    "Assurance",
-    "RAN",
-    "EnergySaving",
-    "Negotiation",
-    "Linear",
-    "ClosedLoop"
-  ]
+  "user_intent": null,
+  "tags": [],
+  "source": "graph_editor"
 }
