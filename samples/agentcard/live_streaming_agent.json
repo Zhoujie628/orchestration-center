@@ -65,7 +65,7 @@
       {
         "protocolBinding": "HTTP+JSON",
         "protocolVersion": "1.0",
-        "url": "https://127.0.0.1:8901"
+        "url": "http://127.0.0.1:8901"
       }
     ]
   }

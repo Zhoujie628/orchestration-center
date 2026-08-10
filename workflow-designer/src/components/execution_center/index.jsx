@@ -608,11 +608,12 @@ const ExecutionCenter = ({ isDark }) => {
         };
 
         es.onerror = () => {
-            setError("Dispatch SSE Connection Error");
-            setIsRunning(false);
-            setIsDispatching(false);
-            setRunningId(null);
-            es.close();
+            if (es.readyState === EventSource.CLOSED) {
+                setError("Dispatch SSE Connection Error");
+                setIsRunning(false);
+                setIsDispatching(false);
+                setRunningId(null);
+            }
         };
 
         setEventSource(es);
@@ -988,11 +989,12 @@ const ExecutionCenter = ({ isDark }) => {
             }
         };
 
-        es.onerror = (err) => {
-            setError("SSE Connection Error");
-            setIsRunning(false);
-            setRunningId(null);
-            es.close();
+        es.onerror = () => {
+            if (es.readyState === EventSource.CLOSED) {
+                setError("SSE Connection Error");
+                setIsRunning(false);
+                setRunningId(null);
+            }
         };
 
         setEventSource(es);
