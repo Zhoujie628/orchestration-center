@@ -214,14 +214,14 @@ const MarkdownRenderer = React.memo(({ text }) => {
  * ────────────────────────────────────────────────────────────────── */
 
 const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
-    const [showMetadata, setShowMetadata] = useState(false);
+    const [showText, setShowText] = useState(false);
     const [expanded, setExpanded] = useState(false);
     if (!data) return null;
 
     const isRequest = direction === 'request';
     const raw = isRequest ? data.request : data.response;
     const text = typeof raw === 'string' ? raw : (raw?.text || raw?.request || raw?.response || JSON.stringify(raw, null, 2));
-    const metadata = data.metadata || {};
+    const metadata = data.metadata || raw?.metadata || {};
     const hasMetadata = Object.keys(metadata).length > 0;
     const state = data.state || data.task_state;
     const hasAuth = data.authorization;
@@ -283,33 +283,35 @@ const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
                         );
                     })()}
 
-                    {/* Body Content */}
-                    {text && (
+                    {/* Metadata (primary, expanded by default) */}
+                    {hasMetadata && (
                         <div className="px-3 py-2 bg-white/60 dark:bg-zinc-900/40 overflow-y-auto custom-scrollbar">
-                            <MarkdownRenderer text={text} />
+                            <div className="space-y-2">
+                                {Object.entries(metadata).map(([key, val], idx) => (
+                                    <div key={idx} className="text-[10px]">
+                                        <span className="font-semibold text-zinc-600 dark:text-zinc-400 break-all">{key}:</span>
+                                        <div className="ml-2 mt-0.5">
+                                            <MarkdownRenderer text={typeof val === 'string' ? val : JSON.stringify(val, null, 2)} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 
-                    {/* Metadata Toggle */}
-                    {hasMetadata && (
+                    {/* Text Part (secondary, collapsed by default) */}
+                    {text && (
                         <div className="px-3 py-2 border-t border-inherit bg-zinc-50/30 dark:bg-zinc-800/20">
                             <button
-                                onClick={(e) => { e.stopPropagation(); setShowMetadata(!showMetadata); }}
+                                onClick={(e) => { e.stopPropagation(); setShowText(!showText); }}
                                 className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
                             >
-                                {showMetadata ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                                Metadata ({Object.keys(metadata).length})
+                                {showText ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                                Text Part
                             </button>
-                            {showMetadata && (
-                                <div className="mt-2 space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar">
-                                    {Object.entries(metadata).map(([key, val], idx) => (
-                                        <div key={idx} className="text-[10px]">
-                                            <span className="font-semibold text-zinc-600 dark:text-zinc-400 break-all">{key}:</span>
-                                            <div className="ml-2 mt-0.5">
-                                                <MarkdownRenderer text={typeof val === 'string' ? val : JSON.stringify(val, null, 2)} />
-                                            </div>
-                                        </div>
-                                    ))}
+                            {showText && (
+                                <div className="mt-2 overflow-y-auto custom-scrollbar">
+                                    <MarkdownRenderer text={text} />
                                 </div>
                             )}
                         </div>
