@@ -34,9 +34,9 @@ export default ({ mode }) => defineConfig({
         // remote or HTTPS (self-signed) backend without editing this file.
         proxy: {
             '/api/orchestrate': {
-                target: process.env.BACKEND_URL || 'http://127.0.0.1:5001',
+                target: process.env.BACKEND_URL || `${mode === 'https' ? 'https' : 'http'}://127.0.0.1:5001`,
                 changeOrigin: true,
-                secure: process.env.BACKEND_INSECURE !== 'true',
+                secure: false,
                 rewrite: (path) => path.replace(/^\/api\/orchestrate/, ''),
             },
         },
