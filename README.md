@@ -213,10 +213,11 @@ This also brings up `workflow-designer`, the containerized frontend: a
 multi-stage build (`npm run build`, served by nginx) exposed at
 `http://localhost:3003`. nginx reverse-proxies `/api/orchestrate/` to the
 `orchestration-center` service on the compose network (matching the
-`defaultGateway` the frontend's `src/service/api.js` falls back to when
-served from a non-dev port), so the browser never needs a direct route to
-port 5001. Override the upstream with `BACKEND_HOST`/`BACKEND_PORT` env vars
-if you rename or repoint the backend service.
+`defaultGateway` the frontend's `src/service/api.js` defaults to), so the
+browser never needs a direct route to port 5001 -- keeping frontend and
+backend on the same origin, which the session cookie (see Authentication
+below) requires. Override the upstream with `BACKEND_HOST`/`BACKEND_PORT`
+env vars if you rename or repoint the backend service.
 
 **Development** — layers `docker-compose-dev.yml` on top, which switches
 `AGENT_REGISTRY_URL` to plain HTTP to match registry-center's dev stack
@@ -366,7 +367,9 @@ The internal API (`/rest/v1/orchestrate/*`) is protected by token-based authenti
 | `access_token_ttl` | Session token lifetime in seconds. | `43200` (12h) |
 | `persistence_mode` | `postgresql` enables database-backed user management; `file` uses config-based auth. | `file` |
 
-The frontend sends the password as-is; the backend is what hashes it (server-side, salted, for DB-mode accounts; against the configured SHA-256 in file mode). **This relies on `enable_https=true` for confidentiality in transit** -- see the TLS/HTTPS section below; don't run with the shipped `enable_https=false` default outside local development. Tokens are in-memory with TTL, passed via `Authorization: Bearer` header or `access_token` query parameter (for SSE/EventSource).
+The frontend sends the password as-is; the backend is what hashes it (server-side, salted, for DB-mode accounts; against the configured SHA-256 in file mode). **This relies on `enable_https=true` for confidentiality in transit** -- see the TLS/HTTPS section below; don't run with the shipped `enable_https=false` default outside local development. The session token is a `Secure` (when `enable_https=true`), `HttpOnly`, `SameSite=Lax` cookie set on login -- it's not readable from JavaScript (mitigates XSS token theft) and the browser attaches it automatically, including on `EventSource`/SSE connections, so it's never carried in a URL or logged as a query param. `Authorization: Bearer <token>` is also accepted as a fallback for non-browser clients (curl, scripts).
+
+A cookie only attaches to a **same-origin** request. Both shipped serving paths -- nginx in front of both in docker-compose, and the Vite dev server's own `/api/orchestrate` proxy for `npm run dev` -- put the frontend and this API on the same origin, so this is transparent. A manually-configured direct-IP deployment (frontend and backend on genuinely different origins) needs `CORS_ORIGINS` set to the frontend's exact origin (not the default `*`, which can't be combined with credentialed requests) for the cookie to work cross-origin at all.
 
 > **Session storage is single-process only.** Tokens live in an in-memory dict inside the running Python process. Running with multiple `uvicorn` workers, or multiple replicas behind a load balancer, will intermittently reject valid tokens -- a token minted by one worker isn't visible to another. Every process restart also logs out all active sessions (harmless in itself given the token TTL, but worth expecting). Both bundled launch paths (`orchestrate/start.py`) run single-process today, so this doesn't bite out of the box -- but if multi-worker or multi-replica deployment is ever needed, session storage must move to a shared backend (e.g. the same PostgreSQL database, or Redis) first.
 
@@ -431,9 +434,9 @@ The external API (`/api/v1/*`) is protected by mTLS at the TLS layer when `enabl
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/rest/v1/orchestrate/auth/login` | Login with username + password hash, returns session token |
+| `POST` | `/rest/v1/orchestrate/auth/login` | Login with username + password, sets the session cookie |
 | `POST` | `/rest/v1/orchestrate/auth/register` | Register a new user (PostgreSQL mode only) |
-| `POST` | `/rest/v1/orchestrate/auth/logout` | Revoke session token |
+| `POST` | `/rest/v1/orchestrate/auth/logout` | Revoke the session token and clear its cookie |
 | `GET` | `/rest/v1/orchestrate/auth/check` | Check if auth is required, token validity, and registration availability |
 | `GET` | `/rest/v1/orchestrate/auth/users` | List all users (PostgreSQL mode only) |
 | `DELETE` | `/rest/v1/orchestrate/auth/users/{username}` | Delete a user (admin cannot be deleted) |

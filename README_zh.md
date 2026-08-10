@@ -293,7 +293,9 @@ flowchart TB
 | `access_token_ttl` | 会话令牌有效期（秒）。 | `43200`（12小时） |
 | `persistence_mode` | `postgresql` 启用数据库用户管理；`file` 使用配置密码认证。 | `file` |
 
-前端按原样发送密码；由后端负责哈希（数据库模式下按用户加盐哈希；文件模式下与配置的 SHA-256 值比对）。**这依赖 `enable_https=true` 来保证传输过程的机密性**——见下方 TLS/HTTPS 一节；除本地开发外，不要使用默认的 `enable_https=false`。令牌存储在内存中，通过 `Authorization: Bearer` 请求头或 `access_token` 查询参数（用于 SSE/EventSource）传递。
+前端按原样发送密码；由后端负责哈希（数据库模式下按用户加盐哈希；文件模式下与配置的 SHA-256 值比对）。**这依赖 `enable_https=true` 来保证传输过程的机密性**——见下方 TLS/HTTPS 一节；除本地开发外，不要使用默认的 `enable_https=false`。会话令牌以 `Secure`（当 `enable_https=true` 时）、`HttpOnly`、`SameSite=Lax` 的 Cookie 形式在登录时下发——JavaScript 无法读取它（缓解 XSS 窃取令牌的风险），浏览器会自动携带它，包括在 `EventSource`/SSE 连接上，因此它不会出现在 URL 或作为查询参数被记录到日志中。为非浏览器客户端（curl、脚本）保留了 `Authorization: Bearer <token>` 作为后备方式。
+
+Cookie 只会在**同源**请求中被携带。当前提供的两种部署方式——docker-compose 中前后端都在 nginx 之后，以及 `npm run dev` 时 Vite 开发服务器自带的 `/api/orchestrate` 代理——都让前端与本 API 处于同一来源，因此这一点是透明的。若手动配置为直连 IP 部署（前后端确实处于不同源），则需要将 `CORS_ORIGINS` 设置为前端的确切来源（而非默认的 `*`，因为它无法与带凭证的请求组合使用），Cookie 才能跨源生效。
 
 > **会话存储仅限单进程。** 令牌保存在运行中 Python 进程的内存字典中。若以多个 `uvicorn` worker 运行，或在负载均衡后部署多个副本，会间歇性地拒绝本应有效的令牌——因为某个 worker 签发的令牌对其他 worker 不可见。每次进程重启也会导致所有活动会话登出（鉴于令牌本身有 TTL，这本身无害，但仍需提前预期）。当前内置的两条启动路径（`orchestrate/start.py`）都是单进程运行，因此默认情况下不会触发此问题——但如果之后需要多 worker 或多副本部署，必须先将会话存储迁移到共享后端（例如现有的 PostgreSQL 数据库，或 Redis）。
 
@@ -357,9 +359,9 @@ python generate_selfsign_cert.py etc/ssl serverAuth
 
 | 方法 | 端点 | 说明 |
 |------|------|------|
-| `POST` | `/rest/v1/orchestrate/auth/login` | 用户名 + 密码哈希登录，返回会话令牌 |
+| `POST` | `/rest/v1/orchestrate/auth/login` | 使用用户名 + 密码登录，设置会话 Cookie |
 | `POST` | `/rest/v1/orchestrate/auth/register` | 注册新用户（仅 PostgreSQL 模式） |
-| `POST` | `/rest/v1/orchestrate/auth/logout` | 撤销会话令牌 |
+| `POST` | `/rest/v1/orchestrate/auth/logout` | 撤销会话令牌并清除其 Cookie |
 | `GET` | `/rest/v1/orchestrate/auth/check` | 检查认证状态、令牌有效性及注册可用性 |
 | `GET` | `/rest/v1/orchestrate/auth/users` | 列出所有用户（仅 PostgreSQL 模式） |
 | `DELETE` | `/rest/v1/orchestrate/auth/users/{username}` | 删除用户（admin 不可删除） |

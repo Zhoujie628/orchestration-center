@@ -20,37 +20,21 @@ const STORAGE_KEY = 'server_config';
 export const defaultIp = '127.0.0.1';
 export const defaultPort = '5001';
 export const defaultGateway = '/api/orchestrate';
- 
- const TOKEN_KEY = 'access_token';
- 
- export const getAuthToken = () => localStorage.getItem(TOKEN_KEY);
- export const setAuthToken = (token) => {
-     if (token) {
-         localStorage.setItem(TOKEN_KEY, token);
-     } else {
-         localStorage.removeItem(TOKEN_KEY);
-    }
-};
 
  // Protocol follows the current page: HTTPS page -> https://, otherwise http://
 export const defaultProtocol = window.location.protocol === 'https:' ? 'https://' : 'http://';
 
 const trimTrailingSlash = (url) => url.replace(/\/$/, '');
 
-const isStandardPort = () => {
-    const p = window.location.port;
-    return !p || p === '80' || p === '443';
-};
-
-const isLocalHost = () => ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
-
-// A remote client can never reach a backend at 127.0.0.1 (the browser's own
-// loopback), so direct-IP mode is only a safe unconfigured default when the
-// page itself was loaded from localhost (the local `npm run dev` workflow).
-// Anywhere else (including this project's own docker-compose deployment,
-// which serves the nginx-fronted UI on the non-standard port 3003) must
-// default to the nginx gateway path instead.
-export const shouldDefaultToGateway = () => isStandardPort() || !isLocalHost();
+// The session cookie (see login()/logout() below) is httpOnly and scoped to
+// the internal API path, so the browser only attaches it on a same-origin
+// request. Both shipped serving paths -- nginx in docker-compose, and the
+// Vite dev server's own /api/orchestrate proxy for `npm run dev` -- put the
+// frontend and this API on the same origin, so the gateway path is always
+// the correct default; direct-IP mode remains available as an explicit,
+// manually-configured choice (see the settings UI) for deployments that
+// don't run behind either proxy.
+export const shouldDefaultToGateway = () => true;
 
 export const getBaseUrl = () => {
     try {
@@ -75,22 +59,16 @@ export const getBaseUrl = () => {
 
 const ORCHESTRATE_BASE = () => `${getBaseUrl()}/rest/v1/orchestrate`;
 
-const api = axios.create({ timeout: 120000 });
+// withCredentials: true so the httpOnly session cookie is sent on every
+// request (and stored from every Set-Cookie response) -- same-origin via
+// the gateway path this makes no difference, but it's what a cross-origin
+// direct-IP deployment needs for the cookie to attach at all.
+const api = axios.create({ timeout: 120000, withCredentials: true });
 
- // Inject auth token into every request
- api.interceptors.request.use((config) => {
-     const token = getAuthToken();
-     if (token) {
-         config.headers.Authorization = `Bearer ${token}`;
-     }
-     return config;
- });
- 
 api.interceptors.response.use(
     (response) => response.data,
     (error) => {
         if (error.response && error.response.status === 401) {
-            setAuthToken(null);
             window.dispatchEvent(new Event('auth-expired'));
         }
         return Promise.reject(error);
@@ -205,10 +183,6 @@ export async function matchWorkflowsTopN(intent, topN = 3) {
 export function getStartProcessStreamUrl(psopId, userIntent = '', lang = '', targetAgent = '') {
     const base = `${ORCHESTRATE_BASE()}/execute?psop_id=${psopId}`;
     const params = [];
-    const token = getAuthToken();
-    if (token) {
-        params.push(`access_token=${encodeURIComponent(token)}`);
-    }
     if (userIntent) {
         params.push(`user_intent=${encodeURIComponent(userIntent)}`);
     }
@@ -227,10 +201,6 @@ export function getStartProcessStreamUrl(psopId, userIntent = '', lang = '', tar
 export function getDispatchStreamUrl(intent, agentName, lang = '') {
     const base = `${ORCHESTRATE_BASE()}/dispatch`;
     const params = [];
-    const token = getAuthToken();
-    if (token) {
-        params.push(`access_token=${encodeURIComponent(token)}`);
-    }
     params.push(`intent=${encodeURIComponent(intent)}`);
     params.push(`agent_name=${encodeURIComponent(agentName)}`);
     if (lang) {
@@ -261,19 +231,17 @@ export async function authCheck() {
 }
  
 export async function login(username, password) {
+    // The session token arrives as an httpOnly Set-Cookie header, not in
+    // this body -- the browser stores it and attaches it automatically,
+    // this code never sees or handles the token value at all.
     const body = await api.post(`${ORCHESTRATE_BASE()}/auth/login`, { username, password });
-    if (body.data && body.data.token) {
-         setAuthToken(body.data.token);
-     }
-     return body.data;
- }
- 
+    return body.data;
+}
+
 export async function logout() {
-    try {
-        await api.post(`${ORCHESTRATE_BASE()}/auth/logout`);
-    } finally {
-        setAuthToken(null);
-    }
+    // The server clears the cookie via Set-Cookie on this response; there's
+    // no client-side token state left to clean up on our end.
+    await api.post(`${ORCHESTRATE_BASE()}/auth/logout`);
 }
  
 export async function register(username, password) {

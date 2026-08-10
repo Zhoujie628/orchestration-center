@@ -34,7 +34,7 @@ import time
 from fastapi import HTTPException, Request
 from loguru import logger
 from starlette import status
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from common.util.config_util import get_conf
 from orchestrate.server.response_utils import ok, error
@@ -48,6 +48,51 @@ _PUBLIC_AUTH_PATHS = {
 
 # Default token lifetime: 12 hours.
 _DEFAULT_TTL = 12 * 60 * 60
+
+# Session token is carried as an httpOnly cookie, scoped to the internal API
+# path so it's never sent to unrelated routes. Cookie name intentionally
+# differs from the old "?access_token=..." query param name it replaces
+# (see extract_token -- that scheme is no longer accepted at all), to make
+# the two easy to tell apart in logs/captures from before this migration.
+SESSION_COOKIE_NAME = "session_token"
+# Path=/ rather than the internal API prefix: the browser scopes cookies to
+# the URL it actually requested, which in gateway mode carries the
+# /api/orchestrate prefix the proxy (nginx or the Vite dev proxy) strips
+# before this backend ever sees the request. A narrower Path here matches
+# neither that prefixed shape nor the unprefixed one direct-IP mode uses,
+# so the browser would silently never send the cookie back at all -- login
+# would appear to succeed while every following request 401s. httpOnly
+# already blocks script-level reads, so the narrower scope bought nothing
+# a same-origin SPA+API deployment needed anyway.
+SESSION_COOKIE_PATH = "/"
+
+
+def _is_https_enabled() -> bool:
+    return str(get_conf().get("enable_https", True)).lower() == "true"
+
+
+def set_session_cookie(response: Response, token: str, ttl: int) -> None:
+    """Attach the session cookie to a response after a successful login.
+
+    ``secure`` tracks ``enable_https`` rather than being hardcoded True:
+    a Secure cookie is silently dropped by the browser over plain HTTP, and
+    enable_https=false is the shipped default (see #10) -- hardcoding this
+    would make login appear to succeed while never actually authenticating
+    any subsequent request.
+    """
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        max_age=ttl,
+        path=SESSION_COOKIE_PATH,
+        httponly=True,
+        secure=_is_https_enabled(),
+        samesite="lax",
+    )
+
+
+def clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(key=SESSION_COOKIE_NAME, path=SESSION_COOKIE_PATH)
 
 
 def is_auth_enabled() -> bool:
@@ -169,12 +214,22 @@ def get_session_store() -> _SessionStore:
     return _session_store
 
 
-def _extract_token(request: Request) -> str | None:
-    """Extract the session token from the Authorization header or query param."""
+def extract_token(request: Request) -> str | None:
+    """Extract the session token from the session cookie, falling back to
+    the Authorization header for non-browser clients (curl, scripts).
+
+    No query-param fallback: that was the "?access_token=..." scheme this
+    migration replaces, which leaked the token into server access logs,
+    browser history, and Referer headers on every SSE call (see #39). The
+    frontend no longer sends it; EventSource picks up the cookie instead.
+    """
+    cookie_token = request.cookies.get(SESSION_COOKIE_NAME)
+    if cookie_token:
+        return cookie_token
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         return auth_header[7:].strip()
-    return request.query_params.get("access_token")
+    return None
 
 
 def require_admin(request: Request) -> None:
@@ -186,7 +241,7 @@ def require_admin(request: Request) -> None:
     """
     if not is_auth_enabled():
         return
-    token = _extract_token(request)
+    token = extract_token(request)
     role = _session_store.get_role(token) if token else None
     if role != "admin":
         raise HTTPException(status_code=403, detail="Admin role required")
@@ -253,7 +308,7 @@ async def auth_middleware(request: Request, call_next):
     if path in _PUBLIC_AUTH_PATHS:
         return await call_next(request)
 
-    token = _extract_token(request)
+    token = extract_token(request)
     if not _session_store.validate(token):
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
