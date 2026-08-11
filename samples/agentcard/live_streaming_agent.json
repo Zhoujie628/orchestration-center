@@ -3,7 +3,7 @@
     "name": "Live Streaming Agent",
     "description": "负责赛事需求的解析与监控。",
     "provider": {
-      "organization": "Huawei",
+      "organization": "GSAA",
       "url": ""
     },
     "version": "0.1.0",
