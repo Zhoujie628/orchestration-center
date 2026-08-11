@@ -31,7 +31,7 @@
       "subtasks": [
         {
           "task_id": "task-ran-002",
-          "description": "向上游RAN Energy Saving Agent发起RAN ES意图探索请求，获取指定意图目标(降低能耗10%-15%，保持用户感知不劣化)的最佳可行性方案。接收RAN Agent返回的探索报告，提取关键参数：建议的节能时段、各RAT的吞吐量目标、符号关断等节能策略的适用性。",
+          "description": "向上游RAN Energy Saving Agent发起RAN ES意图探索请求，获取指定意图目标(降低能耗10%-15%，保持用户感知不劣化)的最佳可行性方案。接收Wireless Domain Agent返回的探索报告，提取关键参数：建议的节能时段、各RAT的吞吐量目标、符号关断等节能策略的适用性。",
           "agent": "Energy Saving Intent Agent",
           "skill": "Intent Exploration Request",
           "status": "pending"

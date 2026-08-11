@@ -75,13 +75,13 @@ class RanAgentExecutor(NegotiationBaseAgentExecutor):
             )
         else:
             concern = (
-                "As the vendor RAN Agent, while executing the power boost and coverage enhancement task, "
+                "As the vendor Wireless Domain Agent, while executing the power boost and coverage enhancement task, "
                 "it discovers that increasing power and frequency bands would violate the SLA of its own "
                 "ongoing energy-saving task, creating an energy-saving versus assurance conflict that cannot "
                 "be executed unilaterally. It therefore raises a negotiation request to the task dispatcher, "
-                "the operator Assurance Agent: it proposes negotiating the closure of part (half) of the "
+                "the operator Service Assurance Agent: it proposes negotiating the closure of part (half) of the "
                 "energy-saving tasks to release resources for completing the event assurance, and asks the "
-                "Assurance Agent to evaluate and provide an SLA authorization scheme."
+                "Service Assurance Agent to evaluate and provide an SLA authorization scheme."
             )
         metadata = build_negotiation_response_metadata(
             negotiation_context_data=negotiation_context_data if negotiation_context_data else None,

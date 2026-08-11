@@ -32,7 +32,7 @@
         {
           "task_id": "task_2_1",
           "description": "作为运营商业务保障Agent，接收赛事保障订阅任务。调用资管系统将赛事路线转换为沿线覆盖站点ID及各段带宽上下行要求；制定赛前1小时启动赛事体验保障的计划，对赛事路线覆盖小区启动带宽保障；同时向厂商无线Agent下发网络优化任务：提升赛道沿线基站发射功率、增加覆盖，以保障赛事直播上行带宽需求。",
-          "agent": "Assurance Agent",
+          "agent": "Service Assurance Agent",
           "skill": "策略生成",
           "status": "pending"
         }
@@ -53,7 +53,7 @@
         {
           "task_id": "task_3_1",
           "description": "作为厂商无线Agent，执行功率提升与覆盖增强任务。但发现增加功率和频段会违反自身正在运行的节能任务SLA，存在节能与保障冲突，无法单方面执行。据此向任务下发方运营商业务保障Agent提出协商诉求：建议协商关闭部分（一半）节能任务以释放资源完成保障，请保障Agent评估并回复SLA授权方案。收到保障Agent的协商结论后，自行关闭一半节能任务，完成功率提升与覆盖增强配置下发，保障赛事直播上行带宽。",
-          "agent": "RAN Agent",
+          "agent": "Wireless Domain Agent",
           "skill": "网络策略执行",
           "status": "pending"
         }
@@ -95,7 +95,7 @@
         {
           "task_id": "task_5_1",
           "description": "作为运营商业务保障Agent，接收劣化事件并启动分析。发现接入人数超出预期，原有措施不足。决策：要求无线Agent关闭全部节能措施，并启动劣化小区及邻区临站协同优化以保障体验。",
-          "agent": "Assurance Agent",
+          "agent": "Service Assurance Agent",
           "skill": "策略生成",
           "status": "pending"
         }
@@ -116,7 +116,7 @@
         {
           "task_id": "task_6_1",
           "description": "作为厂商无线Agent，执行保障决策：关闭全部节能措施，对劣化小区及邻区启动临站全局协同优化（功率/频段/邻区切换参数），恢复直播体验。",
-          "agent": "RAN Agent",
+          "agent": "Wireless Domain Agent",
           "skill": "网络策略执行",
           "status": "pending"
         }
@@ -158,7 +158,7 @@
         {
           "task_id": "task_8_1",
           "description": "作为运营商业务保障Agent，综合全流程结果，确认赛事通信保障任务完成。通知无线Agent恢复初始配置（恢复原有功率、覆盖参数，重新启用此前关闭的节能任务）。",
-          "agent": "Assurance Agent",
+          "agent": "Service Assurance Agent",
           "skill": "恢复策略下发",
           "status": "pending"
         }
@@ -181,7 +181,7 @@
         {
           "task_id": "task_9_1",
           "description": "作为厂商无线Agent，接收恢复通知，恢复基站初始配置（功率、覆盖参数），重新启用此前关闭的节能任务，恢复节能SLA。输出恢复完成确认。",
-          "agent": "RAN Agent",
+          "agent": "Wireless Domain Agent",
           "skill": "网络策略执行",
           "status": "pending"
         }

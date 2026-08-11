@@ -23,7 +23,7 @@ the workflow-engine SDK (execute_psop), streaming SDK events back to the
 caller as A2A-T TaskUpdate events.
 
 SelfLoop steps (step1, step4, step7) are executed locally via LLM.
-Other steps are dispatched to Assurance Agent / RAN Agent via A2A-T.
+Other steps are dispatched to Service Assurance Agent / Wireless Domain Agent via A2A-T.
 No Authorization-T or Notification-T pre-positioning.
 """
 
@@ -415,7 +415,7 @@ class LiveStreamingAgentExecutor(AgentExecutor):
 
     Receives the raw intent, searches/loads the PSOP workflow, then executes
     it via the workflow-engine SDK. SelfLoop steps are handled locally via LLM,
-    other steps are dispatched to Assurance/RAN agents via A2A-T.
+    other steps are dispatched to Assurance/Wireless Domain Agents via A2A-T.
     No Authorization-T or Notification-T pre-positioning.
     """
 

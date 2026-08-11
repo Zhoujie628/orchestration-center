@@ -1,6 +1,6 @@
 [
   {
-    "name": "RAN Agent",
+    "name": "Wireless Domain Agent",
     "description": "负责无线网络的分析、规划与策略执行。",
     "provider": {
       "organization": "Huawei",
