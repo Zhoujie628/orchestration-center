@@ -148,8 +148,8 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
         "RAN Energy Saving Agent": EnergySavingAgentExecutor,
         "Energy Saving Intent Agent": EnergySavingIntentAgentExecutor,
         "Live Streaming Agent": LiveStreamingAgentExecutor,
-        "Assurance Agent": AssuranceAgentExecutor,
-        "RAN Agent": RanAgentExecutor,
+        "Service Assurance Agent": AssuranceAgentExecutor,
+        "Wireless Domain Agent": RanAgentExecutor,
         "Transport Workbench Agent": WorkbenchAgentExecutor,
         "SPN Domain Agent City1": SpnDomainAgentExecutor,
         "SPN Domain Agent City2": SpnDomainAgentCity2Executor

@@ -19,7 +19,7 @@ from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 
 ASSURANCE_PROMPT = """
-You are an Assurance Agent simulator in the telecommunications field.
+You are an Service Assurance Agent simulator in the telecommunications field.
 Based on the received task, simulate a focused response using scenario details from the task message. Keep the response tightly scoped to the received task.
 
 Task content: {task}

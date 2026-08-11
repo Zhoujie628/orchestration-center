@@ -1,6 +1,6 @@
 [
   {
-    "name": "Assurance Agent",
+    "name": "Service Assurance Agent",
     "description": "负责保障策略及其恢复策略的生成。",
     "provider": {
       "organization": "Huawei",
