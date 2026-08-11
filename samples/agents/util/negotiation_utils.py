@@ -15,6 +15,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import re
 from typing import Dict, Any, Optional
 from loguru import logger
 
@@ -26,6 +27,15 @@ from a2a_t.negotiation.common.constants import (
 from a2a_t.negotiation.common.models import NegotiationContext
 
 NEGOTIATION_RESOLUTION_MARKER = "[NEGOTIATION_RESOLUTION]"
+
+_CJK_PATTERN = re.compile(r"[\u4e00-\u9fff]")
+
+
+def detect_lang(text: Optional[str]) -> str:
+    """Detect language from text: 'zh' if CJK characters present, otherwise 'en'."""
+    if text and _CJK_PATTERN.search(text):
+        return "zh"
+    return "en"
 NEGOTIATION_REQUEST_MARKER = "[NEGOTIATION_REQUEST]"
 NEGOTIATION_CONTEXT_MARKER = "[NEGOTIATION_CONTEXT]"
 NEGOTIATION_CONCERN_KEY = "negotiationConcern"

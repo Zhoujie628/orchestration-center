@@ -24,6 +24,7 @@ from orchestrate.core.prompts import (
     get_intent_to_psop_prompt,
     get_retrieve_psop_prompt
 )
+from orchestrate.core.retrieval import _detect_intent_lang
 
 
 class TestPreprocessInputPrompt:
@@ -130,3 +131,43 @@ class TestRetrievePsopPrompt:
     def test_asks_for_id_list(self):
         prompt = get_retrieve_psop_prompt("test", "[{}]")
         assert "json" in prompt.lower()
+
+    def test_lang_hint_injected_for_english(self):
+        prompt = get_retrieve_psop_prompt(
+            "Live Broadcast Emergency Assurance", '[{"id":"1","name":"x"}]', lang="English"
+        )
+        assert "Language Consistency" in prompt
+        assert "English" in prompt
+
+    def test_lang_hint_injected_for_chinese(self):
+        prompt = get_retrieve_psop_prompt(
+            "赛事直播应急保障", '[{"id":"1","name":"x"}]', lang="Chinese"
+        )
+        assert "Language Consistency" in prompt
+        assert "Chinese" in prompt
+
+    def test_no_lang_hint_when_none(self):
+        prompt = get_retrieve_psop_prompt("test", "[{}]", lang=None)
+        assert "Language Consistency" not in prompt
+
+    def test_lang_hint_marked_as_tiebreaker(self):
+        prompt = get_retrieve_psop_prompt("test", "[{}]", lang="English")
+        assert "Tiebreaker" in prompt
+        assert "must NOT override" in prompt
+
+
+class TestDetectIntentLang:
+    def test_english_intent(self):
+        assert _detect_intent_lang("Live Broadcast Emergency Assurance") == "English"
+
+    def test_chinese_intent(self):
+        assert _detect_intent_lang("赛事直播应急保障") == "Chinese"
+
+    def test_mixed_returns_chinese(self):
+        assert _detect_intent_lang("English term 赛事直播") == "Chinese"
+
+    def test_empty_returns_none(self):
+        assert _detect_intent_lang("") is None
+
+    def test_none_returns_none(self):
+        assert _detect_intent_lang(None) is None

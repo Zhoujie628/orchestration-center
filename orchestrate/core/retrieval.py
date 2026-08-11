@@ -32,6 +32,22 @@ from orchestrate.core.persistence import WorkflowStorage
 from orchestrate.core.prompts import get_retrieve_psop_prompt
 from orchestrate.core.workflow_search_result import WorkflowSearchResult
 
+
+def _detect_intent_lang(text: str) -> Optional[str]:
+    """Detect the language of the intent text.
+
+    Returns "Chinese" if any CJK ideograph is present, "English" otherwise,
+    or None when the input is empty. Used as a same-language tiebreaker hint
+    for PSOP retrieval so that an English intent prefers English PSOPs and a
+    Chinese intent prefers Chinese PSOPs when relevance is otherwise equal.
+    """
+    if not text:
+        return None
+    for ch in text:
+        if "\u4e00" <= ch <= "\u9fff":
+            return "Chinese"
+    return "English"
+
 class WorkflowRetrieval:
     def __init__(self, storage: WorkflowStorage):
         self.storage = storage
@@ -200,7 +216,9 @@ class WorkflowRetrieval:
 
         psop_list_str = json.dumps(psop_list, ensure_ascii=False, indent=2)
         llm = get_llm_instance()
-        prompt = get_retrieve_psop_prompt(user_intent, psop_list_str, top_n)
+        prompt = get_retrieve_psop_prompt(
+            user_intent, psop_list_str, top_n, lang=_detect_intent_lang(user_intent)
+        )
 
         try:
             _, llm_res = llm.ask_llm(prompt)

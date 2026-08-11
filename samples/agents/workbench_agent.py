@@ -75,6 +75,7 @@ except Exception:
 
 from common.llm import get_llm_instance
 from common.util.config_util import get_conf
+from samples.agents.util.negotiation_utils import detect_lang
 
 
 class WorkbenchControlPoint(ControlPoint):
@@ -419,48 +420,48 @@ Produce a clear, structured analysis based on the context above. {lang_hint}"""
             for s in self._sdk_workflow.steps:
                 if s.name == self._current_step and s.subtasks:
                     for sub in s.subtasks:
-                        current_step_info += f"步骤: {s.name}, 任务描述: {sub.description or ''}, 目标Agent: {sub.agent or ''}\n"
+                        current_step_info += f"Step: {s.name}, Task description: {sub.description or ''}, Target Agent: {sub.agent or ''}\n"
         lang_hint = "请用中文回复。" if self.lang == "zh" else "Respond in English."
-        prompt = f"""# 角色
-你是工作台的协商处理器。一个执行Agent在收到任务后发起了协商，明确列出了它缺少的数据字段。
-你的任务是：**针对Agent列出的每一个缺失字段，逐个补充具体的模拟数据**。
+        prompt = f"""# Role
+You are the workbench's negotiation handler. An execution Agent raised a negotiation after receiving a task, explicitly listing the data fields it is missing.
+Your task: **for each missing field the Agent listed, fill in concrete simulated data one by one.**
 
-# 核心要求
-- **必须逐个字段回复**，Agent说缺什么你就补什么，一一对应
-- 每个字段给出具体数值，不要反问、不要说"请提供"
-- 数据要符合电信SPN专线运维的真实场景，数值合理
-- 如果Agent的"已提供"部分已有某些信息，不要重复生成
+# Core Requirements
+- **Reply field by field** -- whatever the Agent says is missing, you supply one-to-one.
+- Give a concrete value for each field; do not ask back, do not say "please provide".
+- Data must fit a realistic telecom SPN private-line O&M scenario with reasonable values.
+- Do not regenerate information already present in the Agent's "provided" section.
 
-# 工作流场景
-{workflow_intent or "(未提供)"}
+# Workflow Scenario
+{workflow_intent or "(not provided)"}
 
-# 已完成步骤的执行结果
-{workflow_context or "(当前是第一个步骤，尚无已完成的前置步骤)"}
+# Execution Results of Completed Steps
+{workflow_context or "(this is the first step, no completed predecessor steps yet)"}
 
-# 当前步骤信息
-{current_step_info or "(未提供)"}
+# Current Step Info
+{current_step_info or "(not provided)"}
 
-# 当前Agent
+# Current Agent
 {agent_name}
 
-# 原始任务描述
-{original_task or "(未提供)"}
+# Original Task Description
+{original_task or "(not provided)"}
 
-# Agent的协商请求（已提供 + 缺少字段列表）
+# Agent's Negotiation Request (provided + missing field list)
 {negotiation_text}
 
-# 补充说明
+# Supplementary Notes
 {receive_message}
 
-# 输出格式
-请按以下格式输出，针对Agent"缺少"列表中的每一项逐条补充：
+# Output Format
+Output as follows, filling in each item of the Agent's "missing" list one by one:
 
-## 补充数据
-- **字段名**: 具体值
-- **字段名**: 具体值
+## Supplementary Data
+- **field name**: concrete value
+- **field name**: concrete value
 ...
 
-直接输出补充数据，不要添加其他前缀。{lang_hint}"""
+Output the supplementary data directly, without other prefixes. {lang_hint}"""
         try:
             t0 = time.time()
             logger.info(f"[Workbench] Negotiation clarification for '{agent_name}': calling LLM...")
@@ -583,9 +584,10 @@ class WorkbenchAgentExecutor(AgentExecutor):
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         t_execute = time.time()
         intent = context.get_user_input()
+        self.lang = detect_lang(intent)
         task_id = context.task_id or "N/A"
         ctx_id = context.context_id or "N/A"
-        logger.info(f"[WorkbenchAgent] execute: task_id={task_id}, context_id={ctx_id}, intent={intent[:100]}")
+        logger.info(f"[WorkbenchAgent] execute: task_id={task_id}, context_id={ctx_id}, lang={self.lang}, intent={intent[:100]}")
 
         collected_events = []
         await event_queue.enqueue_event(Task(
@@ -796,46 +798,50 @@ class WorkbenchAgentExecutor(AgentExecutor):
         )
 
     def _event_summary(self, etype: str, data: dict) -> str:
+        zh = self.lang == "zh"
         if etype == "start":
             wf_name = data.get("workflow", "")
-            return f"工作流开始: {wf_name}" if wf_name else "工作流开始"
+            if zh:
+                return f"工作流开始: {wf_name}" if wf_name else "工作流开始"
+            return f"Workflow started: {wf_name}" if wf_name else "Workflow started"
         if etype == "step_start":
-            return f"步骤开始: {data.get('step', '')}"
+            return f"步骤开始: {data.get('step', '')}" if zh else f"Step started: {data.get('step', '')}"
         if etype == "agent_request":
             return f"-> {data.get('agent', '')}"
         if etype == "agent_response":
             return f"<- {data.get('agent', '')}"
         if etype == "route_decision":
-            return f"路由: {data.get('step', '')} -> {data.get('next', '')}"
+            return f"路由: {data.get('step', '')} -> {data.get('next', '')}" if zh else f"Route: {data.get('step', '')} -> {data.get('next', '')}"
         if etype == "step_complete":
-            return f"步骤完成: {data.get('step', '')}"
+            return f"步骤完成: {data.get('step', '')}" if zh else f"Step completed: {data.get('step', '')}"
         if etype == "task_status_changed":
-            return f"状态: {data.get('status', '')}"
+            return f"状态: {data.get('status', '')}" if zh else f"Status: {data.get('status', '')}"
         if etype == "negotiation_request":
-            return f"协商请求: {data.get('agent', '')}"
+            return f"协商请求: {data.get('agent', '')}" if zh else f"Negotiation request: {data.get('agent', '')}"
         if etype == "negotiation_resolved":
-            return f"协商解决: {data.get('agent', '')}"
+            return f"协商解决: {data.get('agent', '')}" if zh else f"Negotiation resolved: {data.get('agent', '')}"
         if etype == "negotiation_failed":
-            return f"协商失败: {data.get('agent', '')}"
+            return f"协商失败: {data.get('agent', '')}" if zh else f"Negotiation failed: {data.get('agent', '')}"
         if etype == "authorization_request":
-            return f"授权请求: {data.get('agent', '')}"
+            return f"授权请求: {data.get('agent', '')}" if zh else f"Authorization request: {data.get('agent', '')}"
         if etype == "notification":
-            return f"通知: {data.get('agent', '')}"
+            return f"通知: {data.get('agent', '')}" if zh else f"Notification: {data.get('agent', '')}"
         if etype == "complete":
-            return "工作流执行完成"
+            return "工作流执行完成" if zh else "Workflow execution complete"
         if etype == "error":
-            return f"错误: {data.get('error', '')}"
+            return f"错误: {data.get('error', '')}" if zh else f"Error: {data.get('error', '')}"
         if etype == "close":
-            return "流结束"
+            return "流结束" if zh else "Stream closed"
         return etype
 
     def _error_task(self, context: RequestContext, error_msg: str) -> TaskStatusUpdateEvent:
+        err_prefix = "错误" if self.lang == "zh" else "Error"
         return TaskStatusUpdateEvent(
             task_id=context.task_id,
             context_id=context.context_id,
             status=TaskStatus(
                 state=TaskState.TASK_STATE_FAILED,
-                message=Message(role=2, parts=[Part(text=f"错误: {error_msg}")]),
+                message=Message(role=2, parts=[Part(text=f"{err_prefix}: {error_msg}")]),
             ),
             metadata={"__sdk_event__": json.dumps(
                 {"type": "error", "data": {"error": error_msg}}, ensure_ascii=False
