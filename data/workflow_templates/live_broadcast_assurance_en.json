@@ -1,0 +1,212 @@
+{
+  "id": "template_live_broadcast_assurance_en",
+  "name": "Live Broadcast Assurance",
+  "description": "End-to-end communication assurance closed loop for the city's marathon live broadcast: event information parsing and subscription dispatch, resource inventory conversion and bandwidth assurance plus power boost task dispatch, RAN Agent discovering an energy-saving SLA conflict during execution and closing half of the energy-saving tasks after A2A-T negotiation, KQI monitoring and degradation reporting, full energy-saving shutdown and inter-site coordinated optimization, KQI recovery, and initial configuration restoration after the event. The energy-saving SLA conflict negotiation is completed within a single step of the RAN Agent via the engine's negotiation mechanism; the negotiation content is pushed to the frontend in real time via SSE and is not treated as an independent workflow step.",
+  "created_at": "2026-05-21T00:00:00Z",
+  "steps": [
+    {
+      "name": "step1",
+      "type": "SelfLoop",
+      "subtasks": [
+        {
+          "task_id": "task_1_1",
+          "description": "As the Live Streaming Agent, parse the requirements for this month's city marathon and output structured event information: event time, route (start -> finish and key segments), estimated on-site live broadcast audience, and uplink/downlink bandwidth requirements for the live broadcast. Based on this, dispatch an event communication assurance subscription task to the operator Assurance Agent.",
+          "agent": "Live Streaming Agent",
+          "skill": "Event Info Parsing",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step2",
+          "condition": ""
+        }
+      ],
+      "layer": 1,
+      "context_from": null
+    },
+    {
+      "name": "step2",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task_2_1",
+          "description": "As the operator Assurance Agent, receive the event assurance subscription task. Invoke the resource inventory system to convert the event route into covered site IDs along the route and uplink/downlink bandwidth requirements for each segment; formulate a plan to launch event experience assurance one hour before the event and start bandwidth assurance for the cells covering the event route; simultaneously dispatch a network optimization task to the vendor RAN Agent: boost the transmit power of base stations along the route and increase coverage to guarantee the uplink bandwidth required for the live broadcast.",
+          "agent": "Assurance Agent",
+          "skill": "Policy Generation",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step3",
+          "condition": ""
+        }
+      ],
+      "layer": 1,
+      "context_from": null
+    },
+    {
+      "name": "step3",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task_3_1",
+          "description": "As the vendor RAN Agent, execute the power boost and coverage enhancement task. However, it discovers that increasing power and frequency bands would violate the SLA of its own ongoing energy-saving task, creating an energy-saving versus assurance conflict that cannot be executed unilaterally. Accordingly, it raises a negotiation request to the task dispatcher, the operator Assurance Agent: it proposes to negotiate the closure of part (half) of the energy-saving tasks to release resources for completing the assurance, and asks the Assurance Agent to evaluate and reply with an SLA authorization scheme. Upon receiving the Assurance Agent's negotiation conclusion, it closes half of the energy-saving tasks on its own, completes the power boost and coverage enhancement configuration dispatch, and secures the uplink bandwidth for the live broadcast.",
+          "agent": "RAN Agent",
+          "skill": "Network Policy Execution",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step4",
+          "condition": ""
+        }
+      ],
+      "layer": 1,
+      "context_from": null
+    },
+    {
+      "name": "step4",
+      "type": "SelfLoop",
+      "subtasks": [
+        {
+          "task_id": "task_4_1",
+          "description": "As the Live Streaming Agent, display the live broadcast KQI of each route segment in real time during the event. It discovers that KQI metrics decline and the live broadcast stutters in some cells due to dense crowds. It sends this degradation event (including the degraded cells, metrics, and time window) to the operator Assurance Agent.",
+          "agent": "Live Streaming Agent",
+          "skill": "KQI Monitoring",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step5",
+          "condition": ""
+        }
+      ],
+      "layer": 1,
+      "context_from": null
+    },
+    {
+      "name": "step5",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task_5_1",
+          "description": "As the operator Assurance Agent, receive the degradation event and start analysis. It discovers that the number of access users exceeds expectations and the existing measures are insufficient. Decision: require the RAN Agent to shut down all energy-saving measures and launch inter-site coordinated optimization for the degraded cells and their neighboring cells to secure the experience.",
+          "agent": "Assurance Agent",
+          "skill": "Policy Generation",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step6",
+          "condition": ""
+        }
+      ],
+      "layer": 1,
+      "context_from": null
+    },
+    {
+      "name": "step6",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task_6_1",
+          "description": "As the vendor RAN Agent, execute the assurance decision: shut down all energy-saving measures and launch global inter-site coordinated optimization (power / frequency band / neighboring-cell handover parameters) for the degraded cells and their neighboring cells to restore the live broadcast experience.",
+          "agent": "RAN Agent",
+          "skill": "Network Policy Execution",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step7",
+          "condition": ""
+        }
+      ],
+      "layer": 1,
+      "context_from": null
+    },
+    {
+      "name": "step7",
+      "type": "SelfLoop",
+      "subtasks": [
+        {
+          "task_id": "task_7_1",
+          "description": "As the Live Streaming Agent, re-check the live broadcast KQI of each route segment, confirm that the degradation has been improved and the live broadcast is smooth again. After the event, confirm that the live broadcast assurance task has been completed normally.",
+          "agent": "Live Streaming Agent",
+          "skill": "KQI Monitoring",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step8",
+          "condition": ""
+        }
+      ],
+      "layer": 1,
+      "context_from": null
+    },
+    {
+      "name": "step8",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task_8_1",
+          "description": "As the operator Assurance Agent, synthesize the results of the entire process and confirm that the event communication assurance task is complete. Notify the RAN Agent to restore the initial configuration (restore the original power and coverage parameters and re-enable the previously closed energy-saving tasks).",
+          "agent": "Assurance Agent",
+          "skill": "Recovery Policy Dispatch",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "step9",
+          "condition": ""
+        }
+      ],
+      "layer": 1,
+      "context_from": [
+        "*"
+      ]
+    },
+    {
+      "name": "step9",
+      "type": "AllSuccess",
+      "subtasks": [
+        {
+          "task_id": "task_9_1",
+          "description": "As the vendor RAN Agent, receive the recovery notification, restore the initial configuration of the base stations (power and coverage parameters), re-enable the previously closed energy-saving tasks, and restore the energy-saving SLA. Output a recovery completion confirmation.",
+          "agent": "RAN Agent",
+          "skill": "Network Policy Execution",
+          "status": "pending"
+        }
+      ],
+      "next": [
+        {
+          "step": "end",
+          "condition": ""
+        }
+      ],
+      "layer": 1,
+      "context_from": null
+    }
+  ],
+  "related_preflow": null,
+  "user_intent": null,
+  "tags": [
+    "Live",
+    "Assurance",
+    "RAN",
+    "EnergySaving",
+    "Negotiation",
+    "Linear",
+    "ClosedLoop",
+    "Template",
+    "5G"
+  ]
+}

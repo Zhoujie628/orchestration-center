@@ -21,7 +21,10 @@ from a2a.types import Artifact, Part, Task, TaskState, TaskStatus
 from a2a_t.negotiation.common import NEGOTIATION_CONTEXT_KEY
 
 from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
-from samples.agents.util.negotiation_utils import build_negotiation_response_metadata
+from samples.agents.util.negotiation_utils import (
+    build_negotiation_response_metadata,
+    detect_lang,
+)
 
 RAN_AGENT_PROMPT = """
 You are a Radio Access Network (RAN) Agent simulator in the telecommunications field.
@@ -31,11 +34,20 @@ Task content: {task}
 """
 
 
-_CONFLICT_MARKERS = ("节能", "SLA", "冲突")
+_CONFLICT_MARKERS_ZH = ("节能", "SLA", "冲突")
+_CONFLICT_MARKERS_EN = ("energy-saving", "sla", "conflict")
 
 
 def _is_conflict_scenario(task_text: str) -> bool:
-    return bool(task_text) and all(marker in task_text for marker in _CONFLICT_MARKERS)
+    if not task_text:
+        return False
+    if all(marker in task_text for marker in _CONFLICT_MARKERS_ZH):
+        return True
+    lower = task_text.lower()
+    has_energy = (
+        "energy-saving" in lower or "energy saving" in lower or "energy_save" in lower
+    )
+    return has_energy and all(m in lower for m in ("sla", "conflict"))
 
 
 class RanAgentExecutor(NegotiationBaseAgentExecutor):
@@ -53,12 +65,24 @@ class RanAgentExecutor(NegotiationBaseAgentExecutor):
             user_input, context.task_id, context.context_id
         )
         negotiation_context_data = negotiation_result.get(NEGOTIATION_CONTEXT_KEY, {})
-        concern = (
-            "作为厂商无线Agent，执行功率提升与覆盖增强任务时，发现增加功率和频段会违反自身正在运行的"
-            "节能任务SLA，存在节能与保障冲突，无法单方面执行。现向任务下发方运营商业务保障Agent提出"
-            "协商诉求：建议协商关闭部分（一半）节能任务以释放资源完成赛事保障，请保障Agent评估并提供"
-            "SLA授权方案。"
-        )
+        lang = detect_lang(user_input)
+        if lang == "zh":
+            concern = (
+                "作为厂商无线Agent，执行功率提升与覆盖增强任务时，发现增加功率和频段会违反自身正在运行的"
+                "节能任务SLA，存在节能与保障冲突，无法单方面执行。现向任务下发方运营商业务保障Agent提出"
+                "协商诉求：建议协商关闭部分（一半）节能任务以释放资源完成赛事保障，请保障Agent评估并提供"
+                "SLA授权方案。"
+            )
+        else:
+            concern = (
+                "As the vendor RAN Agent, while executing the power boost and coverage enhancement task, "
+                "it discovers that increasing power and frequency bands would violate the SLA of its own "
+                "ongoing energy-saving task, creating an energy-saving versus assurance conflict that cannot "
+                "be executed unilaterally. It therefore raises a negotiation request to the task dispatcher, "
+                "the operator Assurance Agent: it proposes negotiating the closure of part (half) of the "
+                "energy-saving tasks to release resources for completing the event assurance, and asks the "
+                "Assurance Agent to evaluate and provide an SLA authorization scheme."
+            )
         metadata = build_negotiation_response_metadata(
             negotiation_context_data=negotiation_context_data if negotiation_context_data else None,
             negotiation_text=None,

@@ -68,6 +68,7 @@ from workflow_engine.client.extension_handlers import TaskTHandler, NegotiationT
 
 from common.llm import get_llm_instance
 from common.util.config_util import get_conf
+from samples.agents.util.negotiation_utils import detect_lang
 
 
 class LiveStreamingControlPoint(ControlPoint):
@@ -186,7 +187,9 @@ class LiveStreamingControlPoint(ControlPoint):
                 if pred_name in self._step_outputs:
                     pred_data = self._step_outputs[pred_name]
                     context = "\n".join(f"- {k}: {v}" for k, v in pred_data.items())
-                    return f"前置步骤 {pred_name} 的执行结果：\n{context}"
+                    if self.lang == "zh":
+                        return f"前置步骤 {pred_name} 的执行结果：\n{context}"
+                    return f"Execution result of predecessor step {pred_name}:\n{context}"
         except Exception as e:
             logger.warning(f"[LiveStreamingCP] Forward to predecessors failed: {e}")
         return None
@@ -195,53 +198,55 @@ class LiveStreamingControlPoint(ControlPoint):
                                        negotiation_text: str, receive_message: str,
                                        workflow_intent: str = "") -> str:
         if not self.llm_client:
-            return "信息不足，请基于已有数据尽力完成任务。"
+            if self.lang == "zh":
+                return "信息不足，请基于已有数据尽力完成任务。"
+            return "Insufficient information; please complete the task as best as possible with the available data."
         workflow_context = self._build_merge_context()
         current_step_info = ""
         if self._current_step and self._sdk_workflow:
             for s in self._sdk_workflow.steps:
                 if s.name == self._current_step and s.subtasks:
                     for sub in s.subtasks:
-                        current_step_info += f"步骤: {s.name}, 任务描述: {sub.description or ''}, 目标Agent: {sub.agent or ''}\n"
+                        current_step_info += f"Step: {s.name}, Task description: {sub.description or ''}, Target Agent: {sub.agent or ''}\n"
         lang_hint = "请用中文回复。" if self.lang == "zh" else "Respond in English."
-        prompt = f"""# 角色
-你是直播保障工作台的协商处理器。一个执行Agent在收到任务后发起了协商，明确列出了它缺少的数据字段。
-你的任务是：**针对Agent列出的每一个缺失字段，逐个补充具体的模拟数据**。
+        prompt = f"""# Role
+You are the negotiation handler for the live broadcast assurance workbench. An execution Agent raised a negotiation after receiving a task, explicitly listing the data fields it is missing.
+Your task: **for each missing field the Agent listed, fill in concrete simulated data one by one.**
 
-# 核心要求
-- **必须逐个字段回复**，Agent说缺什么你就补什么，一一对应
-- 每个字段给出具体数值，不要反问、不要说"请提供"
-- 数据要符合电信赛事直播保障的真实场景，数值合理
+# Core Requirements
+- **Reply field by field** -- whatever the Agent says is missing, you supply one-to-one.
+- Give a concrete value for each field; do not ask back, do not say "please provide".
+- Data must fit a realistic telecom live-broadcast assurance scenario with reasonable values.
 
-# 工作流场景
-{workflow_intent or "(未提供)"}
+# Workflow Scenario
+{workflow_intent or "(not provided)"}
 
-# 已完成步骤的执行结果
-{workflow_context or "(当前是第一个步骤，尚无已完成的前置步骤)"}
+# Execution Results of Completed Steps
+{workflow_context or "(this is the first step, no completed predecessor steps yet)"}
 
-# 当前步骤信息
-{current_step_info or "(未提供)"}
+# Current Step Info
+{current_step_info or "(not provided)"}
 
-# 当前Agent
+# Current Agent
 {agent_name}
 
-# 原始任务描述
-{original_task or "(未提供)"}
+# Original Task Description
+{original_task or "(not provided)"}
 
-# Agent的协商请求
+# Agent's Negotiation Request
 {negotiation_text}
 
-# 补充说明
+# Supplementary Notes
 {receive_message}
 
-# 输出格式
-请按以下格式输出：
+# Output Format
+Output as follows:
 
-## 补充数据
-- **字段名**: 具体值
-- **字段名**: 具体值
+## Supplementary Data
+- **field name**: concrete value
+- **field name**: concrete value
 
-直接输出补充数据，不要添加其他前缀。{lang_hint}"""
+Output the supplementary data directly, without other prefixes. {lang_hint}"""
         try:
             t0 = time.time()
             logger.info(f"[LiveStreamingCP] Negotiation clarification for '{agent_name}': calling LLM...")
@@ -252,27 +257,31 @@ class LiveStreamingControlPoint(ControlPoint):
             return result.strip() if result else ""
         except Exception as e:
             logger.error(f"[LiveStreamingCP] LLM clarification failed: {e}")
-            return "信息不足，请基于已有数据尽力完成任务。"
+            if self.lang == "zh":
+                return "信息不足，请基于已有数据尽力完成任务。"
+            return "Insufficient information; please complete the task as best as possible with the available data."
 
     async def _llm_execute_task(self, message: str) -> str:
         context = self._build_merge_context()
         lang_hint = "请用中文回复。" if self.lang == "zh" else "Respond in English."
-        prompt = f"""# 角色
-你是赛事直播保障Agent（Live Streaming Agent），负责赛事需求解析和实时KQI监控。
+        prompt = f"""# Role
+You are the Live Streaming Agent for event live broadcast assurance, responsible for event requirement parsing and real-time KQI monitoring.
 
-# 已完成步骤的执行结果
-{context or "(当前是第一个步骤，尚无已完成的前置步骤)"}
+# Execution Results of Completed Steps
+{context or "(this is the first step, no completed predecessor steps yet)"}
 
-# 当前任务
+# Current Task
 {message}
 
-# 输出要求
-- 基于任务描述和已有上下文，生成符合电信赛事直播保障场景的具体数据
-- 输出结构化的分析结果，包含具体的数值、时间、地点等信息
-- 数据要真实合理，符合5G网络赛事直播保障的实际场景
+# Output Requirements
+- Based on the task description and available context, generate concrete data fitting a telecom live-broadcast assurance scenario.
+- Output a structured analysis result with concrete values, times, locations, etc.
+- Data must be realistic and consistent with an actual 5G live-broadcast assurance scenario.
 {lang_hint}"""
         if not self.llm_client:
-            return f"Live Streaming Agent 执行完成: {message[:100]}"
+            if self.lang == "zh":
+                return f"Live Streaming Agent 执行完成: {message[:100]}"
+            return f"Live Streaming Agent execution done: {message[:100]}"
         try:
             t0 = time.time()
             logger.info(f"[LiveStreamingCP] Self-loop task: calling LLM...")
@@ -283,7 +292,9 @@ class LiveStreamingControlPoint(ControlPoint):
             return result.strip() if result else ""
         except Exception as e:
             logger.error(f"[LiveStreamingCP] LLM self-loop task failed: {e}")
-            return f"Live Streaming Agent 执行完成（LLM不可用）: {message[:200]}"
+            if self.lang == "zh":
+                return f"Live Streaming Agent 执行完成（LLM不可用）: {message[:200]}"
+            return f"Live Streaming Agent execution done (LLM unavailable): {message[:200]}"
 
     async def _llm_route_decision(self, current_step, task_result: Dict[str, Any]) -> str:
         results_context = []
@@ -431,9 +442,10 @@ class LiveStreamingAgentExecutor(AgentExecutor):
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         t_execute = time.time()
         intent = context.get_user_input()
+        self.lang = detect_lang(intent)
         task_id = context.task_id or "N/A"
         ctx_id = context.context_id or "N/A"
-        logger.info(f"[LiveStreamingAgent] execute: task_id={task_id}, context_id={ctx_id}, intent={intent[:100]}")
+        logger.info(f"[LiveStreamingAgent] execute: task_id={task_id}, context_id={ctx_id}, lang={self.lang}, intent={intent[:100]}")
 
         collected_events = []
         await event_queue.enqueue_event(Task(
@@ -560,42 +572,46 @@ class LiveStreamingAgentExecutor(AgentExecutor):
         )
 
     def _event_summary(self, etype: str, data: dict) -> str:
+        zh = self.lang == "zh"
         if etype == "start":
             wf_name = data.get("workflow", "")
-            return f"工作流开始: {wf_name}" if wf_name else "工作流开始"
+            if zh:
+                return f"工作流开始: {wf_name}" if wf_name else "工作流开始"
+            return f"Workflow started: {wf_name}" if wf_name else "Workflow started"
         if etype == "step_start":
-            return f"步骤开始: {data.get('step', '')}"
+            return f"步骤开始: {data.get('step', '')}" if zh else f"Step started: {data.get('step', '')}"
         if etype == "agent_request":
             return f"-> {data.get('agent', '')}"
         if etype == "agent_response":
             return f"<- {data.get('agent', '')}"
         if etype == "route_decision":
-            return f"路由: {data.get('step', '')} -> {data.get('next', '')}"
+            return f"路由: {data.get('step', '')} -> {data.get('next', '')}" if zh else f"Route: {data.get('step', '')} -> {data.get('next', '')}"
         if etype == "step_complete":
-            return f"步骤完成: {data.get('step', '')}"
+            return f"步骤完成: {data.get('step', '')}" if zh else f"Step completed: {data.get('step', '')}"
         if etype == "task_status_changed":
-            return f"状态: {data.get('status', '')}"
+            return f"状态: {data.get('status', '')}" if zh else f"Status: {data.get('status', '')}"
         if etype == "negotiation_request":
-            return f"协商请求: {data.get('agent', '')}"
+            return f"协商请求: {data.get('agent', '')}" if zh else f"Negotiation request: {data.get('agent', '')}"
         if etype == "negotiation_resolved":
-            return f"协商解决: {data.get('agent', '')}"
+            return f"协商解决: {data.get('agent', '')}" if zh else f"Negotiation resolved: {data.get('agent', '')}"
         if etype == "negotiation_failed":
-            return f"协商失败: {data.get('agent', '')}"
+            return f"协商失败: {data.get('agent', '')}" if zh else f"Negotiation failed: {data.get('agent', '')}"
         if etype == "complete":
-            return "工作流执行完成"
+            return "工作流执行完成" if zh else "Workflow execution complete"
         if etype == "error":
-            return f"错误: {data.get('error', '')}"
+            return f"错误: {data.get('error', '')}" if zh else f"Error: {data.get('error', '')}"
         if etype == "close":
-            return "流结束"
+            return "流结束" if zh else "Stream closed"
         return etype
 
     def _error_task(self, context: RequestContext, error_msg: str) -> TaskStatusUpdateEvent:
+        err_prefix = "错误" if self.lang == "zh" else "Error"
         return TaskStatusUpdateEvent(
             task_id=context.task_id,
             context_id=context.context_id,
             status=TaskStatus(
                 state=TaskState.TASK_STATE_FAILED,
-                message=Message(role=2, parts=[Part(text=f"错误: {error_msg}")]),
+                message=Message(role=2, parts=[Part(text=f"{err_prefix}: {error_msg}")]),
             ),
             metadata={"__sdk_event__": json.dumps(
                 {"type": "error", "data": {"error": error_msg}}, ensure_ascii=False

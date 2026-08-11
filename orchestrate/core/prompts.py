@@ -456,7 +456,17 @@ Output:
 """
 
 
-def get_retrieve_psop_prompt(user_intent: str, psop_list: str, top_n: int = 1) -> str:
+def get_retrieve_psop_prompt(
+    user_intent: str, psop_list: str, top_n: int = 1, lang: str = None
+) -> str:
+    lang_hint = ""
+    if lang:
+        lang_hint = (
+            f"\n5. **Language Consistency (Tiebreaker)**: The user intent is written in {lang}. "
+            f"When two or more PSOPs are otherwise equally relevant by the criteria above, "
+            f"prefer the one whose name and description are written in the SAME language ({lang}) "
+            f"as the user intent. This is a tiebreaker only — it must NOT override a clearly more relevant match."
+        )
     return f"""As a senior IT operations expert, select the top {top_n} most suitable existing PSOP workflow(s)
 for the given user intent, ordered by relevance.
 
@@ -470,7 +480,7 @@ for the given user intent, ordered by relevance.
 1. **Intent Match**: Evaluate how well each PSOP's name, description, user_intent, tags, and tasks align with the user intent.
 2. **Functional Coverage**: Assess whether the PSOP's capabilities cover the user's requirements.
 3. **Domain Relevance**: Consider the IT operations domain specialization match.
-4. **Relevance Ordering**: Order results from most to least relevant.
+4. **Relevance Ordering**: Order results from most to least relevant.{lang_hint}
 
 ## Output Format
 Output a JSON array of matched PSOP names, wrapped in ```json``` markers.
