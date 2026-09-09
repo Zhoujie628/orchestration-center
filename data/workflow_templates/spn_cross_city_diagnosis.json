@@ -53,7 +53,7 @@
         {
           "task_id": "task-merge-diagnosis",
           "description": "汇总两地市OMC诊断结论",
-          "agent": "Transport Workbench Agent",
+          "agent": "Host Agent",
           "skill": "cross-city-fault-diagnosis",
           "status": "pending"
         }
