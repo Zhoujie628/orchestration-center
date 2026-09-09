@@ -37,11 +37,6 @@ from common.custom import HandlerRegistry, InterfaceType
 from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
 from orchestrate import AgentCardLoader
 from orchestrate.workflow_storage_instance import get_workflow_storage
-from samples.agents.energy_saving_agent import EnergySavingAgentExecutor
-from samples.agents.energy_saving_intent_agent import EnergySavingIntentAgentExecutor
-from samples.agents.live_streaming_agent import LiveStreamingAgentExecutor
-from samples.agents.assurance_agent import AssuranceAgentExecutor
-from samples.agents.ran_agent import RanAgentExecutor
 from samples.agents.spn_domain_agent import SpnDomainAgentExecutor
 from samples.agents.spn_domain_agent_city2 import SpnDomainAgentCity2Executor
 from samples.agents.workbench_agent import WorkbenchAgentExecutor
@@ -145,12 +140,7 @@ def pre_insert_psop():
 
 async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1") -> None:
     agent2class = {
-        "RAN Energy Saving Agent": EnergySavingAgentExecutor,
-        "Energy Saving Intent Agent": EnergySavingIntentAgentExecutor,
-        "Live Streaming Agent": LiveStreamingAgentExecutor,
-        "Service Assurance Agent": AssuranceAgentExecutor,
-        "Wireless Domain Agent": RanAgentExecutor,
-        "Transport Workbench Agent": WorkbenchAgentExecutor,
+        "Host Agent": WorkbenchAgentExecutor,
         "SPN Domain Agent City1": SpnDomainAgentExecutor,
         "SPN Domain Agent City2": SpnDomainAgentCity2Executor
     }
