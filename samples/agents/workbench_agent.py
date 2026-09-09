@@ -600,7 +600,19 @@ class WorkbenchAgentExecutor(AgentExecutor):
         try:
             processed_intent = await self._process_intent(intent)
 
-            request_metadata = context.metadata or {}
+            # The orchestration center puts __orch_psop_id__ on the MESSAGE-level
+            # metadata (request_msg.metadata), while RequestContext.metadata exposes
+            # only the REQUEST-level field -- merge both so the selected psop_id is
+            # honored and no intent re-search happens.
+            request_metadata = dict(context.metadata or {})
+            incoming = context.message
+            if incoming is not None and incoming.metadata:
+                try:
+                    from google.protobuf.json_format import MessageToDict as _m2d
+                    for k, v in (_m2d(incoming.metadata) or {}).items():
+                        request_metadata.setdefault(k, v)
+                except Exception:
+                    pass
             psop_id = request_metadata.get("__orch_psop_id__")
             if psop_id:
                 logger.info(f"[WorkbenchAgent] Using psop_id from orchestration center: {psop_id}")
@@ -710,6 +722,11 @@ class WorkbenchAgentExecutor(AgentExecutor):
         workflow_agents = set()
         if workflow:
             for step in workflow.steps:
+                # SelfLoop steps run locally via on_self_task and never dispatch via A2A;
+                # pre-positioning extensions to their agent label (the host itself) makes the
+                # host send Authorization-T/Notification-T to itself and recurse endlessly.
+                if getattr(step, "step_type", None) is not None and getattr(step.step_type, "value", str(step.step_type)) == "SelfLoop":
+                    continue
                 for subtask in (step.subtasks or []):
                     if subtask.agent:
                         workflow_agents.add(subtask.agent)
@@ -718,7 +735,10 @@ class WorkbenchAgentExecutor(AgentExecutor):
             name = getattr(card, "name", "") or (card.get("name", "") if isinstance(card, dict) else "")
             if not name or name not in workflow_agents:
                continue
-            if "Workbench" in name:
+            if name == "Host Agent":
+                # Never pre-position extensions to the host itself, whatever the workflow
+                # labels say; the substring guard ("Workbench" in name) broke when the card
+                # was renamed and caused a self-dispatch recursion loop.
                 continue
             try:
                 t0 = time.time()
