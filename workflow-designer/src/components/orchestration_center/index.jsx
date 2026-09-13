@@ -110,6 +110,9 @@ const OrchestrationCenter = ({ isDark }) => {
     // Delete confirmation related status
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [wfToDelete, setWfToDelete] = useState(null);
+    // Workflow id returned by the first save of a brand-new design, so that
+    // subsequent saves update the same workflow instead of creating duplicates
+    const [savedWorkflowId, setSavedWorkflowId] = useState(null);
     useEffect(() => {
         let timer;
         if (loading) {
@@ -230,6 +233,19 @@ const OrchestrationCenter = ({ isDark }) => {
         }
     };
 
+    // Refresh only currentWf (name/description) after a save, without touching
+    // canvas nodes so the editor layout is preserved
+    const refreshWorkflowMeta = async (id) => {
+        try {
+            const res = await getWorkflowById(id);
+            if (res?.status === 'success') {
+                setCurrentWf({ id: res.data.id, name: res.data.name, rawText: res.data });
+            }
+        } catch (e) {
+            console.error("Failed to refresh workflow meta:", e);
+        }
+    };
+
     const handleImportTemplate = async (tplId) => {
         try {
             setImportingTpl(tplId);
@@ -244,6 +260,7 @@ const OrchestrationCenter = ({ isDark }) => {
                     name: psop.name,
                     rawText: psop
                 });
+                setSavedWorkflowId(null);
                 setActiveView('editor');
             }
         } catch (e) {
@@ -295,10 +312,10 @@ const OrchestrationCenter = ({ isDark }) => {
             setLoadingStatus(LOADING_STAGES.DELETING);
             const res = await delWorkflowById(wfToDelete.id);
             if (res.status === 'success') {
-                // If the deletion is the current selection, reset the view
+                // If the deleted one is currently selected, just clear the
+                // selection and stay in browse view
                 if (selectedId === wfToDelete.id) {
                     setSelectedId(null);
-                    setActiveView('welcome');
                 }
                 await fetchWorkflows();
             }
@@ -322,13 +339,14 @@ const OrchestrationCenter = ({ isDark }) => {
                                 backgroundSize: '40px 40px'
                             }} />
 
+                        <div className="my-auto z-10 flex flex-col items-center w-full">
                         <div className="mb-16 text-center z-10 animate-in fade-in zoom-in-95 duration-1000">
                             <h2 className="text-4xl font-black dark:text-white  mb-3">
                                 {t('orchestration.build_workflow')}
                             </h2>
                         </div>
 
-                        <div className="flex gap-8 z-10">
+                        <div className="flex flex-wrap justify-center gap-8 z-10 px-4">
                             <MethodCard
                                 icon={Upload} title={t('orchestration.method_import')} color="text-amber-500"
                                 onClick={() => setActiveView('packages')}
@@ -337,6 +355,8 @@ const OrchestrationCenter = ({ isDark }) => {
                                 icon={Layout} title={t('orchestration.method_graph')} color="text-blue-500"
                                 onClick={() => {
                                     setSelectedId(null);
+                                    setCurrentWf(null);
+                                    setSavedWorkflowId(null);
                                     setActiveView('editor');
                                     setNodes([]);
                                     setEdges([]);
@@ -350,11 +370,18 @@ const OrchestrationCenter = ({ isDark }) => {
                                 status={loadingStatus}
                                 t={t}
                             />
+                            <MethodCard
+                                icon={Eye} title={t('orchestration.manage_workflow')} color="text-emerald-500"
+                                onClick={() => {
+                                    setSelectedId(null);
+                                    setActiveView('browse');
+                                }}
+                            />
                         </div>
 
                         {templates.length > 0 && (
-                            <div className="z-10 mt-12 w-full max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-700">
-                                <div className="text-center mb-2">
+                            <div className="z-10 mt-14 w-full max-w-4xl px-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                <div className="text-center mb-4">
                                     <h3 className="text-xs font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em]">
                                         {t('orchestration.templates')}
                                     </h3>
@@ -362,14 +389,14 @@ const OrchestrationCenter = ({ isDark }) => {
                                         {t('orchestration.templates_hint')}
                                     </p>
                                 </div>
-                                <div className="grid grid-cols-3 gap-4">
+                                <div className="flex flex-wrap justify-center gap-4">
                                     {templates.map(tpl => (
                                         <button
                                             key={tpl.id}
                                             onClick={() => handleImportTemplate(tpl.id)}
                                             disabled={importingTpl === tpl.id}
                                             className={`
-                                                group relative text-left p-5 rounded-2xl border transition-all duration-300
+                                                group relative text-left p-5 w-64 rounded-2xl border transition-all duration-300
                                                 bg-white dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-700
                                                 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-lg
                                                 ${importingTpl === tpl.id ? 'opacity-60 cursor-wait' : 'hover:-translate-y-1 cursor-pointer'}
@@ -413,25 +440,7 @@ const OrchestrationCenter = ({ isDark }) => {
                             </div>
                         )}
 
-                        {workflows.length > 0 && (
-                            <div className="z-10 mt-16 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
-                                <h2 className="text-4xl font-black dark:text-white mb-3">
-                                    {t('orchestration.manage_workflow')}
-                                </h2>
-                            </div>
-                        )}
-
-                        <div className="z-10 mt-12 flex justify-center">
-                            <MethodCard
-                                icon={Eye} title={t('orchestration.browse_workflow')} color="text-emerald-500"
-                                onClick={() => {
-                                    setSelectedId(null);
-                                    setActiveView('browse');
-                                }}
-                            />
                         </div>
-
-                        <div className="mt-16 w-32 h-[1px] bg-gradient-to-r from-transparent via-zinc-200 dark:via-zinc-800 to-transparent" />
                     </div>
                 );
 
@@ -597,7 +606,10 @@ const OrchestrationCenter = ({ isDark }) => {
                                                 workflowName={currentWf?.name}
                                                 workflowDescription={currentWf?.rawText?.description}
                                                 onCancel={() => setBrowseMode('view')}
-                                                onSaveSuccess={fetchWorkflows}
+                                                onSaveSuccess={(savedId) => {
+                                                    if (savedId && savedId === selectedId) refreshWorkflowMeta(savedId);
+                                                    fetchWorkflows();
+                                                }}
                                             />
                                         </div>
                                     </div>
@@ -672,6 +684,10 @@ const OrchestrationCenter = ({ isDark }) => {
                                                 const { nodes: n, edges: e } = transformWorkflowToReactFlow(result);
                                                 setNodes(n);
                                                 setEdges(e);
+                                                // The backend auto-saves the generated PSOP; reuse its id
+                                                // so a manual save updates that copy instead of duplicating
+                                                setCurrentWf({ id: result.id, name: result.name, rawText: result });
+                                                setSavedWorkflowId(null);
                                                 setActiveView('editor');
                                             } catch (err) {
                                                 console.error("Generate failed:", err);
@@ -752,17 +768,23 @@ const OrchestrationCenter = ({ isDark }) => {
                                 // Props for Edit mode
                                 importedNodes={nodes}
                                 importedEdges={edges}
-                                workflowId={selectedId}
+                                workflowId={selectedId || currentWf?.id || savedWorkflowId}
                                 workflowName={currentWf?.name}
                                 workflowDescription={currentWf?.rawText?.description}
                                 onCancel={() => {
                                     if (selectedId) {
                                         setActiveView('detail');
                                     } else {
+                                        setCurrentWf(null);
+                                        setSavedWorkflowId(null);
                                         setActiveView('welcome');
                                     }
                                 }}
-                                onSaveSuccess={fetchWorkflows}
+                                onSaveSuccess={(savedId) => {
+                                    if (savedId && !selectedId) setSavedWorkflowId(savedId);
+                                    if (savedId) refreshWorkflowMeta(savedId);
+                                    fetchWorkflows();
+                                }}
                             />
                         </div>
                     </div>
@@ -785,6 +807,7 @@ const OrchestrationCenter = ({ isDark }) => {
                                 onClick={() => {
                                     setActiveView('welcome');
                                     setSelectedId(null);
+                                    setCurrentWf(null);
                                     setAiPrompt('');
                                 }}
                                 className="group flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all uppercase tracking-widest"

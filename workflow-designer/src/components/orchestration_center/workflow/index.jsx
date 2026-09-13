@@ -433,7 +433,7 @@ const FlowInner = ({
 
     useEffect(() => {
         if (mode === 'edit' && importedNodes?.length > 0) {
-            setEditNodes(importedNodes.map(node => ({ ...node, zIndex: 100, data: { ...node.data, isDark } })));
+            setEditNodes(importedNodes.map(node => ({ ...node, zIndex: 100, data: { ...node.data, isDark, editable: true } })));
             setIsDirty(false);
         }
     }, [importedNodes, setEditNodes, mode]);
@@ -442,7 +442,7 @@ const FlowInner = ({
         if (mode === 'edit') {
             setEditNodes(nds => nds.map(node => ({
                 ...node,
-                data: { ...node.data, isDark }
+                data: { ...node.data, isDark, editable: true }
             })));
         }
     }, [isDark, mode, setEditNodes]);
@@ -502,9 +502,9 @@ const FlowInner = ({
         }
     }, [isDirty, onCancel]);
 
-    const handleSaveSuccess = useCallback(() => {
+    const handleSaveSuccess = useCallback((savedId) => {
         setIsDirty(false);
-        if (onSaveSuccess) onSaveSuccess();
+        if (onSaveSuccess) onSaveSuccess(savedId);
     }, [onSaveSuccess]);
 
     const onDeleteSelected = useCallback(() => {
@@ -654,6 +654,7 @@ const FlowInner = ({
                         subtasks: [newSubtask],
                         status: 'pending',
                         name: newId,
+                        editable: true,
                         isDark,
                     },
                     width: 200,

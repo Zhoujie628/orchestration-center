@@ -328,7 +328,14 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
                 {isNode ? (
                     <>
 
-                        <ReadOnlyField label={t('workflow.panel.stepName')} value={data.label} isDark={isDark} />
+                        <Field
+                            label={t('workflow.panel.stepName')}
+                            value={data.label || ''}
+                            onChange={(v) => updateData('label', v)}
+                            placeholder={activeElement.id}
+                            fontMono
+                            isDark={isDark}
+                        />
 
                         {data.subtasks && data.subtasks.length > 0 ? (
                             <div className="space-y-3">
