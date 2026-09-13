@@ -19,7 +19,7 @@ import { dump } from 'js-yaml';
 import {
     Search, Loader2, Layout, Hash,
     Plus, Upload, MessageSquare,
-    ChevronRight, Sparkles, ChevronLeft, Code2, Trash2, Download, Eye, ArrowLeft
+    ChevronRight, Sparkles, ChevronLeft, Code2, Trash2, Download, Eye, ArrowLeft, TriangleAlert
 } from 'lucide-react';
 import { getAgentCards, getWorkflow, getWorkflowById, handlePlan, parsePdf, generateWorkflowFromIntent, delWorkflowById, getTemplates, importTemplate } from "@/service/api.js";
 import { transformWorkflowToReactFlow } from "./workflow/utils/index.jsx";
@@ -113,6 +113,14 @@ const OrchestrationCenter = ({ isDark }) => {
     // Workflow id returned by the first save of a brand-new design, so that
     // subsequent saves update the same workflow instead of creating duplicates
     const [savedWorkflowId, setSavedWorkflowId] = useState(null);
+    // Unsaved-changes flag lifted from the editor, used by the global header
+    // back button to guard against losing edits
+    const [editorDirty, setEditorDirty] = useState(false);
+    const [showLeaveEditorConfirm, setShowLeaveEditorConfirm] = useState(false);
+
+    useEffect(() => {
+        if (activeView !== 'editor') setEditorDirty(false);
+    }, [activeView]);
     useEffect(() => {
         let timer;
         if (loading) {
@@ -785,6 +793,7 @@ const OrchestrationCenter = ({ isDark }) => {
                                     if (savedId) refreshWorkflowMeta(savedId);
                                     fetchWorkflows();
                                 }}
+                                onDirtyChange={setEditorDirty}
                             />
                         </div>
                     </div>
@@ -805,6 +814,10 @@ const OrchestrationCenter = ({ isDark }) => {
                         {(activeView === 'editor' || activeView === 'ai') && (
                             <button
                                 onClick={() => {
+                                    if (activeView === 'editor' && editorDirty) {
+                                        setShowLeaveEditorConfirm(true);
+                                        return;
+                                    }
                                     setActiveView('welcome');
                                     setSelectedId(null);
                                     setCurrentWf(null);
@@ -884,6 +897,46 @@ const OrchestrationCenter = ({ isDark }) => {
                                     className="flex-1 px-6 py-3 rounded-xl bg-red-500 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-600 shadow-lg shadow-red-500/20 active:scale-95 transition-all"
                                 >
                                     {t('common.delete')}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Leave-editor confirmation dialog (global header back button) */}
+            {showLeaveEditorConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/20 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 shadow-2xl w-full max-w-md scale-in-center animate-in zoom-in-95 duration-300">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 text-amber-500 rounded-2xl mb-6">
+                                <TriangleAlert size={32} />
+                            </div>
+                            <h3 className="text-xl font-black dark:text-white mb-2 uppercase tracking-tight">
+                                {t('workflow.exit.title')}
+                            </h3>
+                            <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-8">
+                                {t('workflow.exit.desc')}
+                            </p>
+
+                            <div className="flex gap-4 w-full">
+                                <button
+                                    onClick={() => setShowLeaveEditorConfirm(false)}
+                                    className="flex-1 px-6 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+                                >
+                                    {t('common.cancel')}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowLeaveEditorConfirm(false);
+                                        setEditorDirty(false);
+                                        setActiveView('welcome');
+                                        setSelectedId(null);
+                                        setCurrentWf(null);
+                                        setSavedWorkflowId(null);
+                                    }}
+                                    className="flex-1 px-6 py-3 rounded-xl bg-amber-500 text-white font-bold text-xs uppercase tracking-widest hover:bg-amber-600 shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+                                >
+                                    {t('common.confirm')}
                                 </button>
                             </div>
                         </div>

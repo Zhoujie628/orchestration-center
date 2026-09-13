@@ -174,12 +174,14 @@ const initialEditNodes = [
         id: 'startNode',
         type: 'startNode',
         position: { x: 50, y: 300 },
+        deletable: false,
         data: { description: 'this is the start node', name: 'start_node', status: 'start-event' }
     },
     {
         id: 'endNode',
         type: 'endNode',
         position: { x: 1000, y: 300 },
+        deletable: false,
         data: { description: 'this is a end node.', status: 'end_node', type: 'end-event' }
     }
 ];
@@ -198,7 +200,8 @@ const FlowInner = ({
     workflowName,
     workflowDescription,
     onCancel,
-    onSaveSuccess
+    onSaveSuccess,
+    onDirtyChange
 }) => {
     const { t } = useTranslation();
     const { screenToFlowPosition, fitView, setCenter, getNode } = useReactFlow();
@@ -502,6 +505,12 @@ const FlowInner = ({
         }
     }, [isDirty, onCancel]);
 
+    // Lift the dirty flag so outer navigation (e.g. the global header back
+    // button) can guard against losing unsaved edits
+    useEffect(() => {
+        if (onDirtyChange) onDirtyChange(isDirty);
+    }, [isDirty, onDirtyChange]);
+
     const handleSaveSuccess = useCallback((savedId) => {
         setIsDirty(false);
         if (onSaveSuccess) onSaveSuccess(savedId);
@@ -509,7 +518,10 @@ const FlowInner = ({
 
     const onDeleteSelected = useCallback(() => {
         if (!selectedElement) return;
-        if (selectedElement.id === 'startNode' || selectedElement.id === 'endNode') return;
+        // Guard by type so both id schemes ('startNode'/'endNode' on a blank
+        // canvas and 'START_NODE'/'END_OF_WORKFLOW' on imported workflows) are covered
+        const selNode = editNodes.find(n => n.id === selectedElement.id);
+        if (selNode && (selNode.type === 'startNode' || selNode.type === 'endNode')) return;
 
         if (editNodes.some(n => n.id === selectedElement.id)) {
             setEditNodes((nds) => nds.filter((node) => node.id !== selectedElement.id));
@@ -798,7 +810,8 @@ const UnifiedWorkflow = ({
     workflowName,
     workflowDescription,
     onCancel,
-    onSaveSuccess
+    onSaveSuccess,
+    onDirtyChange
 }) => {
     const { t } = useTranslation();
 
@@ -841,6 +854,7 @@ const UnifiedWorkflow = ({
                     workflowDescription={workflowDescription}
                     onCancel={onCancel}
                     onSaveSuccess={onSaveSuccess}
+                    onDirtyChange={onDirtyChange}
                 />
             </ReactFlowProvider>
         </div>

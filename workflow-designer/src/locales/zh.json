@@ -210,6 +210,7 @@
       "edgeConfig": "分支配置",
       "agentName": "Agent 名称",
       "stepName": "步骤名称",
+      "boundaryNodeHint": "该节点由系统自动生成，用于标记工作流的开始/结束，不对应实际执行步骤，名称与配置不可修改",
       "status": "状态",
       "subtasks": "子任务",
       "taskDesc": "任务描述 (Task)",
