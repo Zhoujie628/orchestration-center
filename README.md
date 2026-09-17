@@ -136,7 +136,7 @@ sequenceDiagram
 |----------|------------|
 | **Visual Designer** | React Flow-based drag-and-drop workflow builder with automatic Dagre layout |
 | **Multi-Mode Creation** | PDF document import, manual drag-and-drop, and natural-language-to-workflow via LLM |
-| **A2A-T Negotiation** | Fulfillment negotiation between agents via workflow-engine, context carried in Task.metadata |
+| **A2A-T Negotiation** | Workflow-engine coordinates task identity and exchange lifecycle; host callbacks use current A2A-T content generation and validation APIs |
 | **Execution Engine** | `OrchestrationEngine` — thin A2A-T dispatch channel; PSOP workflow execution delegated to the Workbench Agent via workflow-engine SDK |
 | **Semantic Search** | Natural-language retrieval of previously built workflows |
 | **Dual API Layer** | Internal API (`/rest/v1/orchestrate/*`) for the frontend + External API (`/api/v1/*`) for third-party integration |
@@ -502,7 +502,7 @@ See [`.env.example`](.env.example) for DeepSeek, Qwen and self-hosted-gateway ex
 
 This project integrates the workflow-engine SDK for Workbench Agent workflow execution and agent
 fulfillment negotiation. Its configuration (`A2AT_LLM_PROVIDER`, `A2AT_LLM_MODEL`,
-`A2AT_LLM_API_KEY`, `A2AT_LLM_BASE_URL`, `A2AT_NEGOTIATION_STATE_STORE_TYPE`, …) is read directly
+`A2AT_LLM_API_KEY`, `A2AT_LLM_BASE_URL`, …) is read directly
 from the repo-root `.env` — set it there:
 
 ```bash
@@ -510,11 +510,12 @@ A2AT_LLM_PROVIDER=deepseek
 A2AT_LLM_MODEL=deepseek-chat
 A2AT_LLM_API_KEY=<your-api-key>
 A2AT_LLM_BASE_URL=https://api.deepseek.com
-A2AT_NEGOTIATION_STATE_STORE_TYPE=in_memory
 ```
 
 This is independent of the `LLM_CHAT_*` configuration above — there is no auto-derivation between
 the two.
+
+The workflow engine does not initialize the retired A2A-T negotiation state machine. Host code uses the current content generation and validation APIs and returns final protocol content through its callbacks.
 
 ## Documentation
 

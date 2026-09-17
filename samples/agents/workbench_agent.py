@@ -18,7 +18,7 @@
 """Workbench Agent -- workflow execution host.
 
 Leader role: receives the raw intent via A2A-T, searches/loads the PSOP
-workflow from the orchestration center, pre-positions extensions, then
+workflow from the orchestration center, then
 executes the workflow via the workflow-engine SDK (execute_psop), streaming
 SDK events back to the caller as A2A-T TaskUpdate events.
 
@@ -29,42 +29,39 @@ WorkbenchOrchestrator + WorkbenchControlPoint.
 import asyncio
 import json
 import time
-import uuid
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, Optional
-
-from loguru import logger
+from typing import Any
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.types import (
+    Message,
+    Part,
     Task,
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
-    Artifact,
-    Part,
-    Message,
 )
-
+from a2a_t.negotiation.content import NegotiationItem
+from loguru import logger
 from workflow_engine import (
+    A2atMessages,
     A2ATransport,
     ControlPoint,
     EventCallback,
     EventType,
-    ExtensionSender,
+    MessageContent,
+    NegotiationReply,
+    RegistryClient,
     RouteDecision,
-    TaskResponse,
-    Workflow as SDKWorkflow,
+    TaskResult,
     WorkflowEngineClient,
     execute_psop,
     load_psop,
     search_psop,
-    RegistryClient,
 )
-from workflow_engine.client.extension_handlers import TaskTHandler, NegotiationTHandler
 
 try:
     from a2a_t.llm.factory import LLMClientFactory as _LLMFactory
@@ -75,6 +72,23 @@ except Exception:
 
 from common.llm import get_llm_instance
 from common.util.config_util import get_conf
+from samples.agents.host_execution import (
+    HostExecutionTracker,
+    host_event_state,
+    host_final_state,
+)
+from samples.agents.spn_extension_lifecycle import SpnExtensionLifecycle
+from samples.agents.spn_protocol_content import (
+    INFORMATION_NEGOTIATION_PROPOSE_URI,
+    NEGOTIATION_ITEMS_SCHEMA,
+    complaint_data,
+    create_a2at_client,
+    negotiation_abort_content,
+    negotiation_accept_content,
+    negotiation_prompt,
+    negotiation_reject_content,
+    task_content,
+)
 from samples.agents.util.negotiation_utils import detect_lang
 
 
@@ -93,200 +107,185 @@ class WorkbenchControlPoint(ControlPoint):
         self,
         orch_url: str,
         ssl_verify: bool = False,
-        a2at_env_path: Optional[str] = None,
         lang: str = "zh",
     ):
         self.orch_url = orch_url.rstrip("/")
         self.ssl_verify = ssl_verify
-        self.a2at_env_path = a2at_env_path
         self.lang = lang or "zh"
         self.llm_client = get_llm_instance()
-        self._sdk_workflow: Optional[SDKWorkflow] = None
-        self._step_outputs: Dict[str, Dict[str, Any]] = {}
-        self._current_step: Optional[str] = None
-        self._engine_client: Optional[WorkflowEngineClient] = None
-
-    def set_workflow(self, workflow: SDKWorkflow):
-        self._sdk_workflow = workflow
-
-    def set_engine_client(self, engine_client: WorkflowEngineClient):
-        self._engine_client = engine_client
-
-    def update_step_outputs(self, step_outputs: Dict[str, Dict[str, Any]]):
-        self._step_outputs = dict(step_outputs)
-
-    def set_current_step(self, step_name: str):
-        self._current_step = step_name
+        self.a2at_client = create_a2at_client()
 
     # ------------------------------------------------------------------
     # ControlPoint interface
     # ------------------------------------------------------------------
 
-    async def on_task(self, request, engine_client: WorkflowEngineClient) -> TaskResponse:
-        """on_task: send a task to the agent via A2A-T and return the response.
-
-        The SDK handles Task-T prompt generation, Negotiation-T auto-loop,
-        auth, and extension header injection internally. Just send the message.
-        """
-        task_label = request.description or request.message
+    async def on_task(self, request) -> MessageContent:
+        """Generate final Task-T business content; the engine sends the envelope."""
         try:
-            result = await engine_client.send_message(request.agent_name, request.message)
-            if result.task_state and "INPUT_REQUIRED" in result.task_state:
-                raise RuntimeError(
-                    f"Negotiation with agent '{request.agent_name}' did not converge "
-                    f"after {self._NEGOTIATION_MAX_ROUNDS} round(s)."
-                )
-            return TaskResponse(success=bool(result.text), output=result.text or "")
+            return await asyncio.to_thread(task_content, self.a2at_client, request)
         except Exception as e:
-            err = f"Agent call failed : {str(e)}"
-            logger.error(f"  >Task failed: {task_label} | Error: {err}")
-            return TaskResponse(success=False, error=err)
+            logger.error(f"[ControlPoint] Task-T generation failed for {request.step_name}: {e}")
+            raise
 
-    async def on_self_task(self, request) -> TaskResponse:
+    async def on_self_task(self, request) -> TaskResult:
         """on_self_task: self-loop node -- the workbench handles it locally.
 
         Uses LLM to merge/aggregate prior step results. Does NOT send an
         A2A-T message (self-loop nodes are processed in-process).
         """
         try:
-            result = await self._llm_merge(request.message)
-            return TaskResponse(success=True, output=result)
+            result = await self._llm_merge(request.instruction, request.workflow_input)
+            return TaskResult.succeeded((result,))
         except Exception as e:
             err = f"Self-loop task failed : {str(e)}"
-            logger.error(f"  >Self-loop failed: {request.message[:60]} | Error: {err}")
-            return TaskResponse(success=False, error=err)
+            logger.error(f"  >Self-loop failed: {request.instruction[:60]} | Error: {err}")
+            return TaskResult.failed("self_task.failed", err)
 
-    async def on_route(self, step_name: str, results: Dict[str, Any],
-                       conditions: list) -> RouteDecision:
-        """on_route: LLM-driven branch decision at conditional forks."""
-        sdk_step = self._find_step(step_name)
-        next_name = await self._llm_route_decision(sdk_step, results)
-        return RouteDecision(next_step=next_name)
+    async def on_route(self, request) -> RouteDecision:
+        """Evaluate exactly one conditional edge supplied by the engine."""
+        allowed = await self._llm_route_condition(request)
+        if allowed:
+            return RouteDecision.allow("edge condition satisfied")
+        return RouteDecision.deny("edge condition not satisfied")
 
-    async def on_negotiation(self, agent_name: str, negotiation_text: str,
-                             receive_result: Dict[str, Any]) -> str:
-        """on_negotiation: supply clarification during Negotiation-T auto-loop.
-
-        Strategy: forward to direct DAG predecessors first; if they return
-        data, use that as the clarification. Otherwise, LLM-generate a
-        clarification from the execution context.
-        """
-        predecessor_data = await self._forward_to_predecessors(agent_name, negotiation_text)
-        if predecessor_data:
-            return predecessor_data
-        receive_msg = receive_result.get("message", "") if isinstance(receive_result, dict) else ""
-        original_task = ""
-        if isinstance(receive_result, dict):
-            for key, value in receive_result.items():
-                if "Task-T" in str(key) and isinstance(value, str) and len(value) > 20:
-                    original_task = value
-                    break
-            if not original_task:
-                original_task = receive_result.get("negotiationConcern", "") or ""
-        workflow_intent = ""
-        if self._sdk_workflow and hasattr(self._sdk_workflow, "user_intent"):
-            workflow_intent = self._sdk_workflow.user_intent or ""
-        clarification = await self._generate_clarification(
-            agent_name=agent_name,
-            original_task=original_task,
-            negotiation_text=negotiation_text,
-            receive_message=receive_msg,
-            workflow_intent=workflow_intent,
+    async def on_negotiation(self, request) -> NegotiationReply:
+        """Validate the proposal and return a generated Negotiation-T Accept."""
+        context = A2atMessages.negotiation_context(request.received)
+        prompt, template_uri = negotiation_prompt(request.received)
+        if template_uri != INFORMATION_NEGOTIATION_PROPOSE_URI:
+            reason = f"Unsupported negotiation template: {template_uri}"
+            return NegotiationReply.send(
+                await asyncio.to_thread(
+                    negotiation_abort_content,
+                    self.a2at_client,
+                    context,
+                    reason,
+                )
+            )
+        try:
+            filled = await asyncio.to_thread(
+                self.a2at_client.validate_propose_prompt_and_data_filling,
+                prompt,
+                context,
+                NEGOTIATION_ITEMS_SCHEMA,
+                template_uri,
+            )
+        except Exception as error:
+            reason = f"Cannot validate negotiation proposal: {error}"
+            return NegotiationReply.send(
+                await asyncio.to_thread(
+                    negotiation_abort_content,
+                    self.a2at_client,
+                    context,
+                    reason,
+                )
+            )
+        requested = filled.data.get("items")
+        if not isinstance(requested, (list, tuple)) or not requested:
+            return NegotiationReply.send(
+                await asyncio.to_thread(
+                    negotiation_reject_content,
+                    self.a2at_client,
+                    context,
+                    "No requested fields were extracted",
+                )
+            )
+        source = complaint_data(request.task)
+        answers = []
+        for field_name in requested:
+            name = str(field_name).strip()
+            value = source.get(name)
+            if not isinstance(value, str) or not value.strip():
+                return NegotiationReply.send(
+                    await asyncio.to_thread(
+                        negotiation_reject_content,
+                        self.a2at_client,
+                        context,
+                        f"Cannot supply field: {name}",
+                    )
+                )
+            answers.append(NegotiationItem(name, value))
+        return NegotiationReply.send(
+            await asyncio.to_thread(
+                negotiation_accept_content,
+                self.a2at_client,
+                context,
+                answers,
+                "补充诊断信息",
+            )
         )
-        return clarification or ""
 
-    # LLM routing (preserved from exec_engine._llm_route_decision)
+    # LLM routing
     # ------------------------------------------------------------------
 
-    async def _llm_route_decision(self, current_step, task_result: Dict[str, Any]) -> str:
+    async def _llm_route_condition(self, request) -> bool:
         results_context = []
-        for skill, res in task_result.items():
-            if isinstance(res, dict) and "error" in res:
-                results_context.append(f"[{skill}]: Execution failed - {res['error']}")
-            else:
-                text_res = res if isinstance(res, str) else str(res)
-                results_context.append(f"[{skill}]: Execution succeeded - Output summary: {text_res}")
-        results_text = "\n".join(results_context)
-        next_list = current_step.next if current_step is not None and current_step.next else []
-        next_conditions = json.dumps(
-            [{"step": c.step, "condition": c.condition} for c in next_list],
-            ensure_ascii=False, indent=2,
-        )
-        if current_step is not None:
-            step_name = current_step.name
-            if hasattr(current_step, "step_type") and current_step.step_type is not None:
-                step_type_val = current_step.step_type.value
-            elif hasattr(current_step, "type") and current_step.type is not None:
-                step_type_val = current_step.type.value
-            else:
-                step_type_val = "AllSuccess"
-        else:
-            step_name, step_type_val = "(unknown)", "AllSuccess"
+        for result in request.current_results:
+            outputs = "\n".join(str(output) for output in result.outputs)
+            results_context.append(
+                f"Agent: {result.agent_name}\n"
+                f"Status: {result.status.value}\n"
+                f"Outputs:\n{outputs or '(none)'}\n"
+                f"Error: {result.error or '(none)'}"
+            )
+        results_text = "\n\n".join(results_context) or "(no task results)"
         prompt_template = f"""
 # Role
-You are a workflow logic controller. Your task is to determine the next step of the
-workflow based on the task execution results and predefined conditions.
+You are a workflow edge-condition evaluator.
 
 # Current Context
-Current step: {step_name}
-Step type: {step_type_val}
+Current step: {request.step_name}
+Candidate next step: {request.next_step}
 
-# Execution Results (Previous Step Output)
+# Current Step Results
 {results_text}
 
-# Next Conditions (Required for Transition)
-{next_conditions}
+# Condition To Evaluate
+{request.condition}
 
 # Decision Logic
-1. Analyze the Execution Results above.
-2. Check whether any of the Next Conditions' "condition" descriptions are satisfied.
-   - If a condition says e.g. "xx succeeded", check the results for evidence that xx succeeded.
-   - An empty condition ('""') typically means unconditional transition to the next step.
-3. If a condition is met, output the corresponding target step name.
-4. If no condition is met, or the task execution contains an error, output "end".
-5. If the result is ambiguous but appears successful, output "retry" to request manual intervention.
+Evaluate only this candidate edge. Other outgoing edges are evaluated independently.
+Return true only when the condition is supported by the results; otherwise return false.
 
 # Output Format
-- Output exactly one word or phrase: the target step name (e.g. "step2"), "end", or "retry".
-- Do NOT output any explanation, punctuation, or other characters.
+- Output exactly one lowercase word: true or false.
+- Do not output an explanation or punctuation.
 """
         if not self.llm_client:
-            raise ValueError("LLM Client not initialized.")
+            logger.error("LLM client is not initialized; denying conditional edge")
+            return False
         try:
             t0 = time.time()
-            logger.info(f"[ControlPoint] LLM route decision for step '{step_name}': calling LLM...")
+            logger.info(
+                f"[ControlPoint] Evaluating route {request.step_name} -> "
+                f"{request.next_step}: calling LLM..."
+            )
             _, decision = await asyncio.get_event_loop().run_in_executor(
                 self._llm_executor, self.llm_client.ask_llm, prompt_template
             )
-            logger.info(f"[ControlPoint] LLM route decision for step '{step_name}': LLM call done ({time.time()-t0:.2f}s)")
-            decision = decision.strip() if decision else ""
-            if not decision:
-                logger.error(f"LLM returned empty decision for step '{step_name}', defaulting to termination.")
-                return "end"
-            logger.info(f"LLM route decision for step '{step_name}': raw='{decision}', conditions={next_conditions}")
-            if decision in ["end", "retry"]:
-                return decision
-            allowed_next = [jc.step for jc in next_list]
-            allowed_lower = {n.lower(): n for n in allowed_next}
-            if decision in allowed_next:
-                return decision
-            if decision.lower() in allowed_lower:
-                logger.info(f"LLM step name '{decision}' case-normalized to '{allowed_lower[decision.lower()]}'")
-                return allowed_lower[decision.lower()]
-            else:
-                logger.warning(f"LLM returned step '{decision}' not in declared next {allowed_next}, defaulting to termination.")
-                return "end"
+            normalized = (decision or "").strip().lower().strip("` .")
+            logger.info(
+                f"[ControlPoint] Route {request.step_name} -> {request.next_step} "
+                f"evaluated as '{normalized}' ({time.time()-t0:.2f}s)"
+            )
+            if normalized == "true":
+                return True
+            if normalized != "false":
+                logger.warning(
+                    f"Unexpected route decision '{decision}'; denying conditional edge"
+                )
+            return False
         except Exception as e:
-            logger.error(f"LLM call failed: {e}")
-            return "end"
+            logger.error(f"Conditional route evaluation failed: {e}")
+            return False
 
     # ------------------------------------------------------------------
     # LLM self-loop merge (preserved from exec_engine.on_self_task logic)
     # ------------------------------------------------------------------
 
-    async def _llm_merge(self, message: str) -> str:
+    async def _llm_merge(self, message: str, workflow_input) -> str:
         """LLM merge/analyze for self-loop nodes (e.g. merge_analysis step)."""
-        context = self._build_merge_context()
+        context = self._format_workflow_input(workflow_input)
         lang_hint = "Respond in Chinese." if self.lang == "zh" else "Respond in English."
         prompt = f"""# Role
 You are the workbench agent performing a self-loop (local processing) task.
@@ -302,7 +301,7 @@ Analyze the available execution context and produce a comprehensive result.
 Produce a clear, structured analysis based on the context above. {lang_hint}"""
         try:
             t0 = time.time()
-            logger.info(f"[Workbench] Self-loop merge: calling LLM...")
+            logger.info("[Workbench] Self-loop merge: calling LLM...")
             _, result = await asyncio.get_event_loop().run_in_executor(
                 self._llm_executor, self.llm_client.ask_llm, prompt
             )
@@ -314,199 +313,36 @@ Produce a clear, structured analysis based on the context above. {lang_hint}"""
             logger.error(f"[Workbench] LLM merge failed: {e}")
         return "Self-loop processing complete (LLM unavailable)."
 
-    def _build_merge_context(self) -> str:
-        if not self._step_outputs:
-            return "(no completed steps yet)"
-        steps = self._sdk_workflow.steps if self._sdk_workflow else []
+    @staticmethod
+    def _format_workflow_input(workflow_input) -> str:
         parts = []
-        for step in steps:
-            name = getattr(step, "name", None)
-            if not name or name not in self._step_outputs:
-                continue
-            outputs = self._step_outputs[name]
-            parts.append(f"### {name}")
-            for task_desc, output in outputs.items():
-                text = output if isinstance(output, str) else str(output)
-                parts.append(f"- Task: {task_desc}")
-                parts.append(f"  Output: {text}")
-        return "\n".join(parts) if parts else "(no completed steps yet)"
-
-    # ------------------------------------------------------------------
-    # Negotiation: LLM clarification (DAG forwarding simplified)
-    # ------------------------------------------------------------------
-
-    async def _forward_to_predecessors(self, agent_name: str, negotiation_text: str) -> Optional[str]:
-        """Forward negotiation request to direct DAG predecessors via A2A-T.
-
-        Mirrors the original exec_engine._forward_to_predecessors: send a
-        follow-up message to predecessor agents asking for supplemental data
-        or clarification, then return their combined response.
-        """
-        current_name = self._current_step
-        if not current_name or self._sdk_workflow is None:
-            return None
-        workflow = self._sdk_workflow
-        predecessor_names = []
-        for s in workflow.steps:
-            if s.next:
-                for jc in s.next:
-                    if jc.step == current_name and s.name != current_name:
-                        predecessor_names.append(s.name)
-                        break
-        if not predecessor_names:
-            logger.info(f"Step '{current_name}' has no predecessor steps")
-            return None
-        logger.info(
-            f"Forwarding negotiation from '{agent_name}' (step '{current_name}') "
-            f"to predecessors: {predecessor_names}"
-        )
-        if not self._engine_client:
-            logger.warning("No engine_client set, cannot forward to predecessors")
-            return None
-        collected = {}
-        for pred_name in predecessor_names:
-            prior_output = self._step_outputs.get(pred_name, {})
-            prior_summary = json.dumps(prior_output, ensure_ascii=False, default=str)[:2000]
-            pred_step = None
-            for s in workflow.steps:
-                if s.name == pred_name:
-                    pred_step = s
-                    break
-            if not pred_step or not pred_step.subtasks:
-                continue
-            for task in pred_step.subtasks:
-                pred_agent = task.agent
-                if not pred_agent:
-                    continue
-                forward_msg = (
-                    f"[Negotiation Request - Forwarded from Workbench]\n\n"
-                    f"Agent '{agent_name}' is processing a follow-up task "
-                    f"and indicates it needs additional data or clarification.\n\n"
-                    f"The original output you provided for step '{pred_name}':\n"
-                    f"---\n{prior_summary}\n---\n\n"
-                    f"The request from '{agent_name}':\n"
-                    f"---\n{negotiation_text}\n---\n\n"
-                    f"As the predecessor agent, please provide supplemental data "
-                    f"or clarification to help resolve this."
+        if workflow_input.runtime_intent:
+            parts.append(f"Runtime intent: {workflow_input.runtime_intent}")
+        for upstream in workflow_input.upstream_results:
+            parts.append(f"### {upstream.step_name}")
+            for result in upstream.task_results:
+                parts.append(
+                    f"- Agent: {result.agent_name}; skill: {result.skill}; "
+                    f"status: {result.status.value}"
                 )
-                logger.info(f"Forwarding to predecessor '{pred_agent}' (step '{pred_name}')")
-                try:
-                    result = await self._engine_client.send_message(pred_agent, forward_msg)
-                    if result and result.text:
-                        collected[pred_agent] = result.text
-                        logger.info(f"Got response from '{pred_agent}' ({len(result.text)} chars)")
-                    else:
-                        logger.warning(f"Empty response from '{pred_agent}'")
-                except Exception as e:
-                    logger.warning(f"Failed to contact predecessor '{pred_agent}': {e}")
-        if not collected:
-            logger.warning("No data collected from any predecessor agent")
-            return None
-        parts = [f"[Response from {a}]:\n{d}" for a, d in collected.items()]
-        return "\n\n".join(parts)
-
-    async def _generate_clarification(self, agent_name: str, original_task: str,
-                                       negotiation_text: str, receive_message: str,
-                                       workflow_intent: str = "") -> str:
-        if not self.llm_client:
-            return (
-                "Engine received your negotiation request and has reviewed the execution "
-                "context. Please proceed with the original task using the clarification "
-                "above. If you have specific questions, state them clearly."
-            )
-        workflow_context = self._build_merge_context()
-        current_step_info = ""
-        if self._current_step and self._sdk_workflow:
-            for s in self._sdk_workflow.steps:
-                if s.name == self._current_step and s.subtasks:
-                    for sub in s.subtasks:
-                        current_step_info += f"Step: {s.name}, Task description: {sub.description or ''}, Target Agent: {sub.agent or ''}\n"
-        lang_hint = "请用中文回复。" if self.lang == "zh" else "Respond in English."
-        prompt = f"""# Role
-You are the workbench's negotiation handler. An execution Agent raised a negotiation after receiving a task, explicitly listing the data fields it is missing.
-Your task: **for each missing field the Agent listed, fill in concrete simulated data one by one.**
-
-# Core Requirements
-- **Reply field by field** -- whatever the Agent says is missing, you supply one-to-one.
-- Give a concrete value for each field; do not ask back, do not say "please provide".
-- Data must fit a realistic telecom SPN private-line O&M scenario with reasonable values.
-- Do not regenerate information already present in the Agent's "provided" section.
-
-# Workflow Scenario
-{workflow_intent or "(not provided)"}
-
-# Execution Results of Completed Steps
-{workflow_context or "(this is the first step, no completed predecessor steps yet)"}
-
-# Current Step Info
-{current_step_info or "(not provided)"}
-
-# Current Agent
-{agent_name}
-
-# Original Task Description
-{original_task or "(not provided)"}
-
-# Agent's Negotiation Request (provided + missing field list)
-{negotiation_text}
-
-# Supplementary Notes
-{receive_message}
-
-# Output Format
-Output as follows, filling in each item of the Agent's "missing" list one by one:
-
-## Supplementary Data
-- **field name**: concrete value
-- **field name**: concrete value
-...
-
-Output the supplementary data directly, without other prefixes. {lang_hint}"""
-        try:
-            t0 = time.time()
-            logger.info(f"[Workbench] Negotiation clarification for '{agent_name}': calling LLM...")
-            _, clarification = await asyncio.get_event_loop().run_in_executor(
-                self._llm_executor, self.llm_client.ask_llm, prompt,
-            )
-            logger.info(f"[Workbench] Negotiation clarification for '{agent_name}': LLM call done ({time.time()-t0:.2f}s)")
-            clarification = clarification.strip() if clarification else ""
-            if clarification:
-                logger.info(f"Generated negotiation clarification for '{agent_name}': {clarification[:150]}...")
-                return clarification
-        except Exception as e:
-            logger.error(f"LLM clarification failed: {e}")
-        return (
-            "Engine received your negotiation request. Please re-attempt the original "
-            "task. If you have specific questions, state them clearly."
-        )
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    def _find_step(self, step_name: str):
-        if self._sdk_workflow is None:
-            return None
-        for s in self._sdk_workflow.steps:
-            if s.name == step_name:
-                return s
-        return None
-
+                for output in result.outputs:
+                    parts.append(f"  Output: {output}")
+                if result.error:
+                    parts.append(f"  Error: {result.error}")
+        return "\n".join(parts) if parts else "(no upstream workflow input)"
 
 class _WorkbenchEventCallback(EventCallback):
-    """Tracks current step for negotiation forwarding + step outputs update."""
+    """Log workflow timings without retaining request state on the executor."""
 
-    def __init__(self, control_point: WorkbenchControlPoint):
-        self._cp = control_point
-        self._step_start_times: Dict[str, float] = {}
-        self._task_start_times: Dict[str, float] = {}
+    def __init__(self):
+        self._step_start_times: dict[str, float] = {}
+        self._task_start_times: dict[str, float] = {}
 
-    def on_event(self, event_type: str, data: Dict[str, Any]):
+    def on_event(self, event_type: str, data: dict[str, Any]):
         now = time.time()
         if event_type == EventType.STEP_START:
             step_name = data.get("step")
             self._step_start_times[step_name] = now
-            self._cp.set_current_step(step_name)
             logger.info(f"[Timing] Step '{step_name}' started")
         elif event_type == EventType.TASK_REQUEST:
             agent = data.get("agent", "?")
@@ -518,49 +354,27 @@ class _WorkbenchEventCallback(EventCallback):
             step = data.get("step", "?")
             elapsed = now - self._task_start_times.get(agent, now)
             logger.info(f"[Timing] Task response from '{agent}' (step={step}): {elapsed:.2f}s")
-        elif event_type == EventType.TASK_STATUS_CHANGED:
-            step_name = data.get("step")
-            status = data.get("status", "")
-            if step_name and status:
-                outputs = self._cp._step_outputs.setdefault(step_name, {})
-                outputs[data.get("subtask", "task")] = data.get("result", "")
         elif event_type == EventType.STEP_COMPLETE:
             step_name = data.get("step")
             elapsed = now - self._step_start_times.get(step_name, now)
             logger.info(f"[Timing] Step '{step_name}' completed: {elapsed:.2f}s")
-        elif event_type == EventType.WORKFLOW_COMPLETE:
-            d = data if isinstance(data, dict) else {}
-            self._cp.update_step_outputs(d.get("step_outputs", {}))
-        elif event_type == EventType.ERROR:
-            d = data if isinstance(data, dict) else {}
-            self._cp.update_step_outputs(d.get("step_outputs", {}))
+
+    def transform(self, event: dict) -> dict:
+        self.on_event(event.get("type", ""), event.get("data", {}))
+        return event
 
 
 class WorkbenchAgentExecutor(AgentExecutor):
     """Workbench Agent -- workflow execution host, integrated with workflow-engine SDK.
 
     Leader role: receives the raw intent via A2A-T, searches/loads the PSOP
-    workflow from the orchestration center, pre-positions extensions, then
+    workflow from the orchestration center, then
     executes the workflow via execute_psop, streaming SDK events back
     as A2A-T TaskUpdate events.
     """
 
-    _AUTH_INPUT = (
-        "任务类型新增授权，操作名称业务抢通，"
-        "操作类型光模块更换，"
-        "操作对象SPN专线业务，溯源策略OMC自判自执行，"
-        "触发执行条件业务投诉诊断确认故障，"
-        "预期输出返回是否成功。"
-    )
-    _NOTIF_INPUT = (
-        "通知主题为service-recovery-execution-result，"
-        "订阅条件业务抢通方案执行结果，"
-        "上报通知数据格式为TextPart。"
-    )
-
-    def __init__(self) -> None:
-        self.lang = "zh"
-        self._a2at_env_path = str(Path(__file__).resolve().parents[2] / ".env")
+    def __init__(self, extension_agent_cards: list | None = None) -> None:
+        self._execution_tracker = HostExecutionTracker()
         self._ssl_verify = str(get_conf().get("client_verify_server", "false")).lower() == "true"
 
         # Orchestration center URL (for PSOP search/load via external API)
@@ -575,21 +389,44 @@ class WorkbenchAgentExecutor(AgentExecutor):
         self._cred_path = str(
             Path(__file__).resolve().parent.parent / "agent_credentials.json"
         )
+        self._extension_lifecycle = (
+            SpnExtensionLifecycle(
+                extension_agent_cards,
+                self._cred_path,
+                self._ssl_verify,
+            )
+            if extension_agent_cards
+            else None
+        )
 
         logger.info(
             f"[WorkbenchAgent] Initialized: orch_url={self._orch_url}, "
             f"registry_url={self._registry_url}, ssl_verify={self._ssl_verify}"
         )
 
+    async def start(self) -> None:
+        """Start independent Authorization-T and Notification-T operations."""
+        if self._extension_lifecycle is not None:
+            self._extension_lifecycle.start()
+
+    async def aclose(self) -> None:
+        if self._extension_lifecycle is not None:
+            await self._extension_lifecycle.aclose()
+
+    def shutdown(self) -> None:
+        if self._extension_lifecycle is not None:
+            self._extension_lifecycle.request_stop()
+
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         t_execute = time.time()
         intent = context.get_user_input()
-        self.lang = detect_lang(intent)
+        lang = detect_lang(intent)
         task_id = context.task_id or "N/A"
         ctx_id = context.context_id or "N/A"
-        logger.info(f"[WorkbenchAgent] execute: task_id={task_id}, context_id={ctx_id}, lang={self.lang}, intent={intent[:100]}")
+        logger.info(f"[WorkbenchAgent] execute: task_id={task_id}, context_id={ctx_id}, lang={lang}, intent={intent[:100]}")
 
         collected_events = []
+        self._execution_tracker.begin(context.task_id)
         await event_queue.enqueue_event(Task(
             id=context.task_id,
             context_id=context.context_id,
@@ -597,6 +434,7 @@ class WorkbenchAgentExecutor(AgentExecutor):
             metadata={},
         ))
 
+        engine_client = None
         try:
             processed_intent = await self._process_intent(intent)
 
@@ -631,69 +469,66 @@ class WorkbenchAgentExecutor(AgentExecutor):
 
             transport = A2ATransport(
                 agent_cards=agent_cards,
-                a2at_env_path=self._a2at_env_path,
                 credentials_config=self._cred_path,
                 ssl_verify=self._ssl_verify,
             )
-            engine_client = WorkflowEngineClient(
+            engine_client = WorkflowEngineClient.owning(
                 transport,
-                custom_handlers=[TaskTHandler(), NegotiationTHandler()],
-                max_negotiation_rounds=3,
+                max_negotiation_exchanges=3,
             )
-
-            sender = await self._pre_position_extensions(transport, agent_cards, workflow=workflow, event_queue=event_queue, context=context)
 
             cp = WorkbenchControlPoint(
                 orch_url=self._orch_url,
                 ssl_verify=self._ssl_verify,
-                a2at_env_path=self._a2at_env_path,
-                lang=self.lang,
+                lang=lang,
             )
-            sdk_workflow = workflow
-            cp.set_workflow(sdk_workflow)
-            cp.set_engine_client(engine_client)
-            engine_client.set_control_point(cp)
-            engine_client.set_event_callback(_WorkbenchEventCallback(cp))
+            event_tracker = _WorkbenchEventCallback()
 
             t0 = time.time()
-            logger.info(f"[WorkbenchAgent] Starting workflow execution")
+            logger.info("[WorkbenchAgent] Starting workflow execution")
             async for event in execute_psop(
                 psop=workflow,
                 agent_cards=agent_cards,
                 control_point=cp,
                 engine_client=engine_client,
                 runtime_intent=processed_intent,
-                lang=self.lang,
+                lang=lang,
                 ssl_verify=self._ssl_verify,
+                on_event=event_tracker.transform,
             ):
                 collected_events.append(event)
-                task_update = self._event_to_task_update(event, context)
+                task_update = self._event_to_task_update(event, context, lang)
                 await event_queue.enqueue_event(task_update)
             logger.info(f"[WorkbenchAgent] Workflow execution done ({time.time()-t0:.2f}s), {len(collected_events)} events")
 
             await event_queue.enqueue_event(Task(
                 id=context.task_id,
                 context_id=context.context_id,
-                status=TaskStatus(state=TaskState.TASK_STATE_COMPLETED),
+                status=TaskStatus(state=host_final_state(collected_events)),
                 metadata={"__sdk_events__": json.dumps(collected_events, ensure_ascii=False, default=str)},
             ))
             logger.info(f"[WorkbenchAgent] Total execute time: {time.time()-t_execute:.2f}s")
-            try:
-                if sender:
-                    sender.cancel_notification_streams()
-            except Exception:
-                pass
-            try:
-                await engine_client.close()
-            except Exception:
-                pass
 
+        except asyncio.CancelledError:
+            return
         except Exception as e:
             logger.error(f"[WorkbenchAgent] Failed: {e}", exc_info=True)
-            await event_queue.enqueue_event(self._error_task(context, str(e)))
+            await event_queue.enqueue_event(self._error_task(context, str(e), lang))
+        finally:
+            self._execution_tracker.end(context.task_id)
+            if engine_client is not None:
+                with suppress(Exception):
+                    await engine_client.close()
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         logger.info(f"[WorkbenchAgent] Task cancelled: task_id={context.task_id}")
+        self._execution_tracker.cancel(context.task_id)
+        await event_queue.enqueue_event(Task(
+            id=context.task_id,
+            context_id=context.context_id,
+            status=TaskStatus(state=TaskState.TASK_STATE_CANCELED),
+            metadata={},
+        ))
 
     async def _process_intent(self, intent: str) -> str:
         return intent
@@ -716,76 +551,12 @@ class WorkbenchAgentExecutor(AgentExecutor):
         logger.info(f"[WorkbenchAgent] Loaded {len(cards)} agent cards from registry")
         return cards
 
-    async def _pre_position_extensions(self, transport: A2ATransport, agent_cards: list, workflow=None, event_queue=None, context=None):
-        t_total = time.time()
-        sender = ExtensionSender(transport)
-        workflow_agents = set()
-        if workflow:
-            for step in workflow.steps:
-                # SelfLoop steps run locally via on_self_task and never dispatch via A2A;
-                # pre-positioning extensions to their agent label (the host itself) makes the
-                # host send Authorization-T/Notification-T to itself and recurse endlessly.
-                if getattr(step, "step_type", None) is not None and getattr(step.step_type, "value", str(step.step_type)) == "SelfLoop":
-                    continue
-                for subtask in (step.subtasks or []):
-                    if subtask.agent:
-                        workflow_agents.add(subtask.agent)
-        logger.info(f"[WorkbenchAgent] Pre-positioning to {len(workflow_agents)} workflow agents: {workflow_agents}")
-        for card in agent_cards:
-            name = getattr(card, "name", "") or (card.get("name", "") if isinstance(card, dict) else "")
-            if not name or name not in workflow_agents:
-               continue
-            if name == "Host Agent":
-                # Never pre-position extensions to the host itself, whatever the workflow
-                # labels say; the substring guard ("Workbench" in name) broke when the card
-                # was renamed and caused a self-dispatch recursion loop.
-                continue
-            try:
-                t0 = time.time()
-                logger.info(f"[WorkbenchAgent] Pre-position Authorization-T to {name}")
-                await sender.send_authorization(name, "下发授权放行策略", self._AUTH_INPUT)
-                logger.info(f"[WorkbenchAgent] Authorization-T to {name} done ({time.time()-t0:.2f}s)")
-            except Exception as e:
-                logger.warning(f"[WorkbenchAgent] Auth-T to {name} failed: {e}")
-            logger.info(f"[WorkbenchAgent] Pre-position Notification-T to {name} (long-lived SSE)")
-            try:
-                await sender.send_notification(
-                    name, "订阅业务抢通结果通知", self._NOTIF_INPUT,
-                    event_callback=lambda evt, n=name: self._on_notification_event(evt, n, event_queue, context),
-                )
-                logger.info(f"[WorkbenchAgent] Notification-T subscription confirmed for {name}")
-            except Exception as e:
-                logger.warning(f"[WorkbenchAgent] Notification-T to {name} failed: {e}")
-        logger.info(f"[WorkbenchAgent] Extension pre-positioning complete ({time.time()-t_total:.2f}s)")
-        return sender
-
-    def _on_notification_event(self, event: Dict[str, Any], agent_name: str, event_queue=None, context=None):
-        """Handle Notification-T SSE events (recovery results pushed by agents)."""
-        text = event.get("text", "")
-        state = event.get("state", "")
-        evt_type = event.get("type", "")
-        logger.info(f"[WorkbenchAgent] Notification-T from {agent_name}: type={evt_type}, state={state}, text={len(text)} chars")
-        if text:
-            logger.info(f"[WorkbenchAgent] Recovery result from {agent_name}: {text[:200]}")
-        if event_queue and context:
-            artifact_text = f"[Notification-T] {agent_name}: {text}" if text else f"[Notification-T] {agent_name}: {evt_type}"
-            artifact = Artifact(
-                artifact_id=str(uuid.uuid4()),
-                name=f"notification-{agent_name}",
-                parts=[Part(text=artifact_text)],
-                metadata={"notification_agent": agent_name, "notification_state": state, "notification_type": evt_type},
-            )
-            try:
-                loop = asyncio.get_event_loop()
-                loop.create_task(event_queue.enqueue_event(TaskArtifactUpdateEvent(
-                    task_id=context.task_id,
-                    context_id=context.context_id,
-                    artifact=artifact,
-                )))
-            except Exception as e:
-                logger.warning(f"[WorkbenchAgent] Failed to enqueue notification artifact: {e}")
-
-    def _event_to_task_update(self, event: dict, context: RequestContext):
+    def _event_to_task_update(
+        self,
+        event: dict,
+        context: RequestContext,
+        lang: str,
+    ):
         """Convert an SDK event dict to an A2A-T TaskStatusUpdateEvent.
 
         All events use TaskStatusUpdateEvent (not TaskArtifactUpdateEvent)
@@ -799,14 +570,10 @@ class WorkbenchAgentExecutor(AgentExecutor):
         """
         etype = event.get("type", "")
         data = event.get("data", {})
-        summary = self._event_summary(etype, data)
+        summary = self._event_summary(etype, data, lang)
         metadata = {"__sdk_event__": json.dumps(event, ensure_ascii=False, default=str)}
 
-        state = (
-            TaskState.TASK_STATE_COMPLETED if etype in ("complete", "close")
-            else TaskState.TASK_STATE_FAILED if etype == "error"
-            else TaskState.TASK_STATE_WORKING
-        )
+        state = host_event_state(etype)
         return TaskStatusUpdateEvent(
             task_id=context.task_id,
             context_id=context.context_id,
@@ -817,8 +584,8 @@ class WorkbenchAgentExecutor(AgentExecutor):
             metadata=metadata,
         )
 
-    def _event_summary(self, etype: str, data: dict) -> str:
-        zh = self.lang == "zh"
+    def _event_summary(self, etype: str, data: dict, lang: str) -> str:
+        zh = lang == "zh"
         if etype == "start":
             wf_name = data.get("workflow", "")
             if zh:
@@ -854,8 +621,13 @@ class WorkbenchAgentExecutor(AgentExecutor):
             return "流结束" if zh else "Stream closed"
         return etype
 
-    def _error_task(self, context: RequestContext, error_msg: str) -> TaskStatusUpdateEvent:
-        err_prefix = "错误" if self.lang == "zh" else "Error"
+    def _error_task(
+        self,
+        context: RequestContext,
+        error_msg: str,
+        lang: str,
+    ) -> TaskStatusUpdateEvent:
+        err_prefix = "错误" if lang == "zh" else "Error"
         return TaskStatusUpdateEvent(
             task_id=context.task_id,
             context_id=context.context_id,

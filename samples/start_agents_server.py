@@ -18,31 +18,30 @@
 import asyncio
 import json
 import os
+import secrets as _secrets
 import signal
+import time as _time
+from contextlib import suppress
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 import uvicorn
 from a2a.server.request_handlers import DefaultRequestHandler
-from a2a.server.routes import create_rest_routes, create_agent_card_routes, create_jsonrpc_routes
+from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes, create_rest_routes
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard
 from fastapi import FastAPI, Request
-from starlette.responses import JSONResponse
 from google.protobuf.json_format import MessageToDict
 from loguru import logger
-from typing import List
-from urllib.parse import urlparse, urlunparse
+from starlette.responses import JSONResponse
 
 from common.custom import HandlerRegistry, InterfaceType
-from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
 from orchestrate import AgentCardLoader
+from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
 from orchestrate.workflow_storage_instance import get_workflow_storage
 from samples.agents.spn_domain_agent import SpnDomainAgentExecutor
 from samples.agents.spn_domain_agent_city2 import SpnDomainAgentCity2Executor
 from samples.agents.workbench_agent import WorkbenchAgentExecutor
-
-import time as _time
-import secrets as _secrets
 
 # Global list to track all agent executors for graceful shutdown
 _agent_executors = []
@@ -138,7 +137,12 @@ def pre_insert_psop():
         save_handle.handle(psop)
 
 
-async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1") -> None:
+async def start_server(
+    agent_card: AgentCard,
+    port: int,
+    host: str = "127.0.0.1",
+    all_agent_cards: list[AgentCard] | None = None,
+) -> None:
     agent2class = {
         "Host Agent": WorkbenchAgentExecutor,
         "SPN Domain Agent City1": SpnDomainAgentExecutor,
@@ -152,7 +156,10 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
         return
 
     try:
-        agent_impl = agent_class()
+        if agent_class is WorkbenchAgentExecutor:
+            agent_impl = agent_class(extension_agent_cards=all_agent_cards)
+        else:
+            agent_impl = agent_class()
         _agent_executors.append(agent_impl)
     except Exception as e:
         logger.error(f"Failed to initialize agent '{agent_name}': {e}")
@@ -224,6 +231,8 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
     if want_https:
         ssl_dir = Path(__file__).resolve().parent.parent / "etc" / "ssl"
         cert_path = ssl_dir / "server.cer"
+        if not cert_path.is_file():
+            cert_path = ssl_dir / "server1.cer"
         key_path = ssl_dir / "server_key.pem"
         nopass_key_path = ssl_dir / "server_key_nopass.pem"
         if cert_path.is_file() and key_path.is_file():
@@ -241,9 +250,16 @@ async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1"
     config = uvicorn.Config(app, host=host, port=port, timeout_graceful_shutdown=2, **ssl_kwargs)
     uvicorn_server = uvicorn.Server(config)
     try:
+        start_hook = getattr(agent_impl, "start", None)
+        if start_hook is not None:
+            await start_hook()
         await uvicorn_server.serve()
     except (SystemExit, asyncio.CancelledError):
         pass
+    finally:
+        close_hook = getattr(agent_impl, "aclose", None)
+        if close_hook is not None:
+            await close_hook()
 
 
 def _warn_if_chat_llm_unconfigured() -> None:
@@ -252,7 +268,7 @@ def _warn_if_chat_llm_unconfigured() -> None:
     guard) but every negotiation call will fail, so make that loud at startup
     instead of leaving it to surface as a per-call error later."""
     try:
-        from common.llm.config.llm_config import get_model_config, missing_required_fields, describe_missing_fields
+        from common.llm.config.llm_config import describe_missing_fields, get_model_config, missing_required_fields
 
         config = get_model_config("chat")
         missing = missing_required_fields(config) if config else ["url", "model", "api_key"]
@@ -296,7 +312,7 @@ async def main() -> None:
     except Exception as e:
         logger.warning(f"Failed to create registry client (agents will start without registration): {e}")
 
-    tasks: List[asyncio.Task] = []
+    tasks: list[asyncio.Task] = []
     for agent_card in agent_cards:
         if factory:
             try:
@@ -314,27 +330,29 @@ async def main() -> None:
         # what the card says, matching prior same-host behavior.
         bind_host = "0.0.0.0" if advertise_host else parsed.hostname
         task = asyncio.create_task(
-            start_server(agent_card, port=parsed.port, host=bind_host),
+            start_server(
+                agent_card,
+                port=parsed.port,
+                host=bind_host,
+                all_agent_cards=agent_cards,
+            ),
             name=f"server_{agent_name}"
         )
         tasks.append(task)
         logger.info(f"Starting server for '{agent_name}' on {agent_card.supported_interfaces[0].url}")
-    
+
     # Set up signal handlers for graceful shutdown
     loop = asyncio.get_running_loop()
     shutdown_event = asyncio.Event()
-    
+
     def signal_handler():
         logger.info("Shutdown signal received, stopping all servers...")
         shutdown_event.set()
-    
+
     for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
+        with suppress(NotImplementedError):
             loop.add_signal_handler(sig, signal_handler)
-        except NotImplementedError:
-            # Windows doesn't support add_signal_handler
-            pass
-    
+
     try:
         # Wait for either all tasks to complete or shutdown signal
         done, pending = await asyncio.wait(
@@ -342,7 +360,7 @@ async def main() -> None:
             return_when=asyncio.FIRST_EXCEPTION,
             timeout=None
         )
-        
+
         # If we get here due to shutdown signal or exception, cancel pending tasks
         if shutdown_event.is_set() or pending:
             logger.info("Shutting down all servers...")

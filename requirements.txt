@@ -16,10 +16,11 @@
 #    under the License.
 
 pydantic>=2.12.5
-a2a-t-sdk>=1.0.0
-workflow-exec-engine>=0.0.3
-a2a-sdk[http-server]
-a2a-sdk[grpc]
+# Temporary source install until a2a-t-sdk 1.1.0 is published.
+a2a-t-sdk @ git+https://github.com/project-openan/a2a-t-sdk-python.git@554dfc7a
+# Temporary source install until the workflow-engine API changes are published.
+workflow-exec-engine @ git+https://github.com/Zhoujie628/workflow-engine-sdk-python.git@391f612c
+a2a-sdk[http-server,grpc]>=1.1.2,<2
 openai>=2.26.0
 python-dotenv>=1.1.0
 fastapi>=0.135.1
