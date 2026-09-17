@@ -17,10 +17,11 @@
 
 # tests/test_frontend_support_server.py
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from io import BytesIO
 from fastapi.testclient import TestClient
 
+import httpx
 import os
 
 _prev_testing = os.environ.get('TESTING')
@@ -301,6 +302,99 @@ class TestAgentCardsEndpoint:
 
         response = client.get('/rest/v1/orchestrate/agent-cards')
         assert response.status_code == 400
+
+
+AGENT_CARD_PAYLOAD = {
+    "name": "AgentA",
+    "version": "1.0.0",
+    "description": "demo agent",
+    "provider": {"organization": "OrgA", "url": "http://localhost:8080"},
+    "skills": [{"id": "s1", "name": "skill1", "description": "d"}],
+}
+
+
+def _http_status_error(status_code, message="Agent not found"):
+    req = httpx.Request('PUT', 'http://registry/agent-cards')
+    resp = httpx.Response(status_code, request=req,
+                          json={"errors": {"error": [{"errorMessage": message}]}})
+    return httpx.HTTPStatusError(message, request=req, response=resp)
+
+
+class TestAgentCardWriteEndpoints:
+    """Test admin PUT/DELETE /agent-cards/{organization}/{name} proxy endpoints"""
+
+    @pytest.fixture(autouse=True)
+    def mock_write_semaphore(self):
+        mock_sem = MagicMock()
+        with patch('orchestrate.server.frontend_support_server.agent_card_write_semaphore', mock_sem):
+            yield mock_sem
+
+    @pytest.fixture
+    def mock_registry_client(self):
+        with patch('orchestrate.server.frontend_support_server.AgentRegistryClientFactory') as mock_factory:
+            client_mock = MagicMock()
+            client_mock.update_full = AsyncMock(return_value={"results": []})
+            client_mock.deregister = AsyncMock(return_value={"deleted": True})
+            client_mock.close = AsyncMock(return_value=None)
+            mock_factory.return_value.create_from_env.return_value = client_mock
+            yield client_mock
+
+    def test_update_agent_card_success(self, client, mock_registry_client):
+        """Test successful card update via the registry proxy"""
+        response = client.put(f'{BASE}/agent-cards/OrgA/AgentA', json=AGENT_CARD_PAYLOAD)
+        assert response.status_code == 200
+        data = response.json()
+        assert data['code'] == 200
+        assert data['data']['updated'] is True
+        mock_registry_client.update_full.assert_awaited_once()
+        # agent-level signatures must never be forwarded: the edited content
+        # invalidates them, and the registry re-signs when signing is enabled
+        forwarded = mock_registry_client.update_full.await_args.args[2]
+        assert len(forwarded.signatures) == 0
+
+    def test_update_agent_card_name_mismatch(self, client, mock_registry_client):
+        """Body identity must match the URL path, or the registry would re-key"""
+        response = client.put(f'{BASE}/agent-cards/OrgA/AgentA', json={
+            **AGENT_CARD_PAYLOAD, "name": "Other",
+        })
+        assert response.status_code == 400
+        mock_registry_client.update_full.assert_not_awaited()
+
+    def test_update_agent_card_org_mismatch(self, client, mock_registry_client):
+        response = client.put(f'{BASE}/agent-cards/OrgA/AgentA', json={
+            **AGENT_CARD_PAYLOAD,
+            "provider": {"organization": "Other", "url": "http://localhost:8080"},
+        })
+        assert response.status_code == 400
+
+    def test_update_agent_card_invalid_payload(self, client, mock_registry_client):
+        response = client.put(f'{BASE}/agent-cards/OrgA/AgentA', json=["not", "a", "dict"])
+        assert response.status_code == 400
+
+    def test_update_agent_card_registry_not_found(self, client, mock_registry_client):
+        mock_registry_client.update_full.side_effect = _http_status_error(404)
+        response = client.put(f'{BASE}/agent-cards/OrgA/AgentA', json=AGENT_CARD_PAYLOAD)
+        assert response.status_code == 404
+        assert 'Agent not found' in response.json()['message']
+
+    def test_update_agent_card_registry_validation_error(self, client, mock_registry_client):
+        mock_registry_client.update_full.side_effect = _http_status_error(422, "invalid url")
+        response = client.put(f'{BASE}/agent-cards/OrgA/AgentA', json=AGENT_CARD_PAYLOAD)
+        assert response.status_code == 400
+        assert 'invalid url' in response.json()['message']
+
+    def test_delete_agent_card_success(self, client, mock_registry_client):
+        response = client.delete(f'{BASE}/agent-cards/OrgA/AgentA')
+        assert response.status_code == 200
+        data = response.json()
+        assert data['code'] == 200
+        assert data['data']['deleted'] is True
+        mock_registry_client.deregister.assert_awaited_once_with("AgentA", "OrgA")
+
+    def test_delete_agent_card_registry_not_found(self, client, mock_registry_client):
+        mock_registry_client.deregister.side_effect = _http_status_error(404)
+        response = client.delete(f'{BASE}/agent-cards/OrgA/AgentA')
+        assert response.status_code == 404
 
 
 class TestIntentEndpoints:
