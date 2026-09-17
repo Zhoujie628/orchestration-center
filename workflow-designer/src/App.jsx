@@ -34,6 +34,18 @@ const MainContainer = () => {
    const [registrationEnabled, setRegistrationEnabled] = useState(false);
    const [currentUser, setCurrentUser] = useState(null);
    const [mustChangePassword, setMustChangePassword] = useState(false);
+   // Gates admin-only UI (AgentCard edit/delete). When auth is disabled the
+   // backend skips role checks entirely, so treat that mode as admin too.
+   const [isAdmin, setIsAdmin] = useState(false);
+
+   const applyAuthData = (data) => {
+       setAuthRequired(data.auth_required !== false);
+       setRegistrationEnabled(data.registration_enabled || false);
+       setCurrentUser(data.username || null);
+       setMustChangePassword(!!data.must_change_password);
+       setIsAdmin(data.auth_required === false || data.role === 'admin');
+       setAuthState('authenticated');
+   };
 
    const [isDark, setIsDark] = useState(() => {
         const savedTheme = localStorage.getItem('theme');
@@ -44,14 +56,11 @@ const MainContainer = () => {
         authCheck()
             .then((data) => {
                if (data.auth_required === false || data.authenticated === true) {
-                   setAuthRequired(data.auth_required !== false);
-                   setRegistrationEnabled(data.registration_enabled || false);
-                   setCurrentUser(data.username || null);
-                   setMustChangePassword(!!data.must_change_password);
-                   setAuthState('authenticated');
+                   applyAuthData(data);
                } else {
                    setAuthRequired(true);
                    setRegistrationEnabled(data.registration_enabled || false);
+                   setIsAdmin(false);
                    setAuthState('unauthenticated');
                }
             })
@@ -64,6 +73,13 @@ const MainContainer = () => {
         return () => window.removeEventListener('auth-expired', handleAuthExpired);
     }, []);
 
+   const handleLoginSuccess = () => {
+       setAuthState('authenticated');
+       // The session cookie is now set; re-check to pick up the role flag
+       // that gates admin-only UI (AgentCard edit/delete).
+       authCheck().then(applyAuthData).catch(() => {});
+   };
+
    const handleLogout = async () => {
        // The session cookie is httpOnly -- only the server can clear it, so
        // this has to hit /auth/logout rather than just resetting local state.
@@ -73,6 +89,7 @@ const MainContainer = () => {
            setAuthState('unauthenticated');
            setCurrentUser(null);
            setMustChangePassword(false);
+           setIsAdmin(false);
        }
    };
 
@@ -118,8 +135,12 @@ const MainContainer = () => {
         ) : authState !== 'authenticated' ? (
            <Login
                isDark={isDark}
-               onLoginSuccess={() => setAuthState('authenticated')}
-               onLoginWithUser={(user, mustChange) => { setCurrentUser(user); setMustChangePassword(!!mustChange); setAuthState('authenticated'); }}
+               onLoginSuccess={handleLoginSuccess}
+               onLoginWithUser={(user, mustChange) => {
+                   setCurrentUser(user);
+                   setMustChangePassword(!!mustChange);
+                   handleLoginSuccess();
+               }}
                registrationEnabled={registrationEnabled}
            />
         ) : (
@@ -146,7 +167,7 @@ const MainContainer = () => {
 
             <main className="flex-1 min-h-0 relative overflow-hidden">
                 <div className={`h-full w-full ${activeTab === 'agents' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>
-                    <ErrorBoundary><AgentRegistry isDark={isDark} t={t}/></ErrorBoundary>
+                    <ErrorBoundary><AgentRegistry isDark={isDark} t={t} isAdmin={isAdmin}/></ErrorBoundary>
                 </div>
 
                 <div className={`h-full w-full ${activeTab === 'orchestration' ? 'relative z-10 visible animate-in' : 'absolute invisible -left-[9999px] -top-[9999px]'}`}>

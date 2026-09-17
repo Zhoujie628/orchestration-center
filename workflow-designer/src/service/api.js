@@ -81,6 +81,21 @@ export async function getAgentCards() {
     return api.get(`${ORCHESTRATE_BASE()}/agent-cards`);
 }
 
+export async function updateAgentCard(name, organization, data) {
+    // name/organization are the registry's identity key and travel in the
+    // path; Chinese organizations make encodeURIComponent mandatory here.
+    return api.put(
+        `${ORCHESTRATE_BASE()}/agent-cards/${encodeURIComponent(organization)}/${encodeURIComponent(name)}`,
+        data
+    );
+}
+
+export async function deleteAgentCard(name, organization) {
+    return api.delete(
+        `${ORCHESTRATE_BASE()}/agent-cards/${encodeURIComponent(organization)}/${encodeURIComponent(name)}`
+    );
+}
+
 // ──── Workflow CRUD ────
 
 export async function getWorkflow() {
