@@ -136,7 +136,7 @@ sequenceDiagram
 |------|------|
 | **可视化编排** | 基于 React Flow 的拖拽式工作流设计器，支持自动 Dagre 布局 |
 | **多模式生成** | 支持 PDF 文档导入、手动拖拽编排、自然语言生成三种工作流创建方式 |
-| **A2A-T 协商集成** | 集成 workflow-engine 的 fulfillment 协商能力，协商上下文通过 Task.metadata 携带 |
+| **A2A-T 协商集成** | workflow-engine 负责任务身份和交互生命周期，宿主回调使用当前 A2A-T 内容生成与校验接口完成业务决策 |
 | **执行引擎** | `OrchestrationEngine` — 薄 A2A-T 分发通道；PSOP 工作流执行委托给工作台智能体（workflow-engine SDK） |
 | **语义检索** | 基于自然语言意图检索历史工作流，快速复用已有流程 |
 | **双 API 层** | 内部 API（`/rest/v1/orchestrate/*`）供前端调用 + 对外 API（`/api/v1/*`）供第三方集成 |
@@ -422,19 +422,18 @@ DeepSeek、Qwen 及自建网关的示例参见 [`.env.example`](.env.example)。
 
 ## A2A-T SDK 集成
 
-本项目集成了 workflow-engine SDK，用于工作台智能体的工作流执行和 fulfillment 协商。其配置
-（`A2AT_LLM_PROVIDER`、`A2AT_LLM_MODEL`、`A2AT_LLM_API_KEY`、`A2AT_LLM_BASE_URL`、
-`A2AT_NEGOTIATION_STATE_STORE_TYPE` 等）直接从仓库根目录的 `.env` 读取 — 请在其中配置：
+本项目集成了 workflow-engine SDK，用于工作台智能体的工作流执行和 fulfillment 协商。工作台业务代码
+使用 A2A-T SDK 的当前内容生成与校验接口，并从仓库根目录 `.env` 读取
+`A2AT_LLM_PROVIDER`、`A2AT_LLM_MODEL`、`A2AT_LLM_API_KEY`、`A2AT_LLM_BASE_URL`：
 
 ```env
 A2AT_LLM_PROVIDER=deepseek
 A2AT_LLM_MODEL=deepseek-chat
 A2AT_LLM_API_KEY=<your-api-key>
 A2AT_LLM_BASE_URL=https://api.deepseek.com
-A2AT_NEGOTIATION_STATE_STORE_TYPE=in_memory
 ```
 
-与上文的 `LLM_CHAT_*` 配置相互独立 — 两者之间没有自动派生关系。
+workflow-engine 不初始化已废弃的协商状态机。上述配置与上文的 `LLM_CHAT_*` 相互独立，两者之间没有自动派生关系。
 
 ## 文档导航
 

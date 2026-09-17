@@ -159,7 +159,7 @@ Frontend (React :3003)
     │  REST / SSE
     ▼
 OrchestrationEngine (编排中心, 薄 A2A-T 分发通道)
-    │  A2A-T send_message_stream
+    │  workflow-engine stream_message
     ▼
 Workbench Agent (工作台智能体, Leader, 集成 workflow-engine SDK)
     │  A2A Protocol + A2A-T Negotiation
@@ -184,15 +184,16 @@ Worker Agents (SPN / 其他业务域 Agent)
 1. 接收意图 → LLM 理解/改写（可选）
 2. PSOP 检索 → 调编排中心 API 获取匹配的工作流
 3. 加载 Agent Cards → 调注册中心获取可用 Agent 列表
-4. 扩展预置 → Authorization-T / Notification-T 预下发
-5. 创建 ControlPoint → on_task / on_self_task / on_route / on_negotiation
-6. execute_psop → workflow-engine SDK 驱动 DAG 遍历
+4. 创建 ControlPoint → on_task / on_self_task / on_route / on_negotiation
+5. execute_psop → workflow-engine SDK 驱动 DAG 遍历
    ├─ ALL_SUCCESS: asyncio.gather 并行执行
    ├─ ANY_SUCCESS: asyncio.as_completed 首个成功即返回
    ├─ 条件路由: LLM 路由决策 (JumpCondition)
    └─ 上下文聚合: 根据 context_from 收集上游输出
-7. 事件回流 → SDK 事件编码为 A2A-T TaskUpdate → 编排中心 → 前端 SSE
+6. 事件回流 → SDK 事件编码为 A2A-T TaskUpdate → 编排中心 → 前端 SSE
 ```
+
+Authorization-T 一次性操作与 Notification-T 长连接由宿主进程级独立生命周期管理，分别使用独立 transport。它们不是单次工作流的前置步骤，失败只记录并重试，不改变工作流是否启动或执行成功。
 
 ### 3.3 SSE 事件转发机制
 
@@ -202,7 +203,7 @@ Worker Agents (SPN / 其他业务域 Agent)
 
 ### 3.4 A2A-T 协商支持
 
-协商逻辑由工作台智能体的 `WorkbenchControlPoint` 驱动，通过 workflow-engine SDK 的 `ControlPoint` 接口实现 `on_negotiation` 回调。不可用时降级为普通 A2A 调用。
+协商逻辑由工作台智能体的 `WorkbenchControlPoint` 驱动，通过 workflow-engine SDK 的 `ControlPoint` 接口实现 `on_negotiation` 回调。只有携带有效 Negotiation-T 内容的 `INPUT_REQUIRED` 才进入协商；缺少处理器、内容无效或本地终止时任务失败，引擎会对已知远端活动任务做尽力取消，不会静默降级为普通 A2A 成功。
 
 ---
 

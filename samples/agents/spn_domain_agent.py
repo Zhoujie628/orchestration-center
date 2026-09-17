@@ -15,9 +15,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
+import re
+from datetime import UTC, datetime
+
 from loguru import logger
 
+from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
 
 SPN_DOMAIN_PROMPT = """
 You are an SPN Domain Agent simulator for City1 (Yuedong (Eastern Guangdong)) OMC.
@@ -55,19 +58,23 @@ RECOVERY_PROMPT = """
 class SpnDomainAgentExecutor(NegotiationBaseAgentExecutor):
 
     def __init__(self) -> None:
-        super().__init__(agent_prompt_template=SPN_DOMAIN_PROMPT)
-
-    def needs_negotiation(self, input_text: str) -> bool:
-        """City1 always needs negotiation (mirrors Java needsNegotiation returning true)."""
-        return True
+        super().__init__(
+            agent_prompt_template=SPN_DOMAIN_PROMPT,
+            expected_task_object="P781-珠江新城-PTN7900-23-TPA1EG24-17(cvlan=100)",
+        )
 
     def _execute_task(self, user_input: str, task_id: str = None, context_id: str = None) -> str:
-        """Run diagnosis then self-trigger recovery (mirrors Java executeBusiness)."""
+        """Return diagnosis through Task-T and publish recovery only via Notification-T."""
         diagnosis = super()._execute_task(user_input, task_id, context_id)
-        recovery = self._self_trigger_recovery(diagnosis)
-        return diagnosis + "\n\n" + recovery
+        self._self_trigger_recovery(diagnosis, user_input, task_id)
+        return diagnosis
 
-    def _self_trigger_recovery(self, diagnosis_result: str) -> str:
+    def _self_trigger_recovery(
+        self,
+        diagnosis_result: str,
+        task_input: str,
+        task_id: str | None,
+    ) -> None:
         """Check authorization whitelist and execute recovery if authorized.
 
         Mirrors Java's selfTriggerRecovery: checks the pre-positioned
@@ -80,18 +87,40 @@ class SpnDomainAgentExecutor(NegotiationBaseAgentExecutor):
             and policy != ""
             and ("业务抢通" in policy or "光模块" in policy or "授权" in policy)
         )
+        port = self._extract_value(task_input, "接入端口名称")
+        event_id = self._extract_value(task_input, "OSS侧事件流水号")
         if in_whitelist:
             logger.info("[SPN-Domain-Agent] Fault in whitelist, self-triggering recovery")
             recovery_result = self._llm_recovery(diagnosis_result)
             logger.info(
                 f"[SPN-Domain-Agent] Recovery result reported via Notification-T: {recovery_result}"
             )
-            self.push_notification_result(recovery_result)
-            return recovery_result
-        logger.info("[SPN-Domain-Agent] Fault not in whitelist, refusing recovery")
-        refusal = "操作不在白名单内，拒绝执行抢通。"
-        self.push_notification_result(refusal)
-        return refusal
+            result = "成功"
+            failure_reason = ""
+            authorized = "是"
+        else:
+            logger.info("[SPN-Domain-Agent] Fault not in whitelist, refusing recovery")
+            recovery_result = "操作不在白名单内，拒绝执行抢通。"
+            result = "失败"
+            failure_reason = recovery_result
+            authorized = "否"
+        self.push_notification_result({
+            "业务抢通方案执行状态": "已结束",
+            "投诉诊断任务流水号": task_id or "unknown-task",
+            "OSS侧事件流水号": event_id or "unknown-event",
+            "接入端口名称": port or "unknown-port",
+            "是否已授权OMC自动抢通": authorized,
+            "业务抢通方案名称": "光模块更换及端口恢复",
+            "业务抢通方案详情": recovery_result,
+            "业务抢通方案执行结束时间": datetime.now(UTC).isoformat(),
+            "业务抢通方案执行结果": result,
+            "业务抢通方案执行失败原因": failure_reason,
+        })
+
+    @staticmethod
+    def _extract_value(task_input: str, label: str) -> str:
+        match = re.search(rf"{re.escape(label)}[：:]\s*[\"“]?([^；\n\"”]+)", task_input)
+        return match.group(1).strip() if match else ""
 
     def _llm_recovery(self, diagnosis: str) -> str:
         """Generate recovery result via LLM."""
@@ -103,32 +132,3 @@ class SpnDomainAgentExecutor(NegotiationBaseAgentExecutor):
         except Exception as e:
             logger.warning(f"[SPN-Domain-Agent] LLM recovery failed: {e}")
         return "粤东OMC端口光模块已更换，端口恢复Up，专线业务恢复正常。"
-
-    def _build_task_response(self, context, response, negotiation_context):
-        """Build task response with Task-T metadata only.
-
-        Mirrors Java demo buildResponseMetadata: only TASK_PROMPT_KEY is set.
-        Authorization-T is pre-positioned, Notification-T is pushed via SSE.
-        """
-        from samples.agents.util.negotiation_utils import build_negotiation_response_metadata, TASK_PROMPT_KEY
-        from a2a.types import Task, TaskStatus, TaskState, Artifact, Part
-        import uuid
-
-        metadata = build_negotiation_response_metadata(
-            negotiation_context_data=negotiation_context if negotiation_context else None,
-            negotiation_text=None,
-        )
-        metadata[TASK_PROMPT_KEY] = response
-
-        return Task(
-            id=context.task_id,
-            context_id=context.context_id,
-            status=TaskStatus(state=TaskState.TASK_STATE_COMPLETED),
-            artifacts=[
-                Artifact(
-                    artifact_id=str(uuid.uuid4()),
-                    parts=[Part(text=response)]
-                )
-            ],
-            metadata=metadata
-        )
