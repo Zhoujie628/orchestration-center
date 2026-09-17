@@ -28,6 +28,7 @@ class ModelConfig:
     api_key: str = ""
     enable_thinking: bool = False
     verify_ssl: bool = True
+    timeout: float = 60.0
     auth: Any = None
     headers: Dict[str, str] = field(default_factory=dict)
     body: Dict[str, Any] = field(default_factory=dict)
@@ -42,6 +43,7 @@ class ModelConfig:
             api_key=raw.get("api_key", ""),
             enable_thinking=raw.get("enable_thinking", False),
             verify_ssl=raw.get("verify_ssl", True),
+            timeout=float(raw.get("timeout", 60.0)),
             auth=raw.get("auth"),
             headers=raw.get("headers", {}),
             body=raw.get("body", {}),
