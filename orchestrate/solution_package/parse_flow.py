@@ -212,12 +212,18 @@ The text to convert is below:
         return markdown_dict
 
     def parse_pdf_chapter(self, pdf_path: str, chapter_title: str) -> Optional[str]:
-        """Parse a single chapter from PDF and convert to markdown."""
+        """Parse a single chapter from PDF and convert to markdown.
+
+        Returns None only when the chapter is absent from the PDF; any other
+        failure (unreadable file, empty chapter, LLM timeout/error) propagates
+        so callers report the real cause instead of a misleading
+        "chapter not found".
+        """
         try:
             chapter_text = self.get_chapter_text(pdf_path, chapter_title)
-            return self.convert_to_markdown(chapter_text)
-        except PDFParsingError:
+        except ChapterNotFoundError:
             return None
+        return self.convert_to_markdown(chapter_text)
 
     def parse_pdf_all_chapters(self, pdf_path: str, max_workers: int = 4) -> Dict[str, str]:
         """Parse all chapters from PDF and convert to markdown in parallel."""
