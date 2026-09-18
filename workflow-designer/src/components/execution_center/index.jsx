@@ -27,6 +27,7 @@ import {
     Bot,
     PanelLeftOpen,
     PanelLeftClose,
+    PanelRightClose,
     ChevronDown,
     ChevronRight,
     Hash,
@@ -436,6 +437,7 @@ const ExecutionCenter = ({ isDark }) => {
     const [autoScroll, setAutoScroll] = useState(true);
     const [selectedNodeId, setSelectedNodeId] = useState(null);
     const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+    const [isSearchCollapsed, setIsSearchCollapsed] = useState(false);
     const [activeTab, setActiveTab] = useState('match');
     const [executionRecords, setExecutionRecords] = useState([]);
     const [isLoadingRecords, setIsLoadingRecords] = useState(false);
@@ -1034,9 +1036,9 @@ const ExecutionCenter = ({ isDark }) => {
                 {activeSubMenu === 'execution' ? (
                     <div className="h-full px-8 pb-6 flex flex-col gap-4 w-full overflow-hidden">
                         {/* Search & Control Bar */}
-                        <div className={`shrink-0 rounded-2xl border p-5 ${theme.panel}`}>
+                        <div className={`shrink-0 rounded-2xl border ${isSearchCollapsed ? 'px-5 py-3' : 'p-5'} ${theme.panel}`}>
 
-                {/* Search Mode Toggle */}
+                {/* Search Mode Toggle + collapse toggle */}
                 <div className="flex items-center gap-3 mb-4">
                     <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg">
                         <button
@@ -1072,9 +1074,17 @@ const ExecutionCenter = ({ isDark }) => {
                             {t('execution.filters')}
                         </button>
                     )}
+                        <button
+                            onClick={() => setIsSearchCollapsed(!isSearchCollapsed)}
+                            className="ml-auto p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            title={isSearchCollapsed ? t('execution.expand') : t('execution.collapse')}
+                        >
+                            {isSearchCollapsed ? <ChevronDown size={15} className="text-zinc-500" /> : <ChevronUp size={15} className="text-zinc-500" />}
+                        </button>
                 </div>
 
                 {/* Search Input Row */}
+                {!isSearchCollapsed && (
                 <div className="flex items-center gap-3">
                     <div className="flex-1 relative group">
                         <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500 transition-colors" />
@@ -1151,8 +1161,9 @@ const ExecutionCenter = ({ isDark }) => {
                         </span>
                     </div>
                 </div>
+                )}
 
-                {searchMode === 'exact' && showFilters && (
+                {searchMode === 'exact' && showFilters && !isSearchCollapsed && (
                     <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700 grid grid-cols-4 gap-4 animate-in slide-in-from-top duration-300">
                         <div>
                             <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-2 uppercase">{t('execution.filter_workflow_id')}</label>
@@ -1219,7 +1230,7 @@ const ExecutionCenter = ({ isDark }) => {
             </div>
 
             {/* Main Content Area - Three Column Layout */}
-            <div className="flex-1 flex gap-4 min-h-0">
+            <div className="flex-1 flex gap-4 min-h-0 relative">
                 {/* Left Panel - Workflow List */}
                 {isLeftPanelCollapsed ? (
                     <button
@@ -1524,17 +1535,26 @@ const ExecutionCenter = ({ isDark }) => {
                 {/* Right Panel - Interaction Log */}
                 {isPanelExpanded && (
                     <div 
-                        className="fixed inset-0 bg-black/30 dark:bg-black/50 z-40 transition-opacity"
+                        className="absolute inset-0 bg-black/30 dark:bg-black/50 z-40 transition-opacity"
                         onClick={() => setIsPanelExpanded(false)}
                     />
                 )}
                 <div className={`rounded-xl border flex flex-col overflow-hidden ${theme.panel} shrink-0 transition-all duration-300
                     ${isPanelExpanded 
-                        ? 'w-[60vw] fixed right-0 top-0 bottom-0 z-50 shadow-2xl' 
+                        ? 'w-[60vw] absolute right-0 top-0 bottom-0 z-50 shadow-2xl' 
                         : 'w-[380px]'}`}>
                     {/* Panel Header */}
                     <div className={`h-14 px-5 border-b flex items-center justify-between ${theme.header}`}>
                         <div className="flex items-center gap-2.5">
+                            {isPanelExpanded && (
+                                <button
+                                    onClick={() => setIsPanelExpanded(false)}
+                                    className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                                    title={t('execution.collapse')}
+                                >
+                                    <PanelRightClose size={15} className="text-zinc-500" />
+                                </button>
+                            )}
                             <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                                 <Terminal size={15} className="text-blue-600 dark:text-blue-400" />
                             </div>
