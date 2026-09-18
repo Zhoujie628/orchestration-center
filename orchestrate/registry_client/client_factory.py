@@ -29,7 +29,13 @@ class AgentRegistryClientFactory:
     def create_client(self, base_url: str = None, timeout: int = 30) -> AgentRegistryClient:
         url = base_url or self.default_base_url
         timeout_seconds = timeout or self.config.get("timeout", 30)
-        return AgentRegistryClient(url, timeout_seconds)
+        verify_server = str(
+            self.config.get(
+                "ssl_verify",
+                get_conf().get("client_verify_server", "true"),
+            )
+        ).lower() == "true"
+        return AgentRegistryClient(url, timeout_seconds, ssl_verify=verify_server)
 
     def create_from_env(self) -> AgentRegistryClient:
         return self.create_client()

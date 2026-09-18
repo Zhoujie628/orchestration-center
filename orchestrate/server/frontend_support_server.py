@@ -28,6 +28,7 @@ import uuid
 from typing import Optional, List, Any, Dict
 
 import anyio
+import httpx
 from a2a.types import AgentCard
 from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Request, Depends, Query
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -51,6 +52,8 @@ from common.custom.default_handle import HandlerRegistry
 from common.custom.interface_type import InterfaceType
 from orchestrate.server.sse_executor import dispatch_intent_sse
 from orchestrate.server.response_utils import ok, created, error, get_agent_cards
+from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
+from orchestrate.agentcard_loader import _normalize_agent_dict
 from common.log.audit_logger import audit_logger, OperationObject, OperationName, LogLevel, OperationResult
 from common.util.config_util import get_conf
 from orchestrate.core.model.preflow import PreFlow
@@ -311,6 +314,7 @@ async def auth_check(request: Request):
         username = get_session_store().get_username(token)
         return ok(data={
             "auth_required": True, "authenticated": True, "username": username,
+            "role": get_session_store().get_role(token),
             "registration_enabled": registration_enabled,
             "must_change_password": username_must_change_password(username),
         })
@@ -797,6 +801,148 @@ async def list_agent_cards(
     finally:
         if acquired:
             agent_cards_semaphore.release()
+
+agent_card_write_semaphore = anyio.Semaphore(int(config.get(FLOW_CTL_PARALLEL_AGENT_CARDS, 5)))
+
+def _parse_agent_card_payload(payload: Any) -> AgentCard:
+    """Parse a UI-supplied AgentCard JSON object into the protobuf model."""
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="AgentCard JSON object required")
+    # An edited card invalidates agent-level signatures by definition, so they
+    # are never forwarded; the registry re-signs with its own key when signing
+    # is enabled.
+    payload = {k: v for k, v in payload.items() if k != "signatures"}
+    try:
+        return Parse(json.dumps(_normalize_agent_dict(payload)), AgentCard())
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid AgentCard payload: {e}") from e
+
+def _registry_error_detail(e: httpx.HTTPStatusError) -> str:
+    try:
+        errors = e.response.json().get("errors", {}).get("error", [])
+        if errors and errors[0].get("errorMessage"):
+            return str(errors[0]["errorMessage"])
+    except Exception:
+        pass
+    return str(e)
+
+@router.put("/agent-cards/{organization}/{name}")
+async def update_agent_card(
+    organization: str,
+    name: str,
+    request: Request,
+    _: Any = Depends(require_admin),
+    _rate: Any = Depends(RateLimiter(config, "update_agent_card"))
+):
+    acquired = False
+    try:
+        agent_card_write_semaphore.acquire_nowait()
+        acquired = True
+        card = _parse_agent_card_payload(await request.json())
+        # The registry keys a card by (name, organization) and writes the body
+        # as-is, so a body that disagrees with the path would re-key the record.
+        if card.name != name or (card.provider.organization or "") != organization:
+            raise HTTPException(status_code=400, detail="Card name/organization must match the URL path")
+        logger.info(f"Updating agent card: name={name}, organization={organization}")
+        client = AgentRegistryClientFactory().create_from_env()
+        try:
+            await client.update_full(name, organization, card)
+        finally:
+            await client.close()
+        audit_logger.audit({
+            'object_name': OperationObject.AGENT_CARD,
+            'operation_name': OperationName.UPDATE_AGENT_CARD,
+            'level': LogLevel.MINOR,
+            'result': OperationResult.SUCCESS,
+            'details': {"name": name, "organization": organization},
+        })
+        return ok(data={"name": name, "organization": organization, "updated": True},
+                  message="Agent card updated successfully")
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        detail = _registry_error_detail(e)
+        logger.error(f"Failed to update agent card {name}: registry returned {e.response.status_code}: {detail}")
+        audit_logger.audit({
+            'object_name': OperationObject.AGENT_CARD,
+            'operation_name': OperationName.UPDATE_AGENT_CARD,
+            'level': LogLevel.MINOR,
+            'result': OperationResult.FAILURE,
+            'details': {"name": name, "organization": organization, "message": detail},
+        })
+        mapped = {404: 404, 400: 400, 401: 400, 403: 403, 422: 400}.get(e.response.status_code, 502)
+        raise HTTPException(status_code=mapped, detail=detail)
+    except Exception as e:
+        logger.error(f"Failed to update agent card {name}: {e}")
+        audit_logger.audit({
+            'object_name': OperationObject.AGENT_CARD,
+            'operation_name': OperationName.UPDATE_AGENT_CARD,
+            'level': LogLevel.MINOR,
+            'result': OperationResult.FAILURE,
+            'details': {"name": name, "organization": organization, "message": str(e)},
+        })
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if acquired:
+            agent_card_write_semaphore.release()
+
+@router.delete("/agent-cards/{organization}/{name}")
+async def delete_agent_card(
+    organization: str,
+    name: str,
+    _: Any = Depends(require_admin),
+    _rate: Any = Depends(RateLimiter(config, "delete_agent_card"))
+):
+    acquired = False
+    try:
+        agent_card_write_semaphore.acquire_nowait()
+        acquired = True
+        logger.info(f"Deleting agent card: name={name}, organization={organization}")
+        client = AgentRegistryClientFactory().create_from_env()
+        try:
+            await client.deregister(name, organization)
+        finally:
+            await client.close()
+        audit_logger.audit({
+            'object_name': OperationObject.AGENT_CARD,
+            'operation_name': OperationName.DELETE_AGENT_CARD,
+            'level': LogLevel.MINOR,
+            'result': OperationResult.SUCCESS,
+            'details': {"name": name, "organization": organization},
+        })
+        return ok(data={"name": name, "organization": organization, "deleted": True},
+                  message="Agent card deleted successfully")
+    except anyio.WouldBlock:
+        raise HTTPException(status_code=503, detail="Server is busy")
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        detail = _registry_error_detail(e)
+        logger.error(f"Failed to delete agent card {name}: registry returned {e.response.status_code}: {detail}")
+        audit_logger.audit({
+            'object_name': OperationObject.AGENT_CARD,
+            'operation_name': OperationName.DELETE_AGENT_CARD,
+            'level': LogLevel.MINOR,
+            'result': OperationResult.FAILURE,
+            'details': {"name": name, "organization": organization, "message": detail},
+        })
+        mapped = {404: 404, 400: 400, 401: 400, 403: 403, 422: 400}.get(e.response.status_code, 502)
+        raise HTTPException(status_code=mapped, detail=detail)
+    except Exception as e:
+        logger.error(f"Failed to delete agent card {name}: {e}")
+        audit_logger.audit({
+            'object_name': OperationObject.AGENT_CARD,
+            'operation_name': OperationName.DELETE_AGENT_CARD,
+            'level': LogLevel.MINOR,
+            'result': OperationResult.FAILURE,
+            'details': {"name": name, "organization": organization, "message": str(e)},
+        })
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if acquired:
+            agent_card_write_semaphore.release()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Workflow templates
