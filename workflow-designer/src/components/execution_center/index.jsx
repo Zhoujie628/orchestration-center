@@ -1219,7 +1219,7 @@ const ExecutionCenter = ({ isDark }) => {
             </div>
 
             {/* Main Content Area - Three Column Layout */}
-            <div className="flex-1 flex gap-4 min-h-0">
+            <div className="flex-1 flex gap-4 min-h-0 relative">
                 {/* Left Panel - Workflow List */}
                 {isLeftPanelCollapsed ? (
                     <button
@@ -1524,13 +1524,13 @@ const ExecutionCenter = ({ isDark }) => {
                 {/* Right Panel - Interaction Log */}
                 {isPanelExpanded && (
                     <div 
-                        className="fixed inset-0 bg-black/30 dark:bg-black/50 z-40 transition-opacity"
+                        className="absolute inset-0 bg-black/30 dark:bg-black/50 z-40 transition-opacity"
                         onClick={() => setIsPanelExpanded(false)}
                     />
                 )}
                 <div className={`rounded-xl border flex flex-col overflow-hidden ${theme.panel} shrink-0 transition-all duration-300
                     ${isPanelExpanded 
-                        ? 'w-[60vw] fixed right-0 top-0 bottom-0 z-50 shadow-2xl' 
+                        ? 'w-[60vw] absolute right-0 top-0 bottom-0 z-50 shadow-2xl' 
                         : 'w-[380px]'}`}>
                     {/* Panel Header */}
                     <div className={`h-14 px-5 border-b flex items-center justify-between ${theme.header}`}>
