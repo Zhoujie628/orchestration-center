@@ -197,7 +197,7 @@ export const transformWorkflowToReactFlow = (rawInput) => {
 
     const startNodes = steps.filter(s => !targetStepNames.has(s.name));
     if (startNodes.length > 0) {
-        nodes.unshift({ id: 'START_NODE', type: 'startNode', position: { x: 0, y: 0 }, width: 120, height: 50, data: { label: 'START', status: 'completed' } });
+        nodes.unshift({ id: 'START_NODE', type: 'startNode', position: { x: 0, y: 0 }, width: 120, height: 50, deletable: false, data: { label: 'START', status: 'completed' } });
         startNodes.forEach(sn => edges.unshift({ id: `e-start-${sn.name}`, source: 'START_NODE', target: sn.name, style: { stroke: '#94a3b8', strokeDasharray: '5,5' } }));
     }
 
@@ -206,7 +206,7 @@ export const transformWorkflowToReactFlow = (rawInput) => {
         const allAgentNodesSuccess = nodes.length > 0 && nodes.every(n => n.type === 'endNode' || n.type === 'startNode' || n.data?.status === BACKEND_STATUS.SUCCESS);
         const endStatus = allAgentNodesSuccess ? BACKEND_STATUS.SUCCESS : 'pending';
         if (!nodes.find(n => n.id === 'END_OF_WORKFLOW')) {
-            nodes.push({ id: 'END_OF_WORKFLOW', type: 'endNode', position: { x: 0, y: 0 }, width: 120, height: 50, data: { label: 'END', status: endStatus } });
+            nodes.push({ id: 'END_OF_WORKFLOW', type: 'endNode', position: { x: 0, y: 0 }, width: 120, height: 50, deletable: false, data: { label: 'END', status: endStatus } });
         } else {
             const endNode = nodes.find(n => n.id === 'END_OF_WORKFLOW');
             if (endNode) endNode.data.status = endStatus;
@@ -244,6 +244,15 @@ export const transformReactFlowToPSOP = (nodes, edges, metadata = {}) => {
         psopData.id = metadata.id;
     }
 
+    // Node id stays stable inside the editor, but the PSOP step name follows
+    // the (user-editable) label — remap every id-based reference on export
+    const idToName = {};
+    nodes.forEach((node) => {
+        if (node.type !== 'agentNode') return;
+        const customName = (node.data?.label || node.data?.name || '').trim();
+        idToName[node.id] = customName || node.id;
+    });
+
     const stepsMap = {};
 
     nodes.forEach((node) => {
@@ -268,12 +277,16 @@ export const transformReactFlowToPSOP = (nodes, edges, metadata = {}) => {
             }
 
             stepsMap[id] = {
-                name: id,
+                name: idToName[id],
                 type: data.type || "AllSuccess",
                 subtasks: subtasks,
                 next: [],
                 layer: typeof data.layer === 'number' ? (data.layer > 1 ? 1 : data.layer) : 0,
-                context_from: data.context_from && data.context_from.length > 0 ? data.context_from : null
+                context_from: data.context_from && data.context_from.length > 0
+                    ? (data.context_from.includes('*')
+                        ? data.context_from
+                        : data.context_from.map(cid => idToName[cid] || cid))
+                    : null
             };
         }
     });
@@ -282,7 +295,7 @@ export const transformReactFlowToPSOP = (nodes, edges, metadata = {}) => {
         const { source, target, label, data: edgeData } = edge;
         if (source === 'START_NODE' || !stepsMap[source]) return;
 
-        const targetId = (target === 'END_OF_WORKFLOW') ? 'end' : target;
+        const targetId = (target === 'END_OF_WORKFLOW') ? 'end' : (idToName[target] || target);
         stepsMap[source].next.push({
             step: targetId,
             condition: label || edgeData?.condition || ""

@@ -210,6 +210,7 @@
       "edgeConfig": "分支配置",
       "agentName": "Agent 名称",
       "stepName": "步骤名称",
+      "boundaryNodeHint": "该节点由系统自动生成，用于标记工作流的开始/结束，不对应实际执行步骤，名称与配置不可修改",
       "status": "状态",
       "subtasks": "子任务",
       "taskDesc": "任务描述 (Task)",
@@ -265,6 +266,9 @@
       "noSkill": "节点 [{{id}}] 未选择技能",
       "noEdge": "节点 [{{id}}] 缺少输出连线",
       "noEnd": "流程缺少结束节点",
+      "duplicateName": "步骤名称 [{{name}}] 重复，请修改为唯一名称",
+      "reservedName": "[{{name}}] 是保留名称，请更换该步骤名称",
+      "noSubtask": "节点 [{{id}}] 没有子任务，请拖入 Agent 或删除该节点",
       "yamlError": "YAML生成失败"
     },
     "exit": {
@@ -381,6 +385,7 @@
     "end": "结束节点",
     "no_skill": "未指定技能",
     "no_subtasks": "未配置子任务",
+    "drop_hint": "拖拽 Agent 到此添加子任务",
     "allSuccess": "全成功",
     "anySuccess": "任一成功"
   },

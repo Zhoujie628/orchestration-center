@@ -191,9 +191,15 @@ const AgentNode = ({ data, selected }) => {
                         );
                     })}
                     {subtasks.length === 0 && (
-                        <div className={`text-[10px] italic px-2 py-1 ${theme.textSub} opacity-50`}>
-                            {t('node_label.no_subtasks')}
-                        </div>
+                        data.editable ? (
+                            <div className={`border border-dashed rounded-lg px-2 py-2.5 text-[10px] text-center font-medium ${isDark ? 'border-zinc-600 text-zinc-400' : 'border-slate-300 text-slate-500'}`}>
+                                {t('node_label.drop_hint')}
+                            </div>
+                        ) : (
+                            <div className={`text-[10px] italic px-2 py-1 ${theme.textSub} opacity-50`}>
+                                {t('node_label.no_subtasks')}
+                            </div>
+                        )
                     )}
                 </div>
             </div>

@@ -210,6 +210,7 @@
       "edgeConfig": "Edge Config",
       "agentName": "Agent Name",
       "stepName": "Step Name",
+      "boundaryNodeHint": "This node is generated automatically to mark the start/end of the workflow. It does not map to an executed step, so its name and settings are read-only",
       "status": "Status",
       "subtasks": "Subtasks",
       "taskDesc": "Task Description",
@@ -265,6 +266,9 @@
       "noSkill": "Node validation failed: Skill must be selected",
       "noEdge": "Node missing output connection: Please complete the topology",
       "noEnd": "Workflow missing an End Node",
+      "duplicateName": "Duplicate step name [{{name}}], step names must be unique",
+      "reservedName": "[{{name}}] is a reserved name, please choose another step name",
+      "noSubtask": "Node [{{id}}] has no subtasks, drop an agent onto it or delete the node",
       "yamlError": "YAML generation failed"
     },
     "exit": {
@@ -381,6 +385,7 @@
     "end": "End Node",
     "no_skill": "No skill specified",
     "no_subtasks": "No subtasks configured",
+    "drop_hint": "Drop an agent here to add a subtask",
     "allSuccess": "AllSuccess",
     "anySuccess": "AnySuccess"
   },

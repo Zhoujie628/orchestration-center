@@ -60,6 +60,9 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
 
         for (const node of nodes) {
             if (node.type === 'agentNode') {
+                if (!node.data.subtasks || node.data.subtasks.length === 0) {
+                    return t('workflow.validate.noSubtask', { id: node.id });
+                }
                 if (!node.data.agent) {
                     return t('workflow.validate.invalidAgent', { id: node.id });
                 }
@@ -69,6 +72,20 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
             if (!isEndNode && !sourceEdgeIds.has(node.id)) {
                 return t('workflow.validate.noEdge', { id: node.id });
             }
+        }
+        // Step names are user-editable and become the PSOP identity referenced
+        // by next/context_from, so they must be unique and avoid reserved names
+        const stepNameMap = new Map();
+        for (const node of nodes) {
+            if (node.type !== 'agentNode') continue;
+            const name = (node.data?.label || node.data?.name || node.id).trim() || node.id;
+            if (['end', 'END', 'endNode'].includes(name)) {
+                return t('workflow.validate.reservedName', { name });
+            }
+            if (stepNameMap.has(name)) {
+                return t('workflow.validate.duplicateName', { name });
+            }
+            stepNameMap.set(name, node.id);
         }
         if (!nodes.some(n => n.type === 'endNode' || n.id === 'endNode')) {
             return t('workflow.validate.noEnd');
@@ -91,9 +108,7 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
             createWorkflow(psopData).then(r => {
                 setToast({ show: true, msg: t('workflow.export.success'), type: 'success' });
                 setShowExportModal(false);
-                setExportName("");
-                setExportDesc("");
-                if (onSaveSuccess) onSaveSuccess();
+                if (onSaveSuccess) onSaveSuccess(r?.data?.workflow_id || workflowId || null);
             }).catch(err => {
                 setToast({ show: true, msg: t('workflow.export.failed'), type: 'error' });
             });
@@ -185,7 +200,7 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
 
                 <div className="flex gap-4">
                     <button
-                        onClick={() => { setShowExportModal(false); setExportName(""); setExportDesc(""); }}
+                        onClick={() => setShowExportModal(false)}
                         className={`flex-1 px-4 py-3 text-sm font-bold rounded-2xl transition-all active:scale-95 ${isDark
                                 ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
                                 : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
@@ -250,13 +265,9 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
 
             <button
                 onClick={() => {
-                    if (workflowId && exportName.trim()) {
-                        executeExport();
-                    } else {
-                        setExportName(workflowName || exportName || "");
-                        setExportDesc(workflowDescription || exportDesc || "");
-                        setShowExportModal(true);
-                    }
+                    setExportName(prev => prev || workflowName || "");
+                    setExportDesc(prev => prev || workflowDescription || "");
+                    setShowExportModal(true);
                 }}
                 className={`ml-2 px-4 py-1.5 text-sm font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-1 ${theme.primaryBtn}`}
             >
