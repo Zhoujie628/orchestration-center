@@ -18,6 +18,12 @@ import {
     Shield,
     Bell,
 } from 'lucide-react';
+import {
+    getExtensionLabel,
+    getNegotiationPayload,
+    getRequestPayload,
+    getResponsePayload,
+} from '../a2atEvents';
 
 /* ──────────────────────────────────────────────────────────────────
  * Event grouping logic (Phase 3.2: groupEventsByStep)
@@ -112,10 +118,14 @@ function groupEventsByStep(events) {
                 step.route = event.data;
                 break;
             case 'task_response':
-                if (event.data?.output && stepName) {
+                if (stepName && (event.data?.output ?? event.data?.outputs) !== undefined) {
                     const taskDesc = event.data.task || '';
+                    const output = event.data.output ?? event.data.outputs;
+                    const normalizedOutput = Array.isArray(output) && output.length === 1
+                        ? output[0]
+                        : output;
                     const existing = step.output && typeof step.output === 'object' ? step.output : {};
-                    existing[taskDesc || 'output'] = event.data.output;
+                    existing[taskDesc || 'output'] = normalizedOutput;
                     step.output = existing;
                 }
                 break;
@@ -219,10 +229,12 @@ const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
     if (!data) return null;
 
     const isRequest = direction === 'request';
-    const raw = isRequest ? data.request : data.response;
-    const text = typeof raw === 'string' ? raw : (raw?.text || raw?.request || raw?.response || JSON.stringify(raw, null, 2));
-    const metadata = (typeof raw === 'object' && raw?.metadata) || data.metadata || {};
+    const payload = isRequest ? getRequestPayload(data) : getResponsePayload(data);
+    const raw = payload.content;
+    const text = payload.text;
+    const metadata = payload.metadata;
     const hasMetadata = Object.keys(metadata).length > 0;
+    const hasA2atContent = payload.hasA2atContent;
     const state = data.state || data.task_state;
     const hasAuth = data.authorization;
     const hasNotif = data.notification;
@@ -271,7 +283,7 @@ const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
                         if (headerKeys.length === 0) return null;
                         return (
                             <div className="px-3 py-2 border-b border-inherit bg-zinc-50/50 dark:bg-zinc-800/30">
-                                <div className="text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 mb-1">A2A-Extensions</div>
+                            <div className="text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 mb-1">A2A-Extensions</div>
                                 <div className="flex flex-wrap gap-1">
                                     {headerKeys.map((k, idx) => (
                                         <span key={idx} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
@@ -289,7 +301,7 @@ const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
                             <div className="space-y-2">
                                 {Object.entries(metadata).map(([key, val], idx) => (
                                     <div key={idx} className="text-[10px]">
-                                        <span className="font-semibold text-zinc-600 dark:text-zinc-400 break-all">{key}:</span>
+                                        <span className="font-semibold text-zinc-600 dark:text-zinc-400 break-all">{getExtensionLabel(key)}:</span>
                                         <div className="ml-2 mt-0.5">
                                             <MarkdownRenderer text={typeof val === 'string' ? val : JSON.stringify(val, null, 2)} />
                                         </div>
@@ -300,7 +312,7 @@ const ProtocolCard = React.memo(({ direction, data, timestamp, isDark }) => {
                     )}
 
                     {/* Text Part (secondary, collapsed by default) */}
-                    {text && (
+                    {text && !hasA2atContent && (
                         <div className="px-3 py-2 border-t border-inherit bg-zinc-50/30 dark:bg-zinc-800/20">
                             <button
                                 onClick={(e) => { e.stopPropagation(); setShowText(!showText); }}
@@ -363,7 +375,8 @@ const AgentInteraction = React.memo(({ interaction, isDark }) => {
                             <div className="space-y-3 mt-2">
                                 {interaction.negotiations.map((neg, idx) => {
                                     const label = neg.type.replace('negotiation_', '');
-                                    const content = neg.data?.concern || neg.data?.clarification || neg.data?.reason || '';
+                                    const negotiation = getNegotiationPayload(neg);
+                                    const content = negotiation.text;
                                     const labelColor = label === 'request' ? 'text-blue-600 dark:text-blue-400'
                                         : label === 'resolved' ? 'text-emerald-600 dark:text-emerald-400'
                                         : label === 'failed' ? 'text-rose-600 dark:text-rose-400'
@@ -376,7 +389,25 @@ const AgentInteraction = React.memo(({ interaction, isDark }) => {
                                         <div key={idx} className={`pl-3 border-l-2 ${borderColor}`}>
                                             <div className={`text-[10px] font-bold uppercase mb-1 ${labelColor}`}>{label}</div>
                                             <div className="overflow-y-auto custom-scrollbar">
-                                                <MarkdownRenderer text={content} />
+                                                {content ? (
+                                                    <MarkdownRenderer text={content} />
+                                                ) : (
+                                                    <span className="text-[10px] italic text-zinc-400">No Negotiation-T content</span>
+                                                )}
+                                                {Object.entries(negotiation.metadata).length > 0 && (
+                                                    <div className="mt-2 space-y-1">
+                                                        {Object.entries(negotiation.metadata).map(([key, value], metaIdx) => (
+                                                            <div key={metaIdx} className="text-[10px]">
+                                                                <span className="font-semibold text-zinc-500 dark:text-zinc-400 break-all">
+                                                                    {getExtensionLabel(key)}:
+                                                                </span>
+                                                                <div className="ml-2 mt-0.5">
+                                                                    <MarkdownRenderer text={typeof value === 'string' ? value : JSON.stringify(value, null, 2)} />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     );

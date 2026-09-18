@@ -49,40 +49,11 @@ import { transformWorkflowToReactFlow } from '@/components/orchestration_center/
 import UnifiedWorkflow from '../orchestration_center/workflow/index.jsx';
 import ExecutionStatistics from './execution_statistics/index.jsx';
 import ExecutionTimeline from './timeline/index.jsx';
-
-const parseProtobufText = (raw) => {
-    if (!raw || typeof raw !== 'string') return { text: raw, metadata: null };
-    const result = { text: '', metadata: {} };
-    const lines = raw.split('\n');
-    let inParts = false;
-    let partsText = [];
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        const msgIdMatch = trimmed.match(/^message_id:\s*"(.+)"$/);
-        if (msgIdMatch) { result.metadata.message_id = msgIdMatch[1]; continue; }
-        const roleMatch = trimmed.match(/^role:\s*(.+)$/);
-        if (roleMatch) { result.metadata.role = roleMatch[1]; continue; }
-        if (trimmed.startsWith('parts')) {
-            const partsInlineMatch = trimmed.match(/^parts\s*\{[^}]*text:\s*"(.+)"[^}]*\}$/);
-            if (partsInlineMatch) { partsText.push(partsInlineMatch[1].replace(/\\n/g, '\n')); continue; }
-            inParts = true; continue;
-        }
-        if (inParts && trimmed === '}') { inParts = false; continue; }
-        if (inParts) {
-            const textMatch = trimmed.match(/^text:\s*"(.+)"$/);
-            if (textMatch) partsText.push(textMatch[1].replace(/\\n/g, '\n'));
-        }
-    }
-    if (partsText.length > 0) {
-        result.text = partsText.join('\n');
-    } else {
-        const textOnlyMatch = raw.match(/text:\s*"([^"]+)"/);
-        if (textOnlyMatch) result.text = textOnlyMatch[1].replace(/\\n/g, '\n');
-        else result.text = raw;
-    }
-    return result;
-};
+import {
+    getNegotiationPayload,
+    getRequestPayload,
+    getResponsePayload,
+} from './a2atEvents';
 
 const MarkdownRenderer = React.memo(({ text }) => {
     if (!text) return null;
@@ -256,21 +227,14 @@ const renderInlineMarkdown = (text) => {
 };
 
 const parseLogData = (data, type) => {
-    const raw = type === 'agent_request' ? data.request : data.response;
-    if (type === 'agent_request' && typeof raw === 'string') {
-        const parsed = parseProtobufText(raw);
-        return { parsed, type: 'protobuf' };
+    if (type === 'agent_request') return { parsed: getRequestPayload(data), type: 'json' };
+    if (type === 'agent_response') return { parsed: getResponsePayload(data), type: 'json' };
+    if (type === 'negotiation_request' || type === 'negotiation_resolved' || type === 'negotiation_failed') {
+        return { parsed: getNegotiationPayload({ type, data }), type: 'json' };
     }
+    const raw = data.response ?? data.request ?? data;
     try {
         let parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            if (type === 'agent_request' && parsed.request) {
-                parsed = parsed.request;
-            } else if (type === 'agent_response' && parsed.response) {
-                parsed = parsed.response;
-            }
-        }
 
         // Merge event-level metadata so findText and Show Raw can surface extension content
         if (data.metadata && typeof parsed === 'object' && parsed !== null) {
