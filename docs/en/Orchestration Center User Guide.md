@@ -308,6 +308,8 @@ All services must present valid certificates signed by a trusted CA during TLS h
 
 ### Generating Self-Signed Certificates
 
+> **Development, testing, and demos only:** this tool is designed for quick startup. Do not use any CA, server certificate, client certificate, or private key it generates in production. Production deployments must use a trusted public or enterprise CA and follow the organization's certificate-management policy.
+
 For development or internal testing:
 
 ```bash
@@ -365,7 +367,7 @@ The host or IP in the client URL must appear in the server certificate SAN (see 
 | Approach | Suitable for | Notes |
 |---|---|---|
 | Skip certificate-chain verification (for example, engine-side `sslVerify=false`) | Development / testing | Skips only chain verification. Most clients (Java JDK HttpClient in particular) still perform hostname verification, so the certificate SAN must match the accessed address. The two checks are independent; disabling one does not disable the other |
-| Import the trust certificate and keep verification on | Production | Import this service's `trust.cer` into the client trust store and leave certificate verification enabled |
+| Import the trust certificate and keep verification on | Development / integration testing | Import this service's `trust.cer` into the client trust store and leave certificate verification enabled; use a trusted CA in production |
 
 Importing the trust store on a Java client:
 

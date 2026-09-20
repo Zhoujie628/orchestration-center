@@ -141,10 +141,10 @@ class CertificateGenerator:
             digital_signature = True
             content_commitment = True
 
-        # keyCertSign: the self-signed cert anchors its own trust (trust.cer is a
-        # copy of it), so client certificates issued from it (dev proxy, nginx
-        # upstream) chain-validate when the server enforces verify_client=true.
-        # path_length=0 keeps it from signing further CAs.
+        # In the development-only serverAuth profile, the self-signed cert
+        # anchors its own trust so it can issue local client certificates.
+        # dataSigning remains a least-privilege leaf certificate.
+        can_issue_client_certificates = cert_usage == "serverAuth"
         builder = builder.add_extension(
             x509.KeyUsage(
                 digital_signature=digital_signature,
@@ -152,8 +152,8 @@ class CertificateGenerator:
                 key_encipherment=key_encipherment,
                 data_encipherment=False,
                 key_agreement=False,
-                key_cert_sign=True,
-                crl_sign=True,
+                key_cert_sign=can_issue_client_certificates,
+                crl_sign=can_issue_client_certificates,
                 encipher_only=False,
                 decipher_only=False
             ),
@@ -171,7 +171,10 @@ class CertificateGenerator:
             builder = builder.add_extension(self._server_san(), critical=False)
 
         builder = builder.add_extension(
-            x509.BasicConstraints(ca=True, path_length=0),
+            x509.BasicConstraints(
+                ca=can_issue_client_certificates,
+                path_length=0 if can_issue_client_certificates else None,
+            ),
             critical=True
         )
 

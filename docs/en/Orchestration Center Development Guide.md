@@ -635,6 +635,8 @@ Certificate validation requirements (in `common/cert/cert_validater.py`):
 - RSA: key size >= 3072 bits
 - ECDSA: key size >= 256 bits
 
+> **Development, testing, and demos only:** this tool is intended for quick startup. Do not use any CA, server certificate, client certificate, or private key it generates in production. Production deployments must use a trusted public or enterprise CA and follow the organization's certificate-management policy.
+
 Generate compliant self-signed certificates:
 ```bash
 python -m generate_selfsign_cert etc/ssl serverAuth
@@ -679,7 +681,7 @@ python -m generate_selfsign_cert etc/ssl serverAuth --issue-client dev-proxy
 - `dev-proxy` is the convention used by the Vite dev proxy: `workflow-designer/vite.config.js`
   reads this pair at startup to present a client certificate to this service. Restart
   `npm run dev` after issuing.
-- For a production Nginx proxy: browsers cannot present client certificates, so Nginx presents
+- For a local or demo Nginx proxy: browsers cannot present client certificates, so Nginx presents
   one on their behalf — configure `proxy_ssl_certificate` / `proxy_ssl_certificate_key` with this
   pair and `proxy_ssl_trusted_certificate` pointing at `trust.cer` (see the commented block in
   `workflow-designer/nginx.conf.template`).
