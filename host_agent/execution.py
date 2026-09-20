@@ -1,5 +1,3 @@
-"""Shared host-agent execution semantics aligned with the Java SDK."""
-
 from __future__ import annotations
 
 import asyncio
@@ -35,11 +33,7 @@ class HostExecutionTracker:
 
 
 def host_event_state(event_type: str) -> TaskState:
-    """Map a workflow event to an A2A task state.
-
-    ``close`` is a stream-lifecycle event, not a business terminal state; the
-    host emits the terminal Task after draining the workflow event stream.
-    """
+    """Map a workflow event to an A2A task state."""
     if event_type == "complete":
         return TaskState.TASK_STATE_COMPLETED
     if event_type == "error":
@@ -48,7 +42,7 @@ def host_event_state(event_type: str) -> TaskState:
 
 
 def host_final_state(events: Iterable[dict[str, Any]]) -> TaskState:
-    """Derive the terminal Task state from the collected workflow events."""
+    """Derive the terminal task state from collected workflow events."""
     for event in reversed(list(events)):
         event_type = event.get("type")
         if event_type == "error":

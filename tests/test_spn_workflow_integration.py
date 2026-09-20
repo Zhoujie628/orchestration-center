@@ -6,12 +6,13 @@
 import pytest
 from a2a_t.core import MetadataContent
 from a2a_t.core.metadata import NEGOTIATION_T_EXTENSION_URI, TASK_T_EXTENSION_URI
-from samples.agents.spn_protocol_content import (
+from workflow_engine import BusinessInput, ReceivedArtifact, ReceivedMessage, TaskRequest
+
+from samples.spn_host_agent.content import (
     PRIVATE_LINE_COMPLAINT_URI,
     metadata_for,
     task_content,
 )
-from workflow_engine import BusinessInput, ReceivedArtifact, ReceivedMessage, TaskRequest
 
 
 class _TaskContentClient:

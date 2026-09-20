@@ -137,7 +137,7 @@ sequenceDiagram
 | **Visual Designer** | React Flow-based drag-and-drop workflow builder with automatic Dagre layout |
 | **Multi-Mode Creation** | PDF document import, manual drag-and-drop, and natural-language-to-workflow via LLM |
 | **A2A-T Negotiation** | Workflow-engine coordinates task identity and exchange lifecycle; host callbacks use current A2A-T content generation and validation APIs |
-| **Execution Engine** | `OrchestrationEngine` — thin A2A-T dispatch channel; PSOP workflow execution delegated to the Workbench Agent via workflow-engine SDK |
+| **Execution Engine** | `OrchestrationEngine` — thin A2A-T dispatch channel; PSOP workflow execution delegated to the Host Agent via workflow-engine SDK |
 | **Semantic Search** | Natural-language retrieval of previously built workflows |
 | **Dual API Layer** | Internal API (`/rest/v1/orchestrate/*`) for the frontend + External API (`/api/v1/*`) for third-party integration |
 | **SSE Streaming** | Real-time execution progress via 11 event types (init, start, agent_request, agent_response, psop_update, negotiation_request, negotiation_resolved, negotiation_failed, complete, error, close) |
@@ -293,7 +293,7 @@ flowchart TB
     domain --> engine
     engine --> file
     engine --> pg
-    engine -->|"A2A-T Protocol"| wb["Workbench Agent<br/>(Leader · workflow-engine SDK)"]
+    engine -->|"A2A-T Protocol"| wb["Host Agent<br/>(Leader · workflow-engine SDK)"]
     wb -->|"A2A Protocol<br/>+ A2A-T Negotiation"| a1
     wb --> a2
     wb --> a3
@@ -341,6 +341,16 @@ flowchart TB
 | `DELETE` | `/execution-records/{id}` | Delete execution record |
 
 Full API specification: [API Reference](docs/en/Orchestration%20Center%20API%20Reference.md)
+
+### Host Agent Runtime
+
+`host_agent` provides the workflow execution host. It runs as an independent A2A Agent process, invokes the Workflow Engine, wraps execution events, and manages the process lifecycle. Business decisions are injected through ControlPoint implementations; the sample SPN policy is provided by `samples/spn_host_agent`. Start it with:
+
+```bash
+python -m samples.start_agents_server
+```
+
+The Orchestration Center owns persisted PSOP data. When the UI dispatches a workflow, it passes a PSOP snapshot to the Host Agent in A2A metadata; direct intent execution falls back to the configured workflow repository.
 
 ## Security
 
@@ -500,7 +510,7 @@ See [`.env.example`](.env.example) for DeepSeek, Qwen and self-hosted-gateway ex
 
 ## A2A-T SDK Integration
 
-This project integrates the workflow-engine SDK for Workbench Agent workflow execution and agent
+This project integrates the workflow-engine SDK for Host Agent workflow execution and agent
 fulfillment negotiation. Its configuration (`A2AT_LLM_PROVIDER`, `A2AT_LLM_MODEL`,
 `A2AT_LLM_API_KEY`, `A2AT_LLM_BASE_URL`, …) is read directly
 from the repo-root `.env` — set it there:

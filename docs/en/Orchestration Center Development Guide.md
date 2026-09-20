@@ -574,6 +574,17 @@ except ValueError:
 - 3. Confirm that array indices and field names in the path are case-sensitive
 
 
+### Host Agent Runtime
+
+The top-level `host_agent` package provides the workflow execution host. It handles the A2A server, Workflow Engine invocation, execution-event wrapping, and lifecycle management. Runtime configuration, AgentCard loading, engine-client creation, and business policy are injected at the sample composition root. Task content, conditional routing, SelfLoop processing, and negotiation replies are supplied by ControlPoint implementations; the sample SPN policy is under `samples/spn_host_agent`. Start it with:
+
+```bash
+python -m samples.start_agents_server
+```
+
+The Orchestration Center owns PSOP data submitted by the UI. When the Execution Center dispatches a workflow, it puts a PSOP snapshot into A2A metadata; direct intent execution falls back to the configured Workflow Repository.
+
+
 ## 6. Security and TLS Configuration
 
 ### 6.1 Frontend Login Authentication
