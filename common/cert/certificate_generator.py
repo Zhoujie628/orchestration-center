@@ -144,7 +144,7 @@ class CertificateGenerator:
         # In the development-only serverAuth profile, the self-signed cert
         # anchors its own trust so it can issue local client certificates.
         # dataSigning remains a least-privilege leaf certificate.
-        can_issue_client_certificates = cert_usage == "serverAuth"
+        acts_as_local_ca = cert_usage == "serverAuth"
         builder = builder.add_extension(
             x509.KeyUsage(
                 digital_signature=digital_signature,
@@ -152,8 +152,8 @@ class CertificateGenerator:
                 key_encipherment=key_encipherment,
                 data_encipherment=False,
                 key_agreement=False,
-                key_cert_sign=can_issue_client_certificates,
-                crl_sign=can_issue_client_certificates,
+                key_cert_sign=acts_as_local_ca,
+                crl_sign=acts_as_local_ca,
                 encipher_only=False,
                 decipher_only=False
             ),
@@ -172,8 +172,8 @@ class CertificateGenerator:
 
         builder = builder.add_extension(
             x509.BasicConstraints(
-                ca=can_issue_client_certificates,
-                path_length=0 if can_issue_client_certificates else None,
+                ca=acts_as_local_ca,
+                path_length=0 if acts_as_local_ca else None,
             ),
             critical=True
         )
