@@ -59,6 +59,7 @@ from common.util.config_util import get_conf
 from orchestrate.core.model.preflow import PreFlow
 from orchestrate.core.model.psop import PSOP
 from orchestrate.server.external_api import router as external_router
+from orchestrate.server.sandbox_api import sandbox_router, sandbox_service
 from orchestrate.core.psop_generator import PsopGenerator
 from orchestrate.core.intent_psop_generator import IntentPsopGenerator
 from orchestrate.core.workflow_search_result import WorkflowSearchResult
@@ -127,6 +128,7 @@ async def _setup_exception_handler():
 async def _cleanup_resources():
     """Clean up lingering async resources on shutdown."""
     logger.info("Cleaning up server resources...")
+    await sandbox_service.aclose()
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -1138,6 +1140,7 @@ async def get_execution_record(execution_id: str):
 # ──── Register routers ────
 app.include_router(router)
 app.include_router(external_router)
+app.include_router(sandbox_router, prefix="/rest/v1/orchestrate")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Legacy route aliases (backward compatibility, delegates to new routes)
