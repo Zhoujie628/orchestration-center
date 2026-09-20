@@ -18,7 +18,6 @@
 MAX_REQUEST_BODY_SIZE = 1024 * 1024  # 1MB default limit
 MAX_URL_LENGTH = 1024
 MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024  # 100MB
-TLS_VERSION = "tls.version"
 TLS_CIPHER = "tls.cipher"
 CONN_TIMEOUT = "connection.timeout"
 CONN_MAX = "connection.max"

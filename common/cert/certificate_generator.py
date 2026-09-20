@@ -27,22 +27,17 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
 from loguru import logger
 
-from common.cert.password_generator import PasswordGenerator
-
-
 class CertificateGenerator:
     """Certificate generation utility, providing certificate creation, validation, and related functions."""
 
     KEY_SIZE = 3072
     VALID_YEARS = 99
-    ISSUER = "orchestration-center"
     SUBJECT = "orchestration-center"
 
     def __init__(self, key_algorithm: str = 'RSA', *,
                  dns_names: list[str] | None = None, ip_addresses: list[str] | None = None):
         """Use loopback SANs by default; explicit lists replace the complete SAN set."""
         self.key_algorithm = key_algorithm
-        self.password_generator = PasswordGenerator()
         self.alg = key_algorithm
         local_defaults = dns_names is None and ip_addresses is None
         self.dns_names = ["localhost"] if local_defaults else list(dns_names or [])
