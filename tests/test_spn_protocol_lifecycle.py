@@ -11,9 +11,9 @@ from types import SimpleNamespace
 import pytest
 from a2a.types import Part, TaskState
 from a2a_t.core import (
-    MetadataContent,
     NEGOTIATION_CONTEXT_METADATA_KEY,
     TEMPLATE_URI_METADATA_KEY,
+    MetadataContent,
     NegotiationContext,
     NegotiationPerformative,
 )
@@ -24,19 +24,6 @@ from a2a_t.core.metadata import (
 from a2a_t.core.standard_templates import SERVICE_RECOVERY_URI
 from google.protobuf.json_format import ParseDict
 from google.protobuf.struct_pb2 import Value
-from samples.agents.host_execution import HostExecutionTracker
-from samples.agents.live_streaming_agent import (
-    LiveStreamingAgentExecutor,
-    LiveStreamingControlPoint,
-)
-from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
-from samples.agents.spn_domain_agent import SpnDomainAgentExecutor
-from samples.agents.spn_extension_lifecycle import SpnExtensionLifecycle
-from samples.agents.spn_protocol_content import (
-    INFORMATION_NEGOTIATION_PROPOSE_URI,
-    RECOVERY_RESULT_REQUIRED_FIELDS,
-)
-from samples.agents.workbench_agent import WorkbenchAgentExecutor, WorkbenchControlPoint
 from workflow_engine import (
     A2atMessages,
     BusinessInput,
@@ -51,6 +38,22 @@ from workflow_engine import (
     WorkflowInput,
 )
 from workflow_engine import TaskStatus as EngineTaskStatus
+
+from host_agent.config import HostAgentConfig
+from host_agent.execution import HostExecutionTracker
+from host_agent.runtime import HostAgentExecutor
+from samples.agents.live_streaming_agent import (
+    LiveStreamingAgentExecutor,
+    LiveStreamingControlPoint,
+)
+from samples.agents.negotiation_base_agent import NegotiationBaseAgentExecutor
+from samples.agents.spn_domain_agent import SpnDomainAgentExecutor
+from samples.spn_host_agent import SpnControlPoint
+from samples.spn_host_agent.content import (
+    INFORMATION_NEGOTIATION_PROPOSE_URI,
+    RECOVERY_RESULT_REQUIRED_FIELDS,
+)
+from samples.spn_host_agent.lifecycle import SpnExtensionLifecycle
 
 
 class _NegotiationClient:
@@ -151,8 +154,8 @@ def _recovery_result() -> dict:
 
 
 @pytest.mark.asyncio
-async def test_workbench_negotiation_uses_current_city_task_data():
-    control_point = WorkbenchControlPoint.__new__(WorkbenchControlPoint)
+async def test_spn_host_negotiation_uses_current_city_task_data():
+    control_point = SpnControlPoint.__new__(SpnControlPoint)
     control_point.a2at_client = _NegotiationClient(["任务对象"])
     request = _proposal_request(
         _task_request("diagnosis_city2", "SPN Domain Agent City2"),
@@ -170,8 +173,8 @@ async def test_workbench_negotiation_uses_current_city_task_data():
 
 
 @pytest.mark.asyncio
-async def test_workbench_sends_reject_when_requested_field_is_unavailable():
-    control_point = WorkbenchControlPoint.__new__(WorkbenchControlPoint)
+async def test_spn_host_sends_reject_when_requested_field_is_unavailable():
+    control_point = SpnControlPoint.__new__(SpnControlPoint)
     control_point.a2at_client = _NegotiationClient(["不存在字段"])
     request = _proposal_request(
         _task_request("diagnosis_city1", "SPN Domain Agent City1"),
@@ -203,7 +206,7 @@ async def test_live_streaming_resolves_ran_sla_negotiation():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("control_point_type", [WorkbenchControlPoint, LiveStreamingControlPoint])
+@pytest.mark.parametrize("control_point_type", [SpnControlPoint, LiveStreamingControlPoint])
 async def test_route_callback_evaluates_each_conditional_edge_independently(
     control_point_type,
 ):
@@ -365,11 +368,11 @@ async def test_failed_authorization_is_retried_without_blocking_workflow(monkeyp
         )
     )
     monkeypatch.setattr(
-        "samples.agents.spn_extension_lifecycle.create_a2at_client",
+    "samples.spn_host_agent.lifecycle.create_a2at_client",
         lambda: object(),
     )
     monkeypatch.setattr(
-        "samples.agents.spn_extension_lifecycle.authorization_content",
+    "samples.spn_host_agent.lifecycle.authorization_content",
         lambda client: MessageContent.text("authorization"),
     )
 
@@ -402,11 +405,11 @@ async def test_failed_notification_ack_closes_and_removes_subscription(monkeypat
         open_notification=lambda *args: subscription,
     )
     monkeypatch.setattr(
-        "samples.agents.spn_extension_lifecycle.create_a2at_client",
+    "samples.spn_host_agent.lifecycle.create_a2at_client",
         lambda: object(),
     )
     monkeypatch.setattr(
-        "samples.agents.spn_extension_lifecycle.notification_content",
+    "samples.spn_host_agent.lifecycle.notification_content",
         lambda client: MessageContent.text("notification"),
     )
 
@@ -419,7 +422,7 @@ async def test_failed_notification_ack_closes_and_removes_subscription(monkeypat
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "executor_type",
-    [NegotiationBaseAgentExecutor, WorkbenchAgentExecutor, LiveStreamingAgentExecutor],
+    [NegotiationBaseAgentExecutor, HostAgentExecutor, LiveStreamingAgentExecutor],
 )
 async def test_cancel_returns_a2a_canceled_task(executor_type):
     executor = executor_type.__new__(executor_type)
@@ -438,8 +441,18 @@ async def test_cancel_returns_a2a_canceled_task(executor_type):
 
 
 def test_host_executors_do_not_store_request_language(monkeypatch):
-    monkeypatch.setattr("samples.agents.workbench_agent.get_conf", lambda: {})
     monkeypatch.setattr("samples.agents.live_streaming_agent.get_conf", lambda: {})
 
-    assert not hasattr(WorkbenchAgentExecutor(), "lang")
+    executor = HostAgentExecutor(
+        config=HostAgentConfig(
+            orchestration_url="https://orch.test",
+            registry_url="https://registry.test",
+        ),
+        control_point_factory=lambda context: SpnControlPoint(
+            orch_url=context.orchestration_url,
+            ssl_verify=context.ssl_verify,
+            lang=context.lang,
+        ),
+    )
+    assert not hasattr(executor, "lang")
     assert not hasattr(LiveStreamingAgentExecutor(), "lang")

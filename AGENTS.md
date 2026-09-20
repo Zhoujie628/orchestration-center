@@ -52,15 +52,15 @@ pytest tests/test_external_apis.py -v -s
 ### Three-layer execution model
 
 ```
-Frontend (React) → OrchestrationEngine (thin A2A-T channel) → Workbench Agent (leader, executes PSOP) → Worker Agents
+Frontend (React) → OrchestrationEngine (thin A2A-T channel) → Host Agent (executes PSOP) → Worker Agents
 ```
 
 The orchestration center does **NOT** execute workflows itself. It:
 1. Searches/loads the PSOP for frontend graph preview
-2. Dispatches the intent to the Workbench Agent via A2A-T
+2. Dispatches the intent and PSOP snapshot to the Host Agent via A2A-T
 3. Streams back SDK events from TaskUpdate metadata to the frontend SSE
 
-All workflow execution logic (DAG traversal, parallel A2A calls, conditional routing, negotiation) lives in the Workbench Agent (`samples/agents/workbench_agent.py`) and the `workflow-engine` SDK.
+Generic execution hosting lives in `host_agent/`; it owns A2A task adaptation, workflow-engine invocation, cancellation, and lifecycle. Business decisions are injected as a ControlPoint. The bundled SPN policy, extension lifecycle, demo authentication, and composition root live in `samples/spn_host_agent/`.
 
 ### Entrypoints (all run via `-m`)
 
@@ -134,7 +134,8 @@ common/                # Shared infra: config, LLM, logging, certs, util
   llm/                 # LLM abstraction (generic HTTP client + auth strategies)
 workflow-designer/     # React frontend (separate Node project)
 samples/               # Sample A2A agents + start script
-  agents/workbench_agent.py  # Workbench Agent (leader, executes PSOP via workflow-engine SDK)
+  spn_host_agent/       # SPN ControlPoint, lifecycle, demo auth, and HostAgent composition
+host_agent/             # Business-neutral workflow execution host and A2A server adapters
 database/              # PostgreSQL support (optional)
 etc/conf/              # server.conf, server.properties, db_config.json
 samples/agent_credentials.json  # sample AgentCard credential bindings

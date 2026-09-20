@@ -63,12 +63,13 @@ from workflow_engine import (
 
 from common.llm import get_llm_instance
 from common.util.config_util import get_conf
-from samples.agents.host_execution import (
+from host_agent.execution import (
     HostExecutionTracker,
     host_event_state,
     host_final_state,
 )
-from samples.agents.spn_protocol_content import (
+from samples.agents.util.negotiation_utils import detect_lang
+from samples.spn_host_agent.content import (
     INFORMATION_NEGOTIATION_PROPOSE_URI,
     NEGOTIATION_ITEMS_SCHEMA,
     create_a2at_client,
@@ -77,7 +78,6 @@ from samples.agents.spn_protocol_content import (
     negotiation_prompt,
     negotiation_reject_content,
 )
-from samples.agents.util.negotiation_utils import detect_lang
 
 
 class LiveStreamingControlPoint(ControlPoint):
