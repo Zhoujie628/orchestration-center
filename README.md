@@ -339,6 +339,13 @@ flowchart TB
 | `GET` | `/execution-records` | List execution records |
 | `GET` | `/execution-records/{id}` | Get execution record detail |
 | `DELETE` | `/execution-records/{id}` | Delete execution record |
+| `POST` | `/sandbox/{workflow_id}/run` | Start an internal sandbox verification |
+| `GET` | `/sandbox/verifications` | List sandbox reports |
+| `GET` | `/sandbox/verifications/{id}` | Get sandbox status or report |
+| `GET` | `/sandbox/verifications/{id}/events` | Get sandbox execution events |
+| `DELETE` | `/sandbox/verifications/{id}` | Cancel a run or delete its report |
+| `GET` | `/sandbox/templates/{workflow_id}` | Get sandbox stub templates |
+| `PUT` | `/sandbox/templates/{workflow_id}` | Save sandbox stub templates |
 
 Full API specification: [API Reference](docs/en/Orchestration%20Center%20API%20Reference.md)
 
@@ -351,6 +358,18 @@ python -m samples.start_agents_server
 ```
 
 The Orchestration Center owns persisted PSOP data. When the UI dispatches a workflow, it passes a PSOP snapshot to the Host Agent in A2A metadata; direct intent execution falls back to the configured workflow repository.
+
+### Sandbox Verification
+
+Sandbox verification is separate from formal execution:
+
+1. **Static checks** validate DAG structure, `context_from` ancestry, Agent/Skill matching, and Task-T/Negotiation-T declarations.
+2. **Stub execution** runs the real Workflow Engine scheduling path but replaces remote A2A calls with locally generated Stub responses.
+3. **Reports** record pass/warning/fail checks, execution path, context trace, Stub interactions, risks, and suggestions.
+4. **Editor snapshots** allow unsaved or imported workflows to be verified. A valid `psop` snapshot in the run request takes precedence over loading the workflow by ID.
+5. **Report language** follows the `zh` / `en` run request. Backend report text is loaded from `orchestrate/sandbox/locales`.
+
+A sandbox `pass` means workflow structure and engine scheduling were verified with Stub Agents. It does **not** prove that real Agents will produce correct business output.
 
 ## Security
 

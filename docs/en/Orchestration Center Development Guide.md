@@ -584,6 +584,14 @@ python -m samples.start_agents_server
 
 The Orchestration Center owns PSOP data submitted by the UI. When the Execution Center dispatches a workflow, it puts a PSOP snapshot into A2A metadata; direct intent execution falls back to the configured Workflow Repository.
 
+### Sandbox Verification
+
+Sandbox verification is independent from formal execution. Static validation checks the DAG, `context_from`, Agent/Skill matching, and Task-T/Negotiation-T declarations. Stub execution reuses the real Workflow Engine scheduling path but replaces remote task-content generation and A2A calls with local sandbox input and Stub responses. A saved workflow is loaded by ID; an unsaved or imported editor workflow can submit the current canvas as a `psop` snapshot, which the backend validates with the `PSOP` model. Reports record pass/warning/fail checks, execution path, context trace, Stub interactions, risks, and suggestions.
+
+A sandbox `pass` means workflow structure and engine scheduling were verified with Stub Agents. It does not prove that real Agents will produce correct business output. Sandbox reports and formal execution records are stored separately, and the frontend marks sandbox results with a `SANDBOX` badge. Deleting an active verification cancels its background task before removing its report.
+
+Backend report text is loaded from `orchestrate/sandbox/locales/{zh,en}.json`. The frontend sends `zh` / `en` when starting a run and maps fixed enum values through `workflow-designer/src/locales/*.json`. Do not concatenate user-visible sentences in business code; maintain both resource files when adding checks or suggestions.
+
 
 ## 6. Security and TLS Configuration
 
