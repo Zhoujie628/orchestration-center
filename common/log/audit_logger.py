@@ -40,7 +40,6 @@ class OperationName(str, Enum):
     START_SERVER = "Start Server"
     SAVE_PSOP = "Save PSOP"
     DELETE_PSOP = "Delete PSOP"
-    EXECUTE_PSOP = "Execute PSOP"
     UPDATE_AGENT_CARD = "Update Agent Card"
     DELETE_AGENT_CARD = "Delete Agent Card"
 
