@@ -81,7 +81,10 @@ async def start_agent_server(
 
     ssl_kwargs: dict[str, str] = {}
     if agent_url.startswith("https://"):
-        ssl_dir = Path(__file__).resolve().parents[2] / "etc" / "ssl"
+        # parents[1] = the repository (or install) root that contains etc/ssl.
+        # host_agent/service.py sits one level below it; parents[2] would point
+        # outside the project and silently degrade https agent servers to HTTP.
+        ssl_dir = Path(__file__).resolve().parents[1] / "etc" / "ssl"
         cert_path = ssl_dir / "server.cer"
         if not cert_path.is_file():
             cert_path = ssl_dir / "server1.cer"
