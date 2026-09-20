@@ -327,15 +327,21 @@ For an existing deployment, generate into a new directory, back up and deploy th
 Update client trust material where required; do not overwrite the CA store used to authenticate clients.
 `dataSigning` does not add TLS SANs and rejects CLI SAN options.
 
-This generates RSA 3072-bit certificates that comply with the built-in certificate validator. Copy the generated files to the expected names:
+This generates RSA 3072-bit certificates that comply with the built-in certificate validator. The command also produces the deployment file names that the configuration expects:
 
 ```bash
-cd etc/ssl
-cp server_RSA.cer server.cer
-cp server_key_RSA.pem server_key.pem
-cp server.cer trust.cer
-echo -n "<password>" > cert_pwd
+python -m generate_selfsign_cert etc/ssl serverAuth --plain-key
 ```
+
+| File | Purpose |
+|---|---|
+| `server.cer` / `trust.cer` | Server certificate / trust anchor (same content) |
+| `server_key.pem` | Encrypted private key, decrypted at startup with `cert_pwd` |
+| `cert_pwd` | Key password, written automatically (no trailing newline) |
+| `server_key_nopass.pem` | Unencrypted key (with `--plain-key`), for Nginx and the Host Agent |
+| `server_RSA.cer` / `server_key_RSA.pem` | Copies under the original raw names, kept for compatibility |
+
+The private key password is entered at an interactive prompt and never reaches shell history. The main backend reads `etc/conf/cert_pwd` by default; set `ssl_keyfile_password=etc/ssl/cert_pwd` in `server.conf` or copy the file to `etc/conf/`.
 
 For production, use certificates from a trusted CA (Let's Encrypt, Alibaba Cloud SSL, or enterprise CA).
 
