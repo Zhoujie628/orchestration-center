@@ -24,6 +24,19 @@ from orchestrate.core.model.psop import PSOP
 # Helpers
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _stub_llm_instance(monkeypatch):
+    """IntentPsopGenerator.__init__ resolves a real LLM instance via
+    common.llm.get_llm_instance(), which raises ValueError when no chat
+    capability is configured (the case in CI). Stub it at the psop_generator
+    module (where the constructor looks it up) so construction succeeds
+    without LLM credentials; individual tests still override self._llm."""
+    monkeypatch.setattr(
+        "orchestrate.core.psop_generator.get_llm_instance",
+        lambda: MagicMock(),
+    )
+
+
 def _make_agent_card(name="agent1", description="desc", skills=None):
     card = MagicMock()
     card.name = name
