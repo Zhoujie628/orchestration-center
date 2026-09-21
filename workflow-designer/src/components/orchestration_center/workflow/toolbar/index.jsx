@@ -16,14 +16,17 @@
 //    under the License.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FlaskConical } from "lucide-react";
 import { createWorkflow } from "@/service/api.js";
 import { createPortal } from "react-dom";
 import { transformReactFlowToPSOP } from "@/components/orchestration_center/workflow/utils/index.jsx";
+import SandboxDialog from "@/components/sandbox/SandboxDialog.jsx";
 
 const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, onCancel, onClear, onFitView, isDark, onSaveSuccess }) => {
     const [showConfirm, setShowConfirm] = useState(false);
     const { t } = useTranslation();
     const [showExportModal, setShowExportModal] = useState(false);
+    const [showSandboxDialog, setShowSandboxDialog] = useState(false);
     const [exportName, setExportName] = useState(workflowName || "");
     const [exportDesc, setExportDesc] = useState(workflowDescription || "");
     const [toast, setToast] = useState({ show: false, msg: "", type: "error" });
@@ -55,11 +58,20 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
     // --- 0. Pre-validation ---
     const validateWorkflow = () => {
         if (nodes.length === 0) return t('workflow.validate.empty');
+        if (!nodes.some(n => n.type === 'startNode')) {
+            return t('workflow.validate.noStart');
+        }
+        if (!nodes.some(n => n.type === 'endNode')) {
+            return t('workflow.validate.noEnd');
+        }
 
         const sourceEdgeIds = new Set(edges.map(e => e.source));
 
         for (const node of nodes) {
             if (node.type === 'agentNode') {
+                if (!node.data.subtasks || node.data.subtasks.length === 0) {
+                    return t('workflow.validate.noSubtask', { id: node.id });
+                }
                 if (!node.data.agent) {
                     return t('workflow.validate.invalidAgent', { id: node.id });
                 }
@@ -69,6 +81,20 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
             if (!isEndNode && !sourceEdgeIds.has(node.id)) {
                 return t('workflow.validate.noEdge', { id: node.id });
             }
+        }
+        // Step names are user-editable and become the PSOP identity referenced
+        // by next/context_from, so they must be unique and avoid reserved names
+        const stepNameMap = new Map();
+        for (const node of nodes) {
+            if (node.type !== 'agentNode') continue;
+            const name = (node.data?.label || node.data?.name || node.id).trim() || node.id;
+            if (['end', 'END', 'endNode'].includes(name)) {
+                return t('workflow.validate.reservedName', { name });
+            }
+            if (stepNameMap.has(name)) {
+                return t('workflow.validate.duplicateName', { name });
+            }
+            stepNameMap.set(name, node.id);
         }
         if (!nodes.some(n => n.type === 'endNode' || n.id === 'endNode')) {
             return t('workflow.validate.noEnd');
@@ -91,9 +117,7 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
             createWorkflow(psopData).then(r => {
                 setToast({ show: true, msg: t('workflow.export.success'), type: 'success' });
                 setShowExportModal(false);
-                setExportName("");
-                setExportDesc("");
-                if (onSaveSuccess) onSaveSuccess();
+                if (onSaveSuccess) onSaveSuccess(r?.data?.workflow_id || workflowId || null);
             }).catch(err => {
                 setToast({ show: true, msg: t('workflow.export.failed'), type: 'error' });
             });
@@ -185,7 +209,7 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
 
                 <div className="flex gap-4">
                     <button
-                        onClick={() => { setShowExportModal(false); setExportName(""); setExportDesc(""); }}
+                        onClick={() => setShowExportModal(false)}
                         className={`flex-1 px-4 py-3 text-sm font-bold rounded-2xl transition-all active:scale-95 ${isDark
                                 ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
                                 : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
@@ -237,6 +261,16 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
 
             <div className={`w-px h-4 mx-1 ${theme.divider}`} />
 
+            {workflowId && (
+                <button
+                    onClick={() => setShowSandboxDialog(true)}
+                    className={`flex items-center gap-1 px-3 py-1.5 text-sm font-semibold rounded-xl transition-colors ${theme.secondaryBtn}`}
+                >
+                    <FlaskConical className="w-4 h-4" />
+                    {t('workflow.toolbar.sandbox')}
+                </button>
+            )}
+
             <button
                 onClick={handleClearClick}
                 className={`flex items-center gap-1 px-3 py-1.5 text-sm font-semibold rounded-xl transition-colors ${theme.dangerBtn}`}
@@ -250,13 +284,9 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
 
             <button
                 onClick={() => {
-                    if (workflowId && exportName.trim()) {
-                        executeExport();
-                    } else {
-                        setExportName(workflowName || exportName || "");
-                        setExportDesc(workflowDescription || exportDesc || "");
-                        setShowExportModal(true);
-                    }
+                    setExportName(prev => prev || workflowName || "");
+                    setExportDesc(prev => prev || workflowDescription || "");
+                    setShowExportModal(true);
                 }}
                 className={`ml-2 px-4 py-1.5 text-sm font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-1 ${theme.primaryBtn}`}
             >
@@ -267,6 +297,18 @@ const Toolbar = ({ nodes, edges, workflowId, workflowName, workflowDescription, 
                 {t('workflow.toolbar.export')}
             </button>
             {showExportModal && createPortal(ExportModal, document.body)}
+            {showSandboxDialog && (
+                <SandboxDialog
+                    workflowId={workflowId}
+                    psop={transformReactFlowToPSOP(nodes, edges, {
+                        id: workflowId || undefined,
+                        name: workflowName,
+                        description: workflowDescription,
+                    })}
+                    isDark={isDark}
+                    onClose={() => setShowSandboxDialog(false)}
+                />
+            )}
             {toast.show && createPortal(
                 <div className="fixed top-10 left-1/2 z-[10000] animate-toast-in">
                     <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border transition-all ${toast.type === 'success'

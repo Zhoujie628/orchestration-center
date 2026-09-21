@@ -173,15 +173,19 @@ const initialEditNodes = [
         id: 'startNode',
         type: 'startNode',
         position: { x: 50, y: 300 },
+        deletable: false,
         data: { description: 'this is the start node', name: 'start_node', status: 'start-event' }
     },
     {
         id: 'endNode',
         type: 'endNode',
         position: { x: 1000, y: 300 },
+        deletable: false,
         data: { description: 'this is a end node.', status: 'end_node', type: 'end-event' }
     }
 ];
+
+const isBoundaryNode = (node) => node?.type === 'startNode' || node?.type === 'endNode';
 
 const FlowInner = ({
     mode,
@@ -197,7 +201,8 @@ const FlowInner = ({
     workflowName,
     workflowDescription,
     onCancel,
-    onSaveSuccess
+    onSaveSuccess,
+    onDirtyChange
 }) => {
     const { t } = useTranslation();
     const { screenToFlowPosition, fitView, setCenter, getNode } = useReactFlow();
@@ -423,7 +428,12 @@ const FlowInner = ({
 
     useEffect(() => {
         if (mode === 'edit' && importedNodes?.length > 0) {
-            setEditNodes(importedNodes.map(node => ({ ...node, zIndex: 100, data: { ...node.data, isDark } })));
+            setEditNodes(importedNodes.map(node => ({
+                ...node,
+                zIndex: 100,
+                deletable: !isBoundaryNode(node),
+                data: { ...node.data, isDark, editable: true }
+            })));
             setIsDirty(false);
         }
     }, [importedNodes, setEditNodes, mode]);
@@ -432,7 +442,7 @@ const FlowInner = ({
         if (mode === 'edit') {
             setEditNodes(nds => nds.map(node => ({
                 ...node,
-                data: { ...node.data, isDark }
+                data: { ...node.data, isDark, editable: true }
             })));
         }
     }, [isDark, mode, setEditNodes]);
@@ -462,10 +472,24 @@ const FlowInner = ({
 
     // Track changes for isDirty
     const onNodesChangeWithDirty = useCallback((changes) => {
-        onNodesChange(changes);
-        const hasChange = changes.some(c => c.type === 'position' || c.type === 'remove' || c.type === 'add' || c.type === 'reset');
+        // Defence in depth: never let a keyboard shortcut, controls action, or
+        // downstream change stream remove the system-managed START/END markers.
+        const safeChanges = changes.filter(
+            (change) => {
+                if (change.type !== 'remove') return true;
+                const node = editNodes.find(item => item.id === change.id);
+                return !isBoundaryNode(node);
+            }
+        );
+        onNodesChange(safeChanges);
+        const hasChange = safeChanges.some(c => c.type === 'position' || c.type === 'remove' || c.type === 'add' || c.type === 'reset');
         if (hasChange) setIsDirty(true);
-    }, [onNodesChange]);
+    }, [onNodesChange, editNodes]);
+
+    const onBeforeDelete = useCallback(async ({ nodes: nodesToDelete = [], edges: edgesToDelete = [] }) => ({
+        nodes: nodesToDelete.filter(node => !isBoundaryNode(node)),
+        edges: edgesToDelete,
+    }), []);
 
     const onEdgesChangeWithDirty = useCallback((changes) => {
         onEdgesChange(changes);
@@ -492,14 +516,23 @@ const FlowInner = ({
         }
     }, [isDirty, onCancel]);
 
-    const handleSaveSuccess = useCallback(() => {
+    // Lift the dirty flag so outer navigation (e.g. the global header back
+    // button) can guard against losing unsaved edits
+    useEffect(() => {
+        if (onDirtyChange) onDirtyChange(isDirty);
+    }, [isDirty, onDirtyChange]);
+
+    const handleSaveSuccess = useCallback((savedId) => {
         setIsDirty(false);
-        if (onSaveSuccess) onSaveSuccess();
+        if (onSaveSuccess) onSaveSuccess(savedId);
     }, [onSaveSuccess]);
 
     const onDeleteSelected = useCallback(() => {
         if (!selectedElement) return;
-        if (selectedElement.id === 'startNode' || selectedElement.id === 'endNode') return;
+        // Guard by type so both id schemes ('startNode'/'endNode' on a blank
+        // canvas and 'START_NODE'/'END_OF_WORKFLOW' on imported workflows) are covered
+        const selNode = editNodes.find(n => n.id === selectedElement.id);
+        if (selNode && (selNode.type === 'startNode' || selNode.type === 'endNode')) return;
 
         if (editNodes.some(n => n.id === selectedElement.id)) {
             setEditNodes((nds) => nds.filter((node) => node.id !== selectedElement.id));
@@ -644,6 +677,7 @@ const FlowInner = ({
                         subtasks: [newSubtask],
                         status: 'pending',
                         name: newId,
+                        editable: true,
                         isDark,
                     },
                     width: 200,
@@ -690,6 +724,7 @@ const FlowInner = ({
                 nodesConnectable={mode === 'edit'}
                 nodesDraggable={true}
                 elementsSelectable={true}
+                onBeforeDelete={mode === 'edit' ? onBeforeDelete : undefined}
                 onInit={setRfInstance}
                 colorMode={isDark ? 'dark' : 'light'}
                 fitView
@@ -787,7 +822,8 @@ const UnifiedWorkflow = ({
     workflowName,
     workflowDescription,
     onCancel,
-    onSaveSuccess
+    onSaveSuccess,
+    onDirtyChange
 }) => {
     const { t } = useTranslation();
 
@@ -830,6 +866,7 @@ const UnifiedWorkflow = ({
                     workflowDescription={workflowDescription}
                     onCancel={onCancel}
                     onSaveSuccess={onSaveSuccess}
+                    onDirtyChange={onDirtyChange}
                 />
             </ReactFlowProvider>
         </div>

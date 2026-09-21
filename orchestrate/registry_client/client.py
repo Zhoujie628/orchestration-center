@@ -29,14 +29,15 @@ class AgentRegistryClient:
     Async client SDK for interacting with Agent Registry REST API.
     """
 
-    def __init__(self, base_url: str, timeout: int = 30):
+    def __init__(self, base_url: str, timeout: int = 30, ssl_verify: bool = True):
         self.base_url = base_url
         self.timeout = timeout
+        self.ssl_verify = ssl_verify
         self._client: Optional[httpx.AsyncClient] = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
-            ssl_context = create_client_ssl_context()
+            ssl_context = create_client_ssl_context(verify_server=self.ssl_verify)
             self._client = httpx.AsyncClient(
                 timeout=self.timeout, verify=ssl_context, follow_redirects=True,
                 # The registry center sets timeout_keep_alive=0 (Connection:

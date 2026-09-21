@@ -8,6 +8,27 @@
       "skills": "技能中心"
     }
   },
+  "login": {
+    "title": "访问密码",
+    "username_placeholder": "用户名",
+    "placeholder": "请输入访问密码...",
+    "button": "进入",
+    "loading": "验证中...",
+    "error": "登录失败，请检查密码是否正确",
+    "logout": "退出登录",
+    "register_title": "注册",
+    "register_button": "注册",
+    "confirm_password": "确认密码...",
+    "no_account": "还没有账号？",
+    "have_account": "已有账号？",
+    "password_mismatch": "两次密码不一致",
+    "password_too_short": "密码至少8位",
+    "password_complexity": "密码必须包含大写字母、小写字母和数字",
+    "change_password": "修改密码",
+    "current_password": "当前密码",
+    "new_password": "新密码",
+    "must_change_password": "该账户正在使用默认密码，请设置新密码后继续。"
+  },
   "execution": {
     "title": "工作流执行",
     "execute": "开始执行",
@@ -38,6 +59,9 @@
     "interface_label": "工作流预览",
     "ai_gen": "自然语言编排",
     "native": "原生编排",
+    "select_agent": "选择宿主智能体",
+    "dispatch": "派发",
+    "dispatching": "派发中...",
     "generating_wf": "正在生成工作流...",
     "standby": "待命",
     "interaction": "交互",
@@ -59,13 +83,20 @@
     "negotiation_resolved": "协商已解析",
     "negotiation_failed": "协商失败",
     "match_tab": "匹配工作流",
+    "match_hint": "输入意图开始搜索",
     "history_tab": "执行记录",
+    "sandbox_tab": "沙箱报告",
+    "sandbox_empty_title": "暂无沙箱报告",
+    "sandbox_empty_hint": "在编排中心打开已保存的工作流，点击工具栏“沙箱验证”运行后，报告会显示在这里。",
     "no_match_yet": "搜寻匹配...",
     "no_history": "暂无执行记录",
+    "no_history_hint": "执行工作流后将在此保存记录",
     "loading": "加载中...",
     "load_history_failed": "加载历史记录失败",
     "delete_record_title": "删除执行记录",
     "delete_record_confirm": "确定要删除该执行记录吗？此操作无法撤销。",
+    "delete_sandbox_title": "删除沙箱报告",
+    "delete_sandbox_confirm": "确定要删除该沙箱报告吗？此操作无法撤销。",
     "sub_menu_execution": "工作流执行",
     "sub_menu_statistics": "执行统计",
     "statistics_title": "执行统计",
@@ -78,6 +109,10 @@
     "status_success": "成功",
     "status_failed": "失败",
     "status_running": "运行中",
+    "unknown_status": "未知",
+    "standby_hint": "选择或搜索工作流开始执行",
+    "waiting_execution": "等待执行",
+    "event_count": "{{count}} 条事件",
     "no_data": "暂无数据",
     "search_fuzzy": "模糊搜索",
     "search_exact": "精确搜索",
@@ -155,6 +190,83 @@
     "packages_upload_hint": "拖拽 PDF 文件到此处，或点击选择文件",
     "packages_list_title": "已导入的解决方案包"
   },
+  "sandbox": {
+    "title": "沙箱验证",
+    "process": "执行过程",
+    "waiting": "等待沙箱事件...",
+    "run": "开始验证",
+    "stillRunning": "沙箱验证仍在运行，请稍后刷新查看",
+    "failed": "沙箱验证失败",
+    "missingVerificationId": "沙箱验证 ID 缺失",
+    "saveFirst": "请先保存工作流",
+    "scenarios": {
+      "success": "正常响应",
+      "error": "错误响应",
+      "delay": "延迟响应",
+      "negotiation": "协商请求"
+    },
+    "verdicts": {
+      "pass": "通过",
+      "warning": "警告",
+      "fail": "失败",
+      "unknown": "未知"
+    },
+    "states": {
+      "starting": "启动中",
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "失败",
+      "success": "成功"
+    },
+    "events": {
+      "start": "工作流开始",
+      "step_start": "步骤开始",
+      "step_complete": "步骤完成",
+      "task_request": "任务请求",
+      "task_response": "任务响应",
+      "task_status_changed": "任务状态变更",
+      "route_decision": "路由决策",
+      "agent_request": "Agent 请求",
+      "agent_response": "Agent 响应",
+      "negotiation_request": "协商请求",
+      "negotiation_resolved": "协商完成",
+      "negotiation_failed": "协商失败",
+      "workflow_complete": "工作流完成",
+      "error": "错误",
+      "unknown": "未知事件"
+    },
+    "taskStates": {
+      "TASK_STATE_COMPLETED": "已完成",
+      "TASK_STATE_FAILED": "失败",
+      "TASK_STATE_RUNNING": "执行中",
+      "TASK_STATE_UNSPECIFIED": "未指定"
+    },
+    "checks": {
+      "structure.blank_step_name": "步骤名称完整性",
+      "structure.duplicate_step": "步骤名称唯一性",
+      "structure.empty_subtasks": "步骤任务完整性",
+      "structure.next_targets": "流程连线有效性",
+      "structure.cycle": "依赖循环",
+      "structure.reachability": "步骤可达性",
+      "structure.context_sources": "上下文传递链",
+      "agents.duplicate_card": "AgentCard 唯一性",
+      "agents.missing": "Agent 可达性",
+      "agents.skill_match": "技能匹配",
+      "agents.task_t_extension": "Task-T 能力",
+      "agents.negotiation_t_extension": "Negotiation-T 能力"
+    },
+    "report": {
+      "checks": "静态检查",
+      "executionPath": "执行路径",
+      "contextTrace": "上下文链路",
+      "noUpstream": "无上游",
+      "noContext": "暂无上下文记录",
+      "stubInteractions": "Stub 交互",
+      "noInteractions": "暂无 Stub 交互",
+      "risks": "风险",
+      "suggestions": "建议"
+    }
+  },
   "workflow": {
     "title": "编排流程",
     "progress_label": "整体执行进度",
@@ -167,6 +279,7 @@
     "toolbar": {
       "back": "返回",
       "fitView": "自适应布局",
+      "sandbox": "沙箱验证",
       "clear": "清空画布",
       "export": "保存",
       "exportSuccess": "保存成功"
@@ -186,6 +299,7 @@
       "edgeConfig": "分支配置",
       "agentName": "Agent 名称",
       "stepName": "步骤名称",
+      "boundaryNodeHint": "该节点由系统自动生成，用于标记工作流的开始/结束，不对应实际执行步骤，名称与配置不可修改",
       "status": "状态",
       "subtasks": "子任务",
       "taskDesc": "任务描述 (Task)",
@@ -222,7 +336,8 @@
       "contextFromHintLayer0": "执行层节点仅依据任务描述执行，不引用上游步骤输出。",
       "contextFromAll": "所有前驱节点",
       "contextFromAuto": "自动推导（默认）",
-      "contextFromNone": "无可用上游步骤"
+      "contextFromNone": "无可用上游步骤",
+      "stepTypeSelfLoop": "自处理（SelfLoop）：该步骤由当前工作流执行者本地处理，不通过 A2A-T 协议发送给其他智能体。适用于汇总、分析等自身任务。"
     },
     "export": {
       "success": "工作流保存成功",
@@ -239,13 +354,18 @@
       "invalidAgent": "工作流校验失败，请更新工作流",
       "noSkill": "节点 [{{id}}] 未选择技能",
       "noEdge": "节点 [{{id}}] 缺少输出连线",
+      "noStart": "流程缺少开始节点",
       "noEnd": "流程缺少结束节点",
+      "duplicateName": "步骤名称 [{{name}}] 重复，请修改为唯一名称",
+      "reservedName": "[{{name}}] 是保留名称，请更换该步骤名称",
+      "noSubtask": "节点 [{{id}}] 没有子任务，请拖入 Agent 或删除该节点",
       "yamlError": "YAML生成失败"
     },
     "exit": {
       "title": "确认退出",
       "desc": "您有未保存的修改，退出将丢失这些修改。确定要退出吗？"
-    }
+    },
+    "selfLoop": "自处理"
   },
   "registry": {
     "title": "Agent库",
@@ -272,7 +392,28 @@
     "org": "组织：",
     "protocol": "协议：",
     "switch_to_raw": "切换到原始数据",
-    "switch_to_gui": "切换到图形视图"
+    "switch_to_gui": "切换到图形视图",
+    "edit_agent": "编辑",
+    "edit_agent_title": "编辑 AgentCard",
+    "edit_mode_form": "表单",
+    "edit_mode_json": "JSON",
+    "edit_identity_hint": "名称与组织是 AgentCard 的唯一标识,不可修改",
+    "edit_form_hint": "技能与接口列表在表单模式下只读,如需修改请切换到 JSON 模式",
+    "field_description": "描述",
+    "field_version": "版本",
+    "field_provider_url": "提供方地址",
+    "field_documentation_url": "文档地址",
+    "field_icon_url": "图标地址",
+    "json_invalid": "JSON 格式错误:",
+    "json_identity_mismatch": "JSON 中的 name/organization 必须与被编辑的卡片一致",
+    "save_agent": "保存",
+    "saving": "保存中...",
+    "update_success": "AgentCard 已更新",
+    "update_failed": "更新 AgentCard 失败:",
+    "delete_agent": "删除 AgentCard",
+    "delete_agent_confirm": "确认从注册中心删除该 AgentCard?引用它的工作流将无法解析该 Agent",
+    "delete_success": "AgentCard 已删除",
+    "delete_failed": "删除 AgentCard 失败:"
   },
   "agent_profile": {
     "basic": "基础属性",
@@ -334,11 +475,17 @@
     "end": "结束节点",
     "no_skill": "未指定技能",
     "no_subtasks": "未配置子任务",
+    "drop_hint": "拖拽 Agent 到此添加子任务",
     "allSuccess": "全成功",
     "anySuccess": "任一成功"
   },
   "error": {
     "parse_failed": "解析拖拽的 Agent 模板失败。"
+  },
+  "error_boundary": {
+    "title": "发生错误",
+    "message": "此部分发生了意外错误。",
+    "try_again": "重试"
   },
   "skills": {
     "title": "技能中心",

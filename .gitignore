@@ -6,6 +6,7 @@ venv/
 .venv/
 log/
 .pytest_cache/
+openspec/
 workflow-designer/dist/
 workflow-designer/stats.html
 data/

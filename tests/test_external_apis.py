@@ -144,10 +144,10 @@ def test_sop_json():
     payload = {
         "sop_content": (
             "## Step 1: 初始诊断\n\n"
-            "- Agent: Transport Workbench Agent\n"
+            "- Agent: Host Agent\n"
             "- Skill: aggregate-analysis\n\n"
             "## Step 2: 汇总报告\n\n"
-            "- Agent: Transport Workbench Agent\n"
+            "- Agent: Host Agent\n"
             "- Skill: aggregate-analysis\n"
         ),
         "name": f"test-sop-json-{uuid.uuid4().hex[:8]}"
@@ -411,7 +411,7 @@ def test_execute_by_id_sse():
     create_payload = {
         "sop_content": (
             "## Step 1: 快速检查\n\n"
-            "- Agent: Transport Workbench Agent\n"
+            "- Agent: Host Agent\n"
             "- Skill: aggregate-analysis\n"
         ),
         "name": f"test-exec-by-id-{uuid.uuid4().hex[:8]}"

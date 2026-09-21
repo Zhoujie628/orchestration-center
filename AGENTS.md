@@ -52,15 +52,15 @@ pytest tests/test_external_apis.py -v -s
 ### Three-layer execution model
 
 ```
-Frontend (React) → OrchestrationEngine (thin A2A-T channel) → Workbench Agent (leader, executes PSOP) → Worker Agents
+Frontend (React) → OrchestrationEngine (thin A2A-T channel) → Host Agent (executes PSOP) → Worker Agents
 ```
 
 The orchestration center does **NOT** execute workflows itself. It:
 1. Searches/loads the PSOP for frontend graph preview
-2. Dispatches the intent to the Workbench Agent via A2A-T
+2. Dispatches the intent and PSOP snapshot to the Host Agent via A2A-T
 3. Streams back SDK events from TaskUpdate metadata to the frontend SSE
 
-All workflow execution logic (DAG traversal, parallel A2A calls, conditional routing, negotiation) lives in the Workbench Agent (`samples/agents/workbench_agent.py`) and the `workflow-engine` SDK.
+Generic execution hosting lives in `host_agent/`; it owns A2A task adaptation, workflow-engine invocation, cancellation, and lifecycle. Business decisions are injected as a ControlPoint. The bundled SPN policy, extension lifecycle, demo authentication, and composition root live in `samples/spn_host_agent/`.
 
 ### Entrypoints (all run via `-m`)
 
@@ -88,7 +88,7 @@ The `WorkflowStorage` singleton is accessed via `get_workflow_storage()` (uses `
 
 ### A2A-T SDK config
 
-The workflow-engine SDK reads its `A2AT_*` variables (`A2AT_LLM_PROVIDER`, `A2AT_LLM_MODEL`, `A2AT_LLM_API_KEY`, `A2AT_LLM_BASE_URL`, `A2AT_NEGOTIATION_STATE_STORE_TYPE`, …) directly from the repo-root `.env` — set them there. There is no generator, and `A2AT_*` is independent of `LLM_CHAT_*` below (no auto-derivation between the two).
+Host-side A2A-T content generation reads its `A2AT_*` variables (`A2AT_LLM_PROVIDER`, `A2AT_LLM_MODEL`, `A2AT_LLM_API_KEY`, `A2AT_LLM_BASE_URL`, …) from the repo-root `.env`. The workflow engine does not initialize the retired negotiation state machine. `A2AT_*` is independent of `LLM_CHAT_*` below (no auto-derivation between the two).
 
 No LLM provider is hardcoded for the orchestration backend's own LLM calls (intent parsing, retrieval). Any scalar field of any capability in `common/config/llm_config.json` can be overridden with `LLM_<CAPABILITY>_<FIELD>` (e.g. `LLM_CHAT_MODEL`, `LLM_CHAT_API_KEY`, `LLM_CHAT_URL`, `LLM_EMBED_URL`), resolved once in `_ModelConfigHolder._load()` via `common/llm/config/env_overrides.py`. Precedence: environment > repo-root `.env` > JSON. Structured fields (`auth`, `headers`, `body`, `response`) are request templates and stay JSON-only.
 
@@ -98,7 +98,7 @@ Agent authentication (Bearer token obtained via a login endpoint, custom auth he
 
 | File | Role |
 |---|---|
-| `etc/conf/agent_credentials.json` | Per-agent credentials (login_url, method, request_fields, token_field) — passed to the SDK's `WorkflowEngineClient(credentials_config=...)` |
+| `samples/agent_credentials.json` | Sample-only per-agent credentials (`login_url`, method, request fields, token field), passed to `A2ATransport(credentials_config=...)`; real deployments should inject an external protected path |
 
 Agents without `securitySchemes` in their AgentCard are unaffected.
 
@@ -108,17 +108,17 @@ External agent cards may use OpenAPI-style security scheme notation (flat `schem
 
 ### TASK-T extension support
 
-When an AgentCard declares the TASK-T extension (`capabilities.extensions[].uri` containing `Task-T`), the engine:
+When an AgentCard declares the Task-T extension, host code uses the A2A-T SDK to generate the final business content and returns it from `on_task`. The engine then:
 
-1. Puts the A2AT-generated structured TASK-T prompt into `message.metadata[Task-T-URI]` instead of `parts[].text`
-2. Sends the `A2A-Extensions` HTTP header so the remote agent knows TASK-T is supported
-3. Extracts response text from task metadata as a fallback (besides `artifacts[].parts[].text`)
+1. Preserves the generated Task-T payload in `message.metadata[Task-T-URI]` and activates the URI in `message.extensions`
+2. Sends the `A2A-Extensions` HTTP header through the A2A client interceptor
+3. Projects returned messages and artifacts into protocol-neutral workflow results
 
 Sample agents read TASK-T prompts from `message.metadata` in `NegotiationBaseAgentExecutor.execute()`.
 
 ### HTTPS / self-signed certificates
 
-The engine's httpx client is created with `verify=False` to support agents behind HTTPS with self-signed certificates. This is safe for internal/development use — for production, configure proper CA verification.
+The client verification mode comes from `client_verify_server`. Keep verification enabled with a trusted CA in production; set it to false only in a controlled environment where skipping server-certificate validation is explicitly accepted.
 
 ## Repo layout (what matters)
 
@@ -134,9 +134,11 @@ common/                # Shared infra: config, LLM, logging, certs, util
   llm/                 # LLM abstraction (generic HTTP client + auth strategies)
 workflow-designer/     # React frontend (separate Node project)
 samples/               # Sample A2A agents + start script
-  agents/workbench_agent.py  # Workbench Agent (leader, executes PSOP via workflow-engine SDK)
+  spn_host_agent/       # SPN ControlPoint, lifecycle, demo auth, and HostAgent composition
+host_agent/             # Business-neutral workflow execution host and A2A server adapters
 database/              # PostgreSQL support (optional)
-etc/conf/              # server.conf, server.properties, db_config.json, agent_credentials.json
+etc/conf/              # server.conf, server.properties, db_config.json
+samples/agent_credentials.json  # sample AgentCard credential bindings
 tests/                 # All tests (pytest, 19 files + conftest.py)
 data/workflow_storage/ # File-based persistence (PSOP, PreFlow, execution records)
 ```

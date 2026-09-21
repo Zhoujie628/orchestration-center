@@ -18,9 +18,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     Search, Code2, LayoutDashboard,
-    X, Layers, Server, Radio, Network, Globe
+    X, Layers, Server, Radio, Network, Globe, ChevronRight,
+    Pencil, Trash2, CheckCircle2, AlertTriangle
 } from 'lucide-react';
-import { getAgentCards } from "@/service/api.js";
+import { getAgentCards, updateAgentCard, deleteAgentCard } from "@/service/api.js";
+import DeleteConfirm from "@/components/common/pop_confirm/index.jsx";
 import CodeInspector from "./code_inspector/index.jsx";
 import AgentCard from "./agentcard_visualization/index.jsx";
 
@@ -54,49 +56,59 @@ const getAgentLayer = (agent) => {
 
 const TABS = ['all', 'service', 'network', 'vendor'];
 
-const AgentRegistry = ({ isDark, t }) => {
+const AgentRegistry = ({ isDark, t, isAdmin = false }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [agents, setAgents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('all');
     const [selectedAgent, setSelectedAgent] = useState(null);
     const [viewMode, setViewMode] = useState('structured');
+    const [editState, setEditState] = useState(null);
+    const [toast, setToast] = useState({ show: false, msg: '', type: 'success' });
+
+    const showToast = (msg, type = 'success') => setToast({ show: true, msg, type });
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                setLoading(true);
-                const response = await getAgentCards();
-                const rawList = response?.data || [];
+        if (!toast.show) return undefined;
+        const timer = setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
+        return () => clearTimeout(timer);
+    }, [toast]);
 
-                const enhancedData = rawList.map((val) => {
-                    const key = val.name;
-                    const syncedRaw = { ...val, provider: val.provider };
-                    const modifiedSkills = (syncedRaw.skills || []).map(skill => {
-                        const { inputs, outputs, ...rest } = skill;
-                        return rest;
-                    });
-                    const layer = getAgentLayer(syncedRaw);
-                    const ui = getAssetsBySeed(key, layer);
-                    return {
-                        ...syncedRaw,
-                        id: key,
-                        displayName: key.toUpperCase(),
-                        ...ui,
-                        layer: layer,
-                        _raw: { ...syncedRaw, skills: modifiedSkills },
-                    };
-                });
-
-                setAgents(enhancedData);
-            } catch (err) {
-                console.error("Fetch Error:", err);
-                setAgents([]);
-            } finally {
-                setLoading(false);
-            }
+    const enhanceAgents = (rawList) => rawList.map((val) => {
+        const key = val.name;
+        const syncedRaw = { ...val, provider: val.provider };
+        const modifiedSkills = (syncedRaw.skills || []).map(skill => {
+            const { inputs, outputs, ...rest } = skill;
+            return rest;
+        });
+        const layer = getAgentLayer(syncedRaw);
+        const ui = getAssetsBySeed(key, layer);
+        return {
+            ...syncedRaw,
+            id: key,
+            displayName: key.toUpperCase(),
+            ...ui,
+            layer: layer,
+            _raw: { ...syncedRaw, skills: modifiedSkills },
         };
-        fetchData();
+    });
+
+    const fetchAgents = async () => {
+        try {
+            setLoading(true);
+            const response = await getAgentCards();
+            const rawList = response?.data || [];
+            setAgents(enhanceAgents(rawList));
+        } catch (err) {
+            console.error("Fetch Error:", err);
+            setAgents([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchAgents();
     }, []);
 
     const filteredAgents = useMemo(() => {
@@ -180,6 +192,87 @@ const AgentRegistry = ({ isDark, t }) => {
         return 'bg-white dark:bg-zinc-900';
     };
 
+    // The list item carries UI-only decorations (id/displayName/theme/icon/
+    // layer/_raw) that must never be sent back to the registry.
+    const toCardPayload = (agent) => {
+        const { id, displayName, theme, icon, layer, _raw, ...card } = agent;
+        return card;
+    };
+
+    const openEdit = (agent) => {
+        const card = toCardPayload(agent);
+        setEditState({
+            agent,
+            mode: 'form',
+            saving: false,
+            form: {
+                description: card.description || '',
+                version: card.version || '',
+                providerUrl: card.provider?.url || '',
+                documentationUrl: card.documentationUrl || '',
+                iconUrl: card.iconUrl || '',
+            },
+            jsonText: JSON.stringify(card, null, 2),
+        });
+        setSelectedAgent(null);
+    };
+
+    const handleDeleteAgent = async (agent) => {
+        try {
+            await deleteAgentCard(agent.id, agent.provider?.organization || '');
+            showToast(t('registry.delete_success'));
+            if (selectedAgent?.id === agent.id) setSelectedAgent(null);
+            await fetchAgents();
+        } catch (err) {
+            console.error("Delete Error:", err);
+            showToast(`${t('registry.delete_failed')}${err.response?.data?.message || err.message}`, 'error');
+        }
+    };
+
+    const buildUpdatePayload = () => {
+        const card = toCardPayload(editState.agent);
+        if (editState.mode === 'json') {
+            let parsed;
+            try {
+                parsed = JSON.parse(editState.jsonText);
+            } catch (e) {
+                showToast(`${t('registry.json_invalid')}${e.message}`, 'error');
+                return null;
+            }
+            if (parsed?.name !== editState.agent.id ||
+                parsed?.provider?.organization !== editState.agent.provider?.organization) {
+                showToast(t('registry.json_identity_mismatch'), 'error');
+                return null;
+            }
+            return parsed;
+        }
+        const f = editState.form;
+        return {
+            ...card,
+            description: f.description,
+            version: f.version,
+            provider: { ...(card.provider || {}), url: f.providerUrl },
+            ...(f.documentationUrl ? { documentationUrl: f.documentationUrl } : {}),
+            ...(f.iconUrl ? { iconUrl: f.iconUrl } : {}),
+        };
+    };
+
+    const handleSaveEdit = async () => {
+        const payload = buildUpdatePayload();
+        if (!payload) return;
+        setEditState(prev => ({ ...prev, saving: true }));
+        try {
+            await updateAgentCard(editState.agent.id, editState.agent.provider?.organization || '', payload);
+            showToast(t('registry.update_success'));
+            setEditState(null);
+            await fetchAgents();
+        } catch (err) {
+            console.error("Update Error:", err);
+            showToast(`${t('registry.update_failed')}${err.response?.data?.message || err.message}`, 'error');
+            setEditState(prev => ({ ...prev, saving: false }));
+        }
+    };
+
     const renderCard = (agent) => (
         <div
             key={agent.id}
@@ -198,6 +291,20 @@ const AgentRegistry = ({ isDark, t }) => {
                     <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase">
                         V{agent.version}
                     </span>
+                    {isAdmin && (
+                        <DeleteConfirm
+                            title={t('registry.delete_agent_confirm')}
+                            onConfirm={() => handleDeleteAgent(agent)}
+                            isDark={isDark}
+                        >
+                            <button
+                                className="p-1.5 rounded-lg text-zinc-300 dark:text-zinc-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                                title={t('registry.delete_agent')}
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        </DeleteConfirm>
+                    )}
                 </div>
             </div>
 
@@ -357,6 +464,15 @@ const AgentRegistry = ({ isDark, t }) => {
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
+                                {isAdmin && (
+                                    <button
+                                        onClick={() => openEdit(selectedAgent)}
+                                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-[11px] font-black uppercase shadow-sm bg-blue-600 hover:bg-blue-700 text-white"
+                                    >
+                                        <Pencil size={14} />
+                                        {t('registry.edit_agent')}
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setViewMode(viewMode === 'structured' ? 'raw' : 'structured')}
                                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-[11px] font-black uppercase shadow-sm
@@ -389,7 +505,141 @@ const AgentRegistry = ({ isDark, t }) => {
                     </div>
                 </div>
             )}
+
+            {editState && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-zinc-950 w-full max-w-2xl max-h-[85vh] rounded-[2rem] shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-5 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
+                            <div>
+                                <h2 className="text-base font-black dark:text-white leading-none">{t('registry.edit_agent_title')}</h2>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] font-bold text-zinc-400 uppercase">{editState.agent.id}</span>
+                                    <span className="w-1 h-1 rounded-full bg-zinc-300" />
+                                    <span className="text-[10px] font-bold text-zinc-400">{editState.agent.provider?.organization}</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setEditState(prev => ({ ...prev, mode: 'form' }))}
+                                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase transition-all shadow-sm
+                                        ${editState.mode === 'form'
+                                            ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900'
+                                            : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300'}`}
+                                >
+                                    {t('registry.edit_mode_form')}
+                                </button>
+                                <button
+                                    onClick={() => setEditState(prev => ({ ...prev, mode: 'json' }))}
+                                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase transition-all shadow-sm
+                                        ${editState.mode === 'json'
+                                            ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900'
+                                            : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300'}`}
+                                >
+                                    {t('registry.edit_mode_json')}
+                                </button>
+                                <button
+                                    onClick={() => setEditState(null)}
+                                    className="p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                                >
+                                    <X size={20} className="text-zinc-400" />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
+                            {editState.mode === 'form' ? (
+                                <>
+                                    <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl px-3 py-2">
+                                        {t('registry.edit_identity_hint')}
+                                    </p>
+                                    <EditField
+                                        label={t('registry.field_description')}
+                                        value={editState.form.description}
+                                        isTextArea
+                                        onChange={(v) => setEditState(prev => ({ ...prev, form: { ...prev.form, description: v } }))}
+                                    />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <EditField
+                                            label={t('registry.field_version')}
+                                            value={editState.form.version}
+                                            onChange={(v) => setEditState(prev => ({ ...prev, form: { ...prev.form, version: v } }))}
+                                        />
+                                        <EditField
+                                            label={t('registry.field_provider_url')}
+                                            value={editState.form.providerUrl}
+                                            onChange={(v) => setEditState(prev => ({ ...prev, form: { ...prev.form, providerUrl: v } }))}
+                                        />
+                                        <EditField
+                                            label={t('registry.field_documentation_url')}
+                                            value={editState.form.documentationUrl}
+                                            onChange={(v) => setEditState(prev => ({ ...prev, form: { ...prev.form, documentationUrl: v } }))}
+                                        />
+                                        <EditField
+                                            label={t('registry.field_icon_url')}
+                                            value={editState.form.iconUrl}
+                                            onChange={(v) => setEditState(prev => ({ ...prev, form: { ...prev.form, iconUrl: v } }))}
+                                        />
+                                    </div>
+                                    <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                                        {t('registry.edit_form_hint')}
+                                    </p>
+                                </>
+                            ) : (
+                                <textarea
+                                    value={editState.jsonText}
+                                    onChange={(e) => setEditState(prev => ({ ...prev, jsonText: e.target.value }))}
+                                    spellCheck={false}
+                                    className="w-full h-full min-h-[320px] font-mono text-[12px] leading-relaxed p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400 resize-none"
+                                />
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-3 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
+                            <button
+                                onClick={() => setEditState(null)}
+                                className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
+                            >
+                                {t('common.cancel')}
+                            </button>
+                            <button
+                                onClick={handleSaveEdit}
+                                disabled={editState.saving}
+                                className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 disabled:opacity-50 transition-all"
+                            >
+                                {editState.saving ? t('registry.saving') : t('registry.save_agent')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {toast.show && (
+                <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-2 px-5 py-2.5 rounded-full shadow-2xl text-xs font-black uppercase tracking-wide animate-in slide-in-from-top-4 fade-in duration-300
+                    ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+                    {toast.type === 'success' ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+                    {toast.msg}
+                </div>
+            )}
         </div>
     );
 };
+
+const EditField = ({ label, value, onChange, isTextArea }) => (
+    <div className="space-y-1.5">
+        <label className="text-[11px] font-black uppercase tracking-widest text-zinc-400">{label}</label>
+        {isTextArea ? (
+            <textarea
+                rows={3}
+                value={value || ''}
+                onChange={(e) => onChange(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl text-sm bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400 transition-all resize-none"
+            />
+        ) : (
+            <input
+                value={value || ''}
+                onChange={(e) => onChange(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl text-sm bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 outline-none focus:border-blue-400 transition-all"
+            />
+        )}
+    </div>
+);
+
 export default AgentRegistry;

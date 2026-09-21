@@ -23,26 +23,21 @@ import re
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 from loguru import logger
-
-from common.cert.password_generator import PasswordGenerator
-
 
 class CertificateGenerator:
     """Certificate generation utility, providing certificate creation, validation, and related functions."""
 
     KEY_SIZE = 3072
     VALID_YEARS = 99
-    ISSUER = "orchestration-center"
     SUBJECT = "orchestration-center"
 
     def __init__(self, key_algorithm: str = 'RSA', *,
                  dns_names: list[str] | None = None, ip_addresses: list[str] | None = None):
         """Use loopback SANs by default; explicit lists replace the complete SAN set."""
         self.key_algorithm = key_algorithm
-        self.password_generator = PasswordGenerator()
         self.alg = key_algorithm
         local_defaults = dns_names is None and ip_addresses is None
         self.dns_names = ["localhost"] if local_defaults else list(dns_names or [])
@@ -123,9 +118,9 @@ class CertificateGenerator:
         builder = x509.CertificateBuilder()
         builder = builder.subject_name(subject)
         builder = builder.issuer_name(issuer)
-        builder = builder.not_valid_before(datetime.datetime.now(datetime.timezone.utc))
+        builder = builder.not_valid_before(datetime.datetime.now(datetime.UTC))
         builder = builder.not_valid_after(
-            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=self.VALID_YEARS * 365)
+            datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=self.VALID_YEARS * 365)
         )
         builder = builder.serial_number(x509.random_serial_number())
         builder = builder.public_key(private_key.public_key())
@@ -141,6 +136,10 @@ class CertificateGenerator:
             digital_signature = True
             content_commitment = True
 
+        # In the development-only serverAuth profile, the self-signed cert
+        # anchors its own trust so it can issue local client certificates.
+        # dataSigning remains a least-privilege leaf certificate.
+        acts_as_local_ca = cert_usage == "serverAuth"
         builder = builder.add_extension(
             x509.KeyUsage(
                 digital_signature=digital_signature,
@@ -148,8 +147,8 @@ class CertificateGenerator:
                 key_encipherment=key_encipherment,
                 data_encipherment=False,
                 key_agreement=False,
-                key_cert_sign=False,
-                crl_sign=False,
+                key_cert_sign=acts_as_local_ca,
+                crl_sign=acts_as_local_ca,
                 encipher_only=False,
                 decipher_only=False
             ),
@@ -157,14 +156,20 @@ class CertificateGenerator:
         )
 
         if cert_usage == "serverAuth":
+            # clientAuth in the EKU lets this self-signed cert act as the issuer
+            # of client certificates: OpenSSL's sslclient purpose check rejects
+            # a chain whose issuing CA lacks clientAuth.
             builder = builder.add_extension(
-                x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]),
+                x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH, ExtendedKeyUsageOID.CLIENT_AUTH]),
                 critical=False
             )
             builder = builder.add_extension(self._server_san(), critical=False)
 
         builder = builder.add_extension(
-            x509.BasicConstraints(ca=False, path_length=None),
+            x509.BasicConstraints(
+                ca=acts_as_local_ca,
+                path_length=0 if acts_as_local_ca else None,
+            ),
             critical=True
         )
 

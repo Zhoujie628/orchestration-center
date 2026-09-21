@@ -54,7 +54,8 @@ class GenericLLM:
             )
 
         self._verify_ssl = config.get('verify_ssl', config.get('verify', True))
-        self._client = httpx.Client(verify=self._verify_ssl, timeout=60.0)
+        self._timeout = float(config.get('timeout', 60.0))
+        self._client = httpx.Client(verify=self._verify_ssl, timeout=self._timeout)
 
     def to_dict(self):
         return {

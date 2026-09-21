@@ -308,6 +308,8 @@ All services must present valid certificates signed by a trusted CA during TLS h
 
 ### Generating Self-Signed Certificates
 
+> **Development, testing, and demos only:** this tool is designed for quick startup. Do not use any CA, server certificate, client certificate, or private key it generates in production. Production deployments must use a trusted public or enterprise CA and follow the organization's certificate-management policy.
+
 For development or internal testing:
 
 ```bash
@@ -327,15 +329,21 @@ For an existing deployment, generate into a new directory, back up and deploy th
 Update client trust material where required; do not overwrite the CA store used to authenticate clients.
 `dataSigning` does not add TLS SANs and rejects CLI SAN options.
 
-This generates RSA 3072-bit certificates that comply with the built-in certificate validator. Copy the generated files to the expected names:
+This generates RSA 3072-bit certificates that comply with the built-in certificate validator. The command also produces the deployment file names that the configuration expects:
 
 ```bash
-cd etc/ssl
-cp server_RSA.cer server.cer
-cp server_key_RSA.pem server_key.pem
-cp server.cer trust.cer
-echo -n "<password>" > cert_pwd
+python -m generate_selfsign_cert etc/ssl serverAuth --plain-key
 ```
+
+| File | Purpose |
+|---|---|
+| `server.cer` / `trust.cer` | Server certificate / trust anchor (same content) |
+| `server_key.pem` | Encrypted private key, decrypted at startup with `cert_pwd` |
+| `cert_pwd` | Key password, written automatically (no trailing newline) |
+| `server_key_nopass.pem` | Unencrypted key (with `--plain-key`), for Nginx and the Host Agent |
+| `server_RSA.cer` / `server_key_RSA.pem` | Copies under the original raw names, kept for compatibility |
+
+The private key password is entered at an interactive prompt and never reaches shell history. The main backend reads `etc/conf/cert_pwd` by default; set `ssl_keyfile_password=etc/ssl/cert_pwd` in `server.conf` or copy the file to `etc/conf/`.
 
 For production, use certificates from a trusted CA (Let's Encrypt, Alibaba Cloud SSL, or enterprise CA).
 
@@ -359,7 +367,7 @@ The host or IP in the client URL must appear in the server certificate SAN (see 
 | Approach | Suitable for | Notes |
 |---|---|---|
 | Skip certificate-chain verification (for example, engine-side `sslVerify=false`) | Development / testing | Skips only chain verification. Most clients (Java JDK HttpClient in particular) still perform hostname verification, so the certificate SAN must match the accessed address. The two checks are independent; disabling one does not disable the other |
-| Import the trust certificate and keep verification on | Production | Import this service's `trust.cer` into the client trust store and leave certificate verification enabled |
+| Import the trust certificate and keep verification on | Development / integration testing | Import this service's `trust.cer` into the client trust store and leave certificate verification enabled; use a trusted CA in production |
 
 Importing the trust store on a Java client:
 

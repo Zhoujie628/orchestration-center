@@ -574,6 +574,25 @@ except ValueError:
 - 3. Confirm that array indices and field names in the path are case-sensitive
 
 
+### Host Agent Runtime
+
+The top-level `host_agent` package provides the workflow execution host. It handles the A2A server, Workflow Engine invocation, execution-event wrapping, and lifecycle management. Runtime configuration, AgentCard loading, engine-client creation, and business policy are injected at the sample composition root. Task content, conditional routing, SelfLoop processing, and negotiation replies are supplied by ControlPoint implementations; the sample SPN policy is under `samples/spn_host_agent`. Start it with:
+
+```bash
+python -m samples.start_agents_server
+```
+
+The Orchestration Center owns PSOP data submitted by the UI. When the Execution Center dispatches a workflow, it puts a PSOP snapshot into A2A metadata; direct intent execution falls back to the configured Workflow Repository.
+
+### Sandbox Verification
+
+Sandbox verification is independent from formal execution. Static validation checks the DAG, `context_from`, Agent/Skill matching, and Task-T/Negotiation-T declarations. Stub execution reuses the real Workflow Engine scheduling path but replaces remote task-content generation and A2A calls with local sandbox input and Stub responses. A saved workflow is loaded by ID; an unsaved or imported editor workflow can submit the current canvas as a `psop` snapshot, which the backend validates with the `PSOP` model. Reports record pass/warning/fail checks, execution path, context trace, Stub interactions, risks, and suggestions.
+
+A sandbox `pass` means workflow structure and engine scheduling were verified with Stub Agents. It does not prove that real Agents will produce correct business output. Sandbox reports and formal execution records are stored separately, and the frontend marks sandbox results with a `SANDBOX` badge. Deleting an active verification cancels its background task before removing its report.
+
+Backend report text is loaded from `orchestrate/sandbox/locales/{zh,en}.json`. The frontend sends `zh` / `en` when starting a run and maps fixed enum values through `workflow-designer/src/locales/*.json`. Do not concatenate user-visible sentences in business code; maintain both resource files when adding checks or suggestions.
+
+
 ## 6. Security and TLS Configuration
 
 ### 6.1 Frontend Login Authentication
@@ -616,6 +635,8 @@ Certificate validation requirements (in `common/cert/cert_validater.py`):
 - RSA: key size >= 3072 bits
 - ECDSA: key size >= 256 bits
 
+> **Development, testing, and demos only:** this tool is intended for quick startup. Do not use any CA, server certificate, client certificate, or private key it generates in production. Production deployments must use a trusted public or enterprise CA and follow the organization's certificate-management policy.
+
 Generate compliant self-signed certificates:
 ```bash
 python -m generate_selfsign_cert etc/ssl serverAuth
@@ -636,20 +657,38 @@ Update client trust material where required; do not overwrite the CA store used 
 
 **Enabling HTTPS (step by step):**
 
-1. Generate certificates (see above). Copy to the filenames expected by `server.conf`:
-   ```bash
-   cd etc/ssl
-   cp server_RSA.cer server.cer
-   cp server_key_RSA.pem server_key.pem
-   cp server.cer trust.cer
-   echo -n "<password>" > cert_pwd
-   ```
+1. Generate certificates (see above). With `--plain-key` the command also produces the deployment
+   files expected by `server.conf` (`server.cer`, `trust.cer`, `server_key.pem`, `cert_pwd`, and the
+   unencrypted `server_key_nopass.pem`) — no manual copying or password file creation needed.
 
 2. Set `enable_https=true` in `etc/conf/server.conf`. Set `verify_client=true` for mTLS.
 
 3. Set `client_verify_server=false` in `etc/conf/server.properties` to skip remote cert verification (self-signed certs).
 
 4. Restart the backend service.
+
+**Issuing client certificates (when `verify_client=true`):**
+
+The self-signed server certificate doubles as its own CA (`trust.cer` is a copy of it, carrying
+`CA:TRUE` and `keyCertSign`). Issue a client certificate for each client that needs to connect:
+
+```bash
+python -m generate_selfsign_cert etc/ssl serverAuth --issue-client dev-proxy
+```
+
+- Writes `etc/ssl/dev-proxy-client.cer` and `dev-proxy-client.key` (unencrypted, owner-only
+  permissions on Linux); the password is read from `cert_pwd` automatically — no interaction.
+- `dev-proxy` is the convention used by the Vite dev proxy: `workflow-designer/vite.config.js`
+  reads this pair at startup to present a client certificate to this service. Restart
+  `npm run dev` after issuing.
+- For a local or demo Nginx proxy: browsers cannot present client certificates, so Nginx presents
+  one on their behalf — configure `proxy_ssl_certificate` / `proxy_ssl_certificate_key` with this
+  pair and `proxy_ssl_trusted_certificate` pointing at `trust.cer` (see the commented block in
+  `workflow-designer/nginx.conf.template`).
+
+Chain requirement: client certificates must be issued by a CA in the `ssl_ca_certs` trust store.
+The server certificate generated by this tool already satisfies that; with an external CA, issue
+client certificates from that CA instead.
 
 ### 6.3 Client-Side SSL Context
 

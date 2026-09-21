@@ -9,9 +9,16 @@ Then copy the output hash to etc/conf/server.conf:
 """
 
 import hashlib
+import sys
 
 
 def main():
+    if len(sys.argv) > 1:
+        print(f"Error: unexpected argument(s): {' '.join(sys.argv[1:])}")
+        print("This tool only generates the access password hash interactively; it takes no arguments.")
+        print("For TLS certificates use: python -m generate_selfsign_cert <cert_dir> serverAuth "
+              "[--dns HOST] [--ip ADDRESS] [--plain-key]")
+        sys.exit(1)
     print("Access Password Generator")
     print("=" * 40)
     password = input("Enter password: ").strip()

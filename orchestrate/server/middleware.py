@@ -116,6 +116,8 @@ def parse_rate_limit(interface_name: str, config):
         "create_workflow":(FLOW_CTL_SAVE_PSOP, 50),
         "delete_workflow":(FLOW_CTL_DELETE_PSOP, 50),
         "list_agent_cards":(FLOW_CTL_AGENT_CARDS, 50),
+        "update_agent_card":(FLOW_CTL_AGENT_CARDS, 50),
+        "delete_agent_card":(FLOW_CTL_AGENT_CARDS, 50),
         "generate_from_preflow":(FLOW_CTL_PLAN, 50),
         "generate_from_intent":(FLOW_CTL_GENERATE_PSOP, 50),
         "retrieve_by_intent":(FLOW_CTL_RETRIEVE_PSOP, 50),

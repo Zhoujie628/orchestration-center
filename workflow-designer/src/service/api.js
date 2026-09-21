@@ -78,19 +78,7 @@ function getPortalAwareBaseUrl() {
 // direct-IP deployment needs for the cookie to attach at all.
 const localApi = axios.create({ timeout: 120000, withCredentials: true });
 
-// Injectable client — the OpenAN Portal plugin entry calls setApiClient() with
-// the Portal's axios instance (PortalContext.api) so every request flows
-// through the Portal's gateway and auth configuration. Standalone mode keeps
-// the local client.
-let api = localApi;
-
-export function setApiClient(instance) {
-    if (instance && typeof instance.get === 'function') {
-        api = instance;
-    }
-}
-
-api.interceptors.response.use(
+localApi.interceptors.response.use(
     (response) => response.data,
     (error) => {
         if (error.response && error.response.status === 401) {
@@ -100,13 +88,40 @@ api.interceptors.response.use(
     }
 );
 
-// 鈹€鈹€鈹€鈹€ Agent Cards 鈹€鈹€鈹€鈹€
+// Injectable client — the OpenAN Portal plugin entry calls setApiClient() with
+// PortalContext.api at mount so every request flows through the Portal's
+// axios instance (per-plugin gateway, auth cookie). Standalone mode never
+// calls it and keeps the local instance above.
+let api = localApi;
+
+export function setApiClient(instance) {
+    if (instance && typeof instance.get === 'function') {
+        api = instance;
+    }
+}
+
+// ──── Agent Cards ────
 
 export async function getAgentCards() {
     return api.get(`${ORCHESTRATE_BASE()}/agent-cards`);
 }
 
-// 鈹€鈹€鈹€鈹€ Workflow CRUD 鈹€鈹€鈹€鈹€
+export async function updateAgentCard(name, organization, data) {
+    // name/organization are the registry's identity key and travel in the
+    // path; Chinese organizations make encodeURIComponent mandatory here.
+    return api.put(
+        `${ORCHESTRATE_BASE()}/agent-cards/${encodeURIComponent(organization)}/${encodeURIComponent(name)}`,
+        data
+    );
+}
+
+export async function deleteAgentCard(name, organization) {
+    return api.delete(
+        `${ORCHESTRATE_BASE()}/agent-cards/${encodeURIComponent(organization)}/${encodeURIComponent(name)}`
+    );
+}
+
+// ──── Workflow CRUD ────
 
 export async function getWorkflow() {
     return api.get(`${ORCHESTRATE_BASE()}/workflows`);
@@ -246,6 +261,42 @@ export async function getExecutionRecord(executionId) {
 
 export async function deleteExecutionRecord(executionId) {
     return api.delete(`${ORCHESTRATE_BASE()}/execution-records/${executionId}`);
+}
+
+// ---- Sandbox verification ----
+
+export async function startSandboxRun(workflowId, body) {
+    return api.post(
+        `${ORCHESTRATE_BASE()}/sandbox/${encodeURIComponent(workflowId)}/run`,
+        body
+    );
+}
+
+export async function getSandboxReports() {
+    return api.get(`${ORCHESTRATE_BASE()}/sandbox/verifications`);
+}
+
+export async function getSandboxReport(verificationId) {
+    return api.get(`${ORCHESTRATE_BASE()}/sandbox/verifications/${encodeURIComponent(verificationId)}`);
+}
+
+export async function deleteSandboxReport(verificationId) {
+    return api.delete(`${ORCHESTRATE_BASE()}/sandbox/verifications/${encodeURIComponent(verificationId)}`);
+}
+
+export async function getSandboxEvents(verificationId) {
+    return api.get(`${ORCHESTRATE_BASE()}/sandbox/verifications/${encodeURIComponent(verificationId)}/events`);
+}
+
+export async function getSandboxTemplates(workflowId) {
+    return api.get(`${ORCHESTRATE_BASE()}/sandbox/templates/${encodeURIComponent(workflowId)}`);
+}
+
+export async function saveSandboxTemplates(workflowId, templates) {
+    return api.put(
+        `${ORCHESTRATE_BASE()}/sandbox/templates/${encodeURIComponent(workflowId)}`,
+        templates
+    );
 }
  
  // ---- Access authentication ----

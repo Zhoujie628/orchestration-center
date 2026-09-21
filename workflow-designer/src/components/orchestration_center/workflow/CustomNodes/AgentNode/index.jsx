@@ -25,6 +25,7 @@ const AGENT_COLORS = [
     { light: 'bg-orange-100 text-orange-700', dark: 'bg-orange-500/20 text-orange-300', bar: 'bg-orange-500' },
     { light: 'bg-pink-100 text-pink-700', dark: 'bg-pink-500/20 text-pink-300', bar: 'bg-pink-500' },
     { light: 'bg-emerald-100 text-emerald-700', dark: 'bg-emerald-500/20 text-emerald-300', bar: 'bg-emerald-500' },
+    { light: 'bg-amber-100 text-amber-700', dark: 'bg-amber-500/20 text-amber-300', bar: 'bg-amber-500' },
     { light: 'bg-indigo-100 text-indigo-700', dark: 'bg-indigo-500/20 text-indigo-300', bar: 'bg-indigo-500' },
     { light: 'bg-rose-100 text-rose-700', dark: 'bg-rose-500/20 text-rose-300', bar: 'bg-rose-500' },
 ];
@@ -37,11 +38,19 @@ const getAgentTheme = (agentName) => {
     for (let i = 0; i < agentName.length; i++) {
         hash = agentName.charCodeAt(i) + ((hash << 5) - hash);
     }
-    const index = Math.abs(hash) % AGENT_COLORS.length;
+    const index = Math.abs(hash) % (AGENT_COLORS.length - 1); // exclude last (amber, reserved for SelfLoop)
     return AGENT_COLORS[index];
 };
 
-const StepTypeIcon = ({ isAnySuccess, isDark }) => {
+const StepTypeIcon = ({ isAnySuccess, isSelfLoop, isDark }) => {
+    if (isSelfLoop) {
+        return (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0" title="SelfLoop: task handled locally, no A2A-T dispatch">
+                <path d="M7 1 A6 6 0 1 1 1 7" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+                <path d="M5.5 0 L7 1.5 L5.5 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+        );
+    }
     if (isAnySuccess) {
         return (
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0" title="AnySuccess: step succeeds if any subtask succeeds">
@@ -69,6 +78,7 @@ const AgentNode = ({ data, selected }) => {
     const status = data.status || 'pending';
     const stepName = data.label || 'Step';
     const stepType = data.type || 'AllSuccess';
+    const isSelfLoop = stepType === 'SelfLoop';
     const isAnySuccess = stepType === 'AnySuccess';
     const subtasks = data.subtasks || [];
     const selectedSubtaskIndex = data.selectedSubtaskIndex;
@@ -83,9 +93,11 @@ const AgentNode = ({ data, selected }) => {
             : 'shadow-sm hover:shadow-md'
     };
 
-    const stepTypeColor = isAnySuccess
+    const stepTypeColor = isSelfLoop
         ? (isDark ? 'text-amber-400' : 'text-amber-600')
-        : (isDark ? 'text-blue-400' : 'text-blue-600');
+        : (isAnySuccess
+            ? (isDark ? 'text-amber-400' : 'text-amber-600')
+            : (isDark ? 'text-blue-400' : 'text-blue-600'));
 
     const handleBaseStyle = `
         !w-[10px] !h-[10px] !bg-blue-500 border-2 border-white dark:border-zinc-800
@@ -100,7 +112,7 @@ const AgentNode = ({ data, selected }) => {
     `;
 
     const targetHandleBaseClasses = `
-        !w-0 !h-0 !bg-transparent !border-0 !absolute !transform-none
+        !w-[1px] !h-[1px] !bg-transparent !border-0 !absolute !transform-none !opacity-0
         z-[100]
         after:content-[''] after:absolute after:bg-transparent
         ${isConnecting ? 'after:pointer-events-auto' : 'after:pointer-events-none'}
@@ -123,16 +135,21 @@ const AgentNode = ({ data, selected }) => {
                 ${selected ? 'ring-2 ring-blue-500/50 ring-offset-2 ' + (isDark ? 'ring-offset-zinc-950' : 'ring-offset-white') : ''}
             `}
         >
-            <div className={`h-[4px] w-full transition-colors duration-500 ${isAnySuccess ? 'bg-amber-500/70' : 'bg-blue-500/50'}`} />
+            <div className={`h-[4px] w-full transition-colors duration-500 ${isSelfLoop ? 'bg-amber-500/80' : (isAnySuccess ? 'bg-amber-500/70' : 'bg-blue-500/50')}`} />
 
             <div className="px-4 py-3 flex flex-col gap-2">
                 {/* Step Header: icon + name + status */}
                 <div className="flex items-center gap-2">
                     <span className={stepTypeColor}>
-                        <StepTypeIcon isAnySuccess={isAnySuccess} isDark={isDark} />
+                        <StepTypeIcon isAnySuccess={isAnySuccess} isSelfLoop={isSelfLoop} isDark={isDark} />
                     </span>
                     <h3 className="text-[14px] font-bold leading-[1.15] break-words whitespace-normal flex-1">
                         {stepName}
+                        {isSelfLoop && (
+                            <span className={`ml-1.5 px-1.5 py-0.5 text-[9px] font-bold rounded-full ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'}`}>
+                                {t('workflow.selfLoop')}
+                            </span>
+                        )}
                     </h3>
                     <div className="relative flex h-2.5 w-2.5 flex-shrink-0">
                         {(status === 'running' || status === 'current') && (
@@ -149,7 +166,7 @@ const AgentNode = ({ data, selected }) => {
                         const agentTheme = getAgentTheme(task.agent);
                         return (
                             <button
-                                key={idx}
+                                key={`${task.agent}-${task.skill}-${idx}`}
                                 type="button"
                                 onClick={(event) => {
                                     event.stopPropagation();
@@ -174,9 +191,15 @@ const AgentNode = ({ data, selected }) => {
                         );
                     })}
                     {subtasks.length === 0 && (
-                        <div className={`text-[10px] italic px-2 py-1 ${theme.textSub} opacity-50`}>
-                            {t('node_label.no_subtasks')}
-                        </div>
+                        data.editable ? (
+                            <div className={`border border-dashed rounded-lg px-2 py-2.5 text-[10px] text-center font-medium ${isDark ? 'border-zinc-600 text-zinc-400' : 'border-slate-300 text-slate-500'}`}>
+                                {t('node_label.drop_hint')}
+                            </div>
+                        ) : (
+                            <div className={`text-[10px] italic px-2 py-1 ${theme.textSub} opacity-50`}>
+                                {t('node_label.no_subtasks')}
+                            </div>
+                        )
                     )}
                 </div>
             </div>

@@ -19,35 +19,22 @@ import asyncio
 import json
 import os
 import signal
+from contextlib import suppress
 from pathlib import Path
-
-import uvicorn
-from a2a.server.request_handlers import DefaultRequestHandler
-from a2a.server.routes import create_rest_routes, create_agent_card_routes, create_jsonrpc_routes
-from a2a.server.tasks import InMemoryTaskStore
-from a2a.types import AgentCard
-from fastapi import FastAPI, Request
-from starlette.responses import JSONResponse
-from google.protobuf.json_format import MessageToDict
-from loguru import logger
-from typing import List
 from urllib.parse import urlparse, urlunparse
 
+from a2a.types import AgentCard
+from google.protobuf.json_format import MessageToDict
+from loguru import logger
+
 from common.custom import HandlerRegistry, InterfaceType
-from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
+from host_agent.service import start_agent_server
 from orchestrate import AgentCardLoader
+from orchestrate.registry_client.client_factory import AgentRegistryClientFactory
 from orchestrate.workflow_storage_instance import get_workflow_storage
-from samples.agents.energy_saving_agent import EnergySavingAgentExecutor
-from samples.agents.energy_saving_intent_agent import EnergySavingIntentAgentExecutor
-from samples.agents.live_streaming_agent import LiveStreamingAgentExecutor
-from samples.agents.assurance_agent import AssuranceAgentExecutor
-from samples.agents.ran_agent import RanAgentExecutor
 from samples.agents.spn_domain_agent import SpnDomainAgentExecutor
 from samples.agents.spn_domain_agent_city2 import SpnDomainAgentCity2Executor
-from samples.agents.workbench_agent import WorkbenchAgentExecutor
-
-import time as _time
-import secrets as _secrets
+from samples.spn_host_agent import SampleFixedCredentialAuth, create_spn_host_executor
 
 # Global list to track all agent executors for graceful shutdown
 _agent_executors = []
@@ -143,117 +130,35 @@ def pre_insert_psop():
         save_handle.handle(psop)
 
 
-async def start_server(agent_card: AgentCard, port: int, host: str = "127.0.0.1") -> None:
-    agent2class = {
-        "RAN Energy Saving Agent": EnergySavingAgentExecutor,
-        "Energy Saving Intent Agent": EnergySavingIntentAgentExecutor,
-        "Live Streaming Agent": LiveStreamingAgentExecutor,
-        "Service Assurance Agent": AssuranceAgentExecutor,
-        "Wireless Domain Agent": RanAgentExecutor,
-        "Transport Workbench Agent": WorkbenchAgentExecutor,
-        "SPN Domain Agent City1": SpnDomainAgentExecutor,
-        "SPN Domain Agent City2": SpnDomainAgentCity2Executor
-    }
+async def start_server(
+    agent_card: AgentCard,
+    port: int,
+    host: str = "127.0.0.1",
+    all_agent_cards: list[AgentCard] | None = None,
+) -> None:
     agent_name = agent_card.name
-    agent_class = agent2class.get(agent_name)
-
-    if not agent_class:
-        logger.info(f"Skipping external agent '{agent_name}': no local executor class defined")
-        return
-
     try:
-        agent_impl = agent_class()
+        if agent_name == "Host Agent":
+            agent_impl = create_spn_host_executor(all_agent_cards)
+        elif agent_name == "SPN Domain Agent City1":
+            agent_impl = SpnDomainAgentExecutor()
+        elif agent_name == "SPN Domain Agent City2":
+            agent_impl = SpnDomainAgentCity2Executor()
+        else:
+            logger.info(f"Skipping external agent '{agent_name}': no local executor class defined")
+            return
         _agent_executors.append(agent_impl)
     except Exception as e:
         logger.error(f"Failed to initialize agent '{agent_name}': {e}")
         return
 
-    request_handler = DefaultRequestHandler(
-        agent_executor=agent_impl,
-        task_store=InMemoryTaskStore(),
-        agent_card=agent_card
+    await start_agent_server(
+        agent_card,
+        agent_impl,
+        port=port,
+        host=host,
+        auth_provider=SampleFixedCredentialAuth(),
     )
-
-    app = FastAPI()
-
-    # --- Auth support: login endpoint for agents declaring securitySchemes ---
-    _VALID_TOKENS = {}  # token -> expiry timestamp
-
-    has_security = agent_card.security_schemes and agent_card.security_requirements
-    if has_security:
-        login_path = "/rest/plat/smapp/v1/oauth/token"
-        logger.info(f"Agent '{agent_name}' auth login endpoint: {login_path}")
-
-        @app.api_route(login_path, methods=["PUT", "POST"])
-        async def _agent_login(request: Request):
-            """Mock login: accept fixed credentials, return accessSession."""
-            body = {}
-            ct = request.headers.get("content-type", "")
-            if "json" in ct:
-                try:
-                    body = await request.json()
-                except Exception:
-                    body = {}
-            else:
-                form = await request.form()
-                body = dict(form)
-            username = body.get("userName") or body.get("username")
-            password = body.get("value") or body.get("password")
-            if username == "admin" and password == "Admin@123":
-                token = _secrets.token_urlsafe(24)
-                _VALID_TOKENS[token] = _time.time() + 3600
-                logger.info(f"[Auth] Login succeeded for agent '{agent_name}', token issued")
-                return {"accessSession": token}
-            logger.warning(f"[Auth] Login failed for agent '{agent_name}': bad credentials")
-            return JSONResponse(status_code=401, content={"error": "Invalid credentials"})
-
-
-    agent_card_routes = create_agent_card_routes(agent_card=agent_card)
-    app.routes.extend(agent_card_routes)
-
-    for iface in agent_card.supported_interfaces:
-        if not iface.url:
-            continue
-        parsed = urlparse(iface.url)
-        path = parsed.path.rstrip("/") or ""
-        if iface.protocol_binding == "JSONRPC":
-            jsonrpc_routes = create_jsonrpc_routes(request_handler=request_handler, rpc_url=path)
-            app.routes.extend(jsonrpc_routes)
-            logger.info(f"Agent '{agent_name}' JSONRPC endpoint: {path}")
-        elif iface.protocol_binding == "HTTP+JSON":
-            rest_routes = create_rest_routes(request_handler=request_handler, path_prefix=path)
-            app.routes.extend(rest_routes)
-            logger.info(f"Agent '{agent_name}' REST endpoint: {path}")
-
-    agent_url = ""
-    if agent_card.supported_interfaces:
-        agent_url = agent_card.supported_interfaces[0].url or ""
-    want_https = agent_url.startswith("https://")
-
-    ssl_kwargs = {}
-    if want_https:
-        ssl_dir = Path(__file__).resolve().parent.parent / "etc" / "ssl"
-        cert_path = ssl_dir / "server.cer"
-        key_path = ssl_dir / "server_key.pem"
-        nopass_key_path = ssl_dir / "server_key_nopass.pem"
-        if cert_path.is_file() and key_path.is_file():
-            actual_key = nopass_key_path if nopass_key_path.is_file() else key_path
-            ssl_kwargs = {"ssl_certfile": str(cert_path), "ssl_keyfile": str(actual_key)}
-            if not nopass_key_path.is_file():
-                pwd_path = ssl_dir / "cert_pwd"
-                if pwd_path.is_file():
-                    ssl_kwargs["ssl_keyfile_password"] = pwd_path.read_text(encoding="utf-8").strip()
-            logger.info(f"Agent {agent_name!r} starting with HTTPS (cert={cert_path.name})")
-        else:
-            logger.warning(f"Agent {agent_name!r} URL is https but SSL certs not found at {ssl_dir}, starting HTTP")
-    else:
-        logger.info(f"Agent {agent_name!r} starting with HTTP")
-    config = uvicorn.Config(app, host=host, port=port, timeout_graceful_shutdown=2, **ssl_kwargs)
-    uvicorn_server = uvicorn.Server(config)
-    try:
-        await uvicorn_server.serve()
-    except (SystemExit, asyncio.CancelledError):
-        pass
 
 
 def _warn_if_chat_llm_unconfigured() -> None:
@@ -262,7 +167,7 @@ def _warn_if_chat_llm_unconfigured() -> None:
     guard) but every negotiation call will fail, so make that loud at startup
     instead of leaving it to surface as a per-call error later."""
     try:
-        from common.llm.config.llm_config import get_model_config, missing_required_fields, describe_missing_fields
+        from common.llm.config.llm_config import describe_missing_fields, get_model_config, missing_required_fields
 
         config = get_model_config("chat")
         missing = missing_required_fields(config) if config else ["url", "model", "api_key"]
@@ -306,7 +211,7 @@ async def main() -> None:
     except Exception as e:
         logger.warning(f"Failed to create registry client (agents will start without registration): {e}")
 
-    tasks: List[asyncio.Task] = []
+    tasks: list[asyncio.Task] = []
     for agent_card in agent_cards:
         if factory:
             try:
@@ -324,27 +229,29 @@ async def main() -> None:
         # what the card says, matching prior same-host behavior.
         bind_host = "0.0.0.0" if advertise_host else parsed.hostname
         task = asyncio.create_task(
-            start_server(agent_card, port=parsed.port, host=bind_host),
+            start_server(
+                agent_card,
+                port=parsed.port,
+                host=bind_host,
+                all_agent_cards=agent_cards,
+            ),
             name=f"server_{agent_name}"
         )
         tasks.append(task)
         logger.info(f"Starting server for '{agent_name}' on {agent_card.supported_interfaces[0].url}")
-    
+
     # Set up signal handlers for graceful shutdown
     loop = asyncio.get_running_loop()
     shutdown_event = asyncio.Event()
-    
+
     def signal_handler():
         logger.info("Shutdown signal received, stopping all servers...")
         shutdown_event.set()
-    
+
     for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
+        with suppress(NotImplementedError):
             loop.add_signal_handler(sig, signal_handler)
-        except NotImplementedError:
-            # Windows doesn't support add_signal_handler
-            pass
-    
+
     try:
         # Wait for either all tasks to complete or shutdown signal
         done, pending = await asyncio.wait(
@@ -352,7 +259,7 @@ async def main() -> None:
             return_when=asyncio.FIRST_EXCEPTION,
             timeout=None
         )
-        
+
         # If we get here due to shutdown signal or exception, cancel pending tasks
         if shutdown_event.is_set() or pending:
             logger.info("Shutting down all servers...")

@@ -206,6 +206,9 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
     };
     const isNode = !('source' in activeElement);
     const data = activeElement.data || {};
+    // Start/End are boundary markers synthesized by the editor, not PSOP steps —
+    // their name and settings are system-managed and must not be edited
+    const isBoundaryNode = isNode && (activeElement.type === 'startNode' || activeElement.type === 'endNode');
 
     const allStepNames = useMemo(() => {
         return nodes
@@ -313,22 +316,42 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
                 <p className="text-[12px] text-zinc-500 font-mono tracking-wider uppercase truncate">
                     ID: {activeElement.id}
                 </p>
-                <DeleteConfirm
-                    title={t('common.confirm_delete')}
-                    onConfirm={onDelete}
-                    isDark={isDark}
-                >
-                    <button className="px-3 py-1 text-sm bg-red-500/10 hover:bg-red-500 text-red-500 border border-red-500/20 rounded-lg transition-all">
-                        {t('common.delete')}
-                    </button>
-                </DeleteConfirm>
+                {!isBoundaryNode && (
+                    <DeleteConfirm
+                        title={t('common.confirm_delete')}
+                        onConfirm={onDelete}
+                        isDark={isDark}
+                    >
+                        <button className="px-3 py-1 text-sm bg-red-500/10 hover:bg-red-500 text-red-500 border border-red-500/20 rounded-lg transition-all">
+                            {t('common.delete')}
+                        </button>
+                    </DeleteConfirm>
+                )}
             </div>
 
             <div className="p-4 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
-                {isNode ? (
+                {isNode && isBoundaryNode ? (
+                    <>
+                        <ReadOnlyField
+                            label={t('workflow.panel.stepName')}
+                            value={data.label || (activeElement.type === 'startNode' ? 'START' : 'END')}
+                            isDark={isDark}
+                        />
+                        <p className={`text-[12px] leading-5 opacity-60 ${isDark ? 'text-zinc-500' : 'text-zinc-500'}`}>
+                            {t('workflow.panel.boundaryNodeHint')}
+                        </p>
+                    </>
+                ) : isNode ? (
                     <>
 
-                        <ReadOnlyField label={t('workflow.panel.stepName')} value={data.label} isDark={isDark} />
+                        <Field
+                            label={t('workflow.panel.stepName')}
+                            value={data.label || ''}
+                            onChange={(v) => updateData('label', v)}
+                            placeholder={activeElement.id}
+                            fontMono
+                            isDark={isDark}
+                        />
 
                         {data.subtasks && data.subtasks.length > 0 ? (
                             <div className="space-y-3">
@@ -337,7 +360,7 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
                                 </label>
                                 <div className="flex flex-col gap-2.5">
                                     {data.subtasks.map((task, idx) => (
-                                        <div key={idx} className={`group/task relative p-3 rounded-xl border transition-all ${isDark ? 'bg-zinc-900 border-zinc-800/50' : 'bg-zinc-50 border-zinc-200/50 shadow-sm'}`}>
+                                        <div key={`${task.agent}-${task.skill}-${idx}`} className={`group/task relative p-3 rounded-xl border transition-all ${isDark ? 'bg-zinc-900 border-zinc-800/50' : 'bg-zinc-50 border-zinc-200/50 shadow-sm'}`}>
                                             <div className="flex justify-between items-center mb-1.5">
                                                 <span className="text-[10px] font-bold text-blue-500 uppercase tracking-tight">{task.agent}</span>
                                                 <div className="flex items-center gap-2">
@@ -422,6 +445,7 @@ const PropertyPanel = ({ selectedElement, nodes, edges, setPhenomenon, setNodes,
                                 >
                                     <option value="AllSuccess">{t('workflow.panel.stepTypeAllSuccess')}</option>
                                     <option value="AnySuccess">{t('workflow.panel.stepTypeAnySuccess')}</option>
+                                    <option value="SelfLoop">{t('workflow.panel.stepTypeSelfLoop')}</option>
                                 </select>
                             </div>
 

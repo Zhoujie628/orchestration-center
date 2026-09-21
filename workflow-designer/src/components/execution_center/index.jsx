@@ -27,11 +27,13 @@ import {
     Bot,
     PanelLeftOpen,
     PanelLeftClose,
+    PanelRightClose,
     ChevronDown,
     ChevronRight,
     Hash,
     Trash2,
     Clock,
+    Check,
     CheckCircle2,
     XCircle,
     RotateCcw,
@@ -40,70 +42,48 @@ import {
     SlidersHorizontal,
     X,
     FileText,
-    ChevronUp
+    ChevronUp,
+    Loader,
+    FlaskConical,
 } from 'lucide-react';
-import { getWorkflow, getWorkflowById, getStartProcessStreamUrl, matchWorkflowsTopN, getExecutionRecords, getExecutionRecord, deleteExecutionRecord } from '@/service/api.js';
+import { getWorkflow, getWorkflowById, getStartProcessStreamUrl, matchWorkflowsTopN, getExecutionRecords, getExecutionRecord, deleteExecutionRecord, getSandboxReports, getSandboxReport, deleteSandboxReport } from '@/service/api.js';
+import { getAgentCards, getDispatchStreamUrl } from '@/service/api.js';
 import { transformWorkflowToReactFlow } from '@/components/orchestration_center/workflow/utils/index.jsx';
 import UnifiedWorkflow from '../orchestration_center/workflow/index.jsx';
 import ExecutionStatistics from './execution_statistics/index.jsx';
-
-const parseProtobufText = (raw) => {
-    if (!raw || typeof raw !== 'string') return { text: raw, metadata: null };
-    const result = { text: '', metadata: {} };
-    const lines = raw.split('\n');
-    let inParts = false;
-    let partsText = [];
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        const msgIdMatch = trimmed.match(/^message_id:\s*"(.+)"$/);
-        if (msgIdMatch) { result.metadata.message_id = msgIdMatch[1]; continue; }
-        const roleMatch = trimmed.match(/^role:\s*(.+)$/);
-        if (roleMatch) { result.metadata.role = roleMatch[1]; continue; }
-        if (trimmed.startsWith('parts')) {
-            const partsInlineMatch = trimmed.match(/^parts\s*\{[^}]*text:\s*"(.+)"[^}]*\}$/);
-            if (partsInlineMatch) { partsText.push(partsInlineMatch[1].replace(/\\n/g, '\n')); continue; }
-            inParts = true; continue;
-        }
-        if (inParts && trimmed === '}') { inParts = false; continue; }
-        if (inParts) {
-            const textMatch = trimmed.match(/^text:\s*"(.+)"$/);
-            if (textMatch) partsText.push(textMatch[1].replace(/\\n/g, '\n'));
-        }
-    }
-    if (partsText.length > 0) {
-        result.text = partsText.join('\n');
-    } else {
-        const textOnlyMatch = raw.match(/text:\s*"([^"]+)"/);
-        if (textOnlyMatch) result.text = textOnlyMatch[1].replace(/\\n/g, '\n');
-        else result.text = raw;
-    }
-    return result;
-};
+import ExecutionTimeline from './timeline/index.jsx';
+import { SandboxReportView } from '@/components/sandbox/SandboxDialog.jsx';
+import {
+    getNegotiationPayload,
+    getRequestPayload,
+    getResponsePayload,
+} from './a2atEvents';
 
 const MarkdownRenderer = React.memo(({ text }) => {
     if (!text) return null;
     const normalized = text.replace(/\\n/g, '\n');
     const lines = normalized.split('\n');
     const elements = [];
+    let elementKey = 0;
+    const nextElementKey = () => `md-${elementKey++}`;
     let i = 0;
     while (i < lines.length) {
         const line = lines[i];
-        if (!line.trim()) { i++; elements.push(<div key={i} className="h-3" />); continue; }
+        if (!line.trim()) { i++; elements.push(<div key={nextElementKey()} className="h-3" />); continue; }
 
         const h3Match = line.match(/^###\s+(.+)/);
         const h2Match = line.match(/^##\s+(.+)/);
         const h1Match = line.match(/^#\s+(.+)/);
         if (h3Match) {
-            elements.push(<h3 key={i} className="text-base font-bold text-zinc-800 dark:text-zinc-100 mt-5 mb-2">{h3Match[1]}</h3>);
+            elements.push(<h3 key={nextElementKey()} className="text-base font-bold text-zinc-800 dark:text-zinc-100 mt-5 mb-2">{h3Match[1]}</h3>);
             i++; continue;
         }
         if (h2Match) {
-            elements.push(<h2 key={i} className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mt-6 mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700">{h2Match[1]}</h2>);
+            elements.push(<h2 key={nextElementKey()} className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mt-6 mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700">{h2Match[1]}</h2>);
             i++; continue;
         }
         if (h1Match) {
-            elements.push(<h1 key={i} className="text-xl font-bold text-zinc-800 dark:text-zinc-100 mt-7 mb-3">{h1Match[1]}</h1>);
+            elements.push(<h1 key={nextElementKey()} className="text-xl font-bold text-zinc-800 dark:text-zinc-100 mt-7 mb-3">{h1Match[1]}</h1>);
             i++; continue;
         }
 
@@ -115,7 +95,7 @@ const MarkdownRenderer = React.memo(({ text }) => {
                 i++;
             }
             elements.push(
-                <ul key={i} className="list-disc pl-5 my-2 space-y-1 text-zinc-700 dark:text-zinc-300">
+                <ul key={nextElementKey()} className="list-disc pl-5 my-2 space-y-1 text-zinc-700 dark:text-zinc-300">
                     {items.map((item, idx) => <li key={idx}>{renderInlineMarkdown(item)}</li>)}
                 </ul>
             );
@@ -130,7 +110,7 @@ const MarkdownRenderer = React.memo(({ text }) => {
                 i++;
             }
             elements.push(
-                <ol key={i} className="list-decimal pl-5 my-2 space-y-1 text-zinc-700 dark:text-zinc-300">
+                <ol key={nextElementKey()} className="list-decimal pl-5 my-2 space-y-1 text-zinc-700 dark:text-zinc-300">
                     {items.map((item, idx) => <li key={idx}>{renderInlineMarkdown(item)}</li>)}
                 </ol>
             );
@@ -150,7 +130,7 @@ const MarkdownRenderer = React.memo(({ text }) => {
                 const headerCells = dataRows[0].split('|').filter(c => c.trim() !== '').map(c => c.trim());
                 const bodyRows = dataRows.slice(1).map(r => r.split('|').filter(c => c.trim() !== '').map(c => c.trim()));
                 elements.push(
-                    <div key={i} className="my-3 overflow-x-auto">
+                    <div key={nextElementKey()} className="my-3 overflow-x-auto">
                         <table className="w-full text-sm border-collapse rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
                             <thead>
                                 <tr className="bg-zinc-50 dark:bg-zinc-800/80">
@@ -176,7 +156,7 @@ const MarkdownRenderer = React.memo(({ text }) => {
         }
 
         const hrMatch = line.match(/^[-*_]{3,}$/);
-        if (hrMatch) { elements.push(<hr key={i} className="my-4 border-zinc-200 dark:border-zinc-700" />); i++; continue; }
+        if (hrMatch) { elements.push(<hr key={nextElementKey()} className="my-4 border-zinc-200 dark:border-zinc-700" />); i++; continue; }
 
         const codeBlockMatch = line.match(/^```/);
         if (codeBlockMatch) {
@@ -188,7 +168,7 @@ const MarkdownRenderer = React.memo(({ text }) => {
             }
             i++;
             elements.push(
-                <pre key={i} className="my-3 p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-xs font-mono overflow-x-auto border border-zinc-200 dark:border-zinc-700">
+                <pre key={nextElementKey()} className="my-3 p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-xs font-mono overflow-x-auto border border-zinc-200 dark:border-zinc-700">
                     <code>{codeLines.join('\n')}</code>
                 </pre>
             );
@@ -203,14 +183,14 @@ const MarkdownRenderer = React.memo(({ text }) => {
                 i++;
             }
             elements.push(
-                <blockquote key={i} className="my-3 pl-4 border-l-4 border-blue-400 text-zinc-600 dark:text-zinc-400 italic">
+                <blockquote key={nextElementKey()} className="my-3 pl-4 border-l-4 border-blue-400 text-zinc-600 dark:text-zinc-400 italic">
                     {qLines.map((ql, idx) => <p key={idx} className="my-1">{renderInlineMarkdown(ql)}</p>)}
                 </blockquote>
             );
             continue;
         }
 
-        elements.push(<p key={i} className="my-1.5 text-zinc-700 dark:text-zinc-300 leading-relaxed">{renderInlineMarkdown(line)}</p>);
+        elements.push(<p key={nextElementKey()} className="my-1.5 text-zinc-700 dark:text-zinc-300 leading-relaxed">{renderInlineMarkdown(line)}</p>);
         i++;
     }
     return <div className="markdown-body">{elements}</div>;
@@ -251,22 +231,22 @@ const renderInlineMarkdown = (text) => {
 };
 
 const parseLogData = (data, type) => {
-    const raw = type === 'agent_request' ? data.request : data.response;
-    if (type === 'agent_request' && typeof raw === 'string') {
-        const parsed = parseProtobufText(raw);
-        return { parsed, type: 'protobuf' };
+    if (type === 'agent_request') return { parsed: getRequestPayload(data), type: 'json' };
+    if (type === 'agent_response') return { parsed: getResponsePayload(data), type: 'json' };
+    if (type === 'negotiation_request' || type === 'negotiation_resolved' || type === 'negotiation_failed') {
+        return { parsed: getNegotiationPayload({ type, data }), type: 'json' };
     }
+    const raw = data.response ?? data.request ?? data;
     try {
         let parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            if (type === 'agent_request' && parsed.request) {
-                parsed = parsed.request;
-            } else if (type === 'agent_response' && parsed.response) {
-                parsed = parsed.response;
-            }
+        // Merge event-level metadata so findText and Show Raw can surface extension content
+        if (data.metadata && typeof parsed === 'object' && parsed !== null) {
+            if (!parsed.metadata) parsed.metadata = {};
+            Object.assign(parsed.metadata, data.metadata);
+        } else if (data.metadata && typeof parsed === 'string') {
+            parsed = { response: parsed, metadata: data.metadata };
         }
-
         return { parsed, type: 'json' };
     } catch (e) {
         return { parsed: raw, type: 'text' };
@@ -367,11 +347,11 @@ const LogEntry = React.memo(({ event, isDark, t, isSelected }) => {
                     ? 'bg-blue-500/5 border-blue-500 shadow-[inset_4px_0_0_0_#3b82f6]' 
                     : 'border-zinc-100 dark:border-zinc-800/50'}`}
         >
-            <div className={`absolute -left-[9px] top-6 w-4 h-4 rounded-full border-4 ${isDark ? 'border-zinc-900' : 'border-white'} 
-                ${dotColor}
-                ${isSelected ? 'ring-4 ring-blue-500/20 scale-125 transition-transform' : ''}`}
-            />
-
+                                            className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-2xl transition-all duration-300 shadow-xl
+                                                ${runningId === wf.workflow_id 
+                                                    ? 'opacity-100 scale-100 bg-rose-500 shadow-rose-500/20' 
+                                                    : (selectedId === wf.workflow_id ? 'opacity-100 scale-100 bg-emerald-500 shadow-emerald-500/20' : 'opacity-0 scale-75 bg-blue-600 group-hover:opacity-100 group-hover:scale-100 shadow-blue-500/20')}
+                                                hover:scale-110 active:scale-95 text-white z-10`}
             <div className="flex items-center gap-4 mb-3">
                 <div className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border-2 shadow-sm transition-all ${bgLight}`}>
                     {isNegotiation ? <MessageSquare size={15} className="opacity-80" /> : <Bot size={15} className="opacity-80" />}
@@ -437,6 +417,12 @@ const LogEntry = React.memo(({ event, isDark, t, isSelected }) => {
     );
 });
 
+const LEFT_PANEL_TABS = [
+    { id: 'match', icon: Search, labelKey: 'execution.match_tab' },
+    { id: 'history', icon: History, labelKey: 'execution.history_tab' },
+    { id: 'sandbox', icon: FlaskConical, labelKey: 'execution.sandbox_tab' },
+];
+
 const ExecutionCenter = ({ isDark }) => {
     const { t, i18n } = useTranslation();
     const [activeSubMenu, setActiveSubMenu] = useState('execution');
@@ -460,13 +446,24 @@ const ExecutionCenter = ({ isDark }) => {
     const [autoScroll, setAutoScroll] = useState(true);
     const [selectedNodeId, setSelectedNodeId] = useState(null);
     const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+    const [isSearchCollapsed, setIsSearchCollapsed] = useState(false);
     const [activeTab, setActiveTab] = useState('match');
+    const [isTabMenuOpen, setIsTabMenuOpen] = useState(false);
     const [executionRecords, setExecutionRecords] = useState([]);
     const [isLoadingRecords, setIsLoadingRecords] = useState(false);
+    const [sandboxReports, setSandboxReports] = useState([]);
+    const [selectedSandboxReport, setSelectedSandboxReport] = useState(null);
+    const [sandboxReportToDelete, setSandboxReportToDelete] = useState(null);
+    const [showSandboxDeleteDialog, setShowSandboxDeleteDialog] = useState(false);
     const [showSelectionDialog, setShowSelectionDialog] = useState(false);
     const [workflowCandidates, setWorkflowCandidates] = useState([]);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [recordToDelete, setRecordToDelete] = useState(null);
+
+    // Dispatch: host agent selection
+    const [agentCards, setAgentCards] = useState([]);
+    const [selectedAgent, setSelectedAgent] = useState('');
+    const [isDispatching, setIsDispatching] = useState(false);
 
     // Search mode: 'fuzzy' | 'exact'
     const [searchMode, setSearchMode] = useState(() => {
@@ -484,7 +481,56 @@ const ExecutionCenter = ({ isDark }) => {
     });
     const [showFilters, setShowFilters] = useState(false);
     const [availableTags, setAvailableTags] = useState([]);
-    const [showSummary, setShowSummary] = useState(true);
+    const [showSummary, setShowSummary] = useState(false);
+    const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
+
+    const loadSandboxRecords = useCallback(async () => {
+        try {
+            setIsLoadingRecords(true);
+            const response = await getSandboxReports();
+            const reports = response?.data || [];
+            setSandboxReports(reports.filter(report => report.mode === 'sandbox'));
+        } catch (err) {
+            console.error('Failed to load sandbox reports:', err);
+            setError(err?.message || t('execution.load_history_failed'));
+        } finally {
+            setIsLoadingRecords(false);
+        }
+    }, [setError, t]);
+
+    const loadSandboxDetail = useCallback(async (verificationId) => {
+        try {
+            const response = await getSandboxReport(verificationId);
+            const payload = response?.data || {};
+            setSelectedSandboxReport(payload.report || null);
+            setEvents([]);
+            setSelectedId(null);
+        } catch (err) {
+            console.error('Failed to load sandbox report:', err);
+            setError(err?.message || t('execution.load_history_failed'));
+        }
+    }, [setError, t]);
+
+    const handleDeleteSandboxReport = useCallback(async () => {
+        if (!sandboxReportToDelete) return;
+        try {
+            await deleteSandboxReport(sandboxReportToDelete.verification_id);
+            const deletedId = sandboxReportToDelete.verification_id;
+            setSandboxReports(prev => prev.filter(report => report.verification_id !== deletedId));
+            if (selectedSandboxReport?.verification_id === deletedId) {
+                setSelectedSandboxReport(null);
+            }
+        } catch (err) {
+            console.error("Failed to delete sandbox report:", err);
+            setError(err?.response?.data?.detail || t('execution.load_history_failed'));
+        } finally {
+            setShowSandboxDeleteDialog(false);
+            setSandboxReportToDelete(null);
+        }
+    }, [sandboxReportToDelete, selectedSandboxReport, setError, t]);
+
+    const activeTabConfig = LEFT_PANEL_TABS.find(tab => tab.id === activeTab) || LEFT_PANEL_TABS[0];
+    const ActiveTabIcon = activeTabConfig.icon;
 
     // Save search mode to localStorage
     const handleSearchModeChange = useCallback((mode) => {
@@ -497,6 +543,110 @@ const ExecutionCenter = ({ isDark }) => {
         setNodes([]);
         setEdges([]);
     }, []);
+
+    // Fetch agent cards for dispatch dropdown
+    useEffect(() => {
+        let mounted = true;
+        getAgentCards()
+            .then(resp => {
+                if (mounted && resp?.data) {
+                    const cards = Array.isArray(resp.data) ? resp.data : [];
+                    setAgentCards(cards);
+                    // Auto-select Workbench Agent if available, otherwise first agent
+                    if (cards.length > 0 && !selectedAgent) {
+                        const workbenchAgent = cards.find(card => 
+                            card.name && card.name.toLowerCase().includes('workbench')
+                        );
+                        setSelectedAgent(workbenchAgent ? workbenchAgent.name : cards[0].name);
+                    }
+                }
+            })
+            .catch(err => console.error('Failed to fetch agent cards:', err));
+        return () => { mounted = false; };
+    }, []);
+
+    // Dispatch intent to the selected host agent via A2A-T
+    const handleDispatch = useCallback(() => {
+        if (!userIntent.trim() || !selectedAgent) return;
+
+        if (eventSource) {
+            eventSource.close();
+            setEventSource(null);
+        }
+
+        setError(null);
+        setEvents([]);
+        setPsopStatus(null);
+        setIsDispatching(true);
+        setIsRunning(true);
+        setAutoScroll(true);
+        setSelectedExecutionId(null);
+        setSelectedSandboxReport(null);
+        setSelectedId(null);
+        setWorkflowSource(null);
+        setMatchedWorkflows([]);
+        setNodes([]);
+        setEdges([]);
+
+        const url = getDispatchStreamUrl(userIntent, selectedAgent, i18n.language);
+        const es = new EventSource(url, { withCredentials: true });
+
+        es.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                setEvents(prev => [...prev, data]);
+                console.log('[SSE event]', data.type, data.data?.step || data.data?.agent || '', JSON.stringify(data.data).slice(0, 120));
+
+               switch (data.type) {
+                    case 'start':
+                        setAutoScroll(true);
+                        setSelectedId('dispatch');
+                        setWorkflowSource('retrieved');
+                        setMatchedWorkflows([{ workflow_id: 'dispatch', name: data.data?.workflow || 'Workflow', description: userIntent || '' }]);
+                        break;
+                    case 'psop_update':
+                        try {
+                            const status = typeof data.data.psop === 'string'
+                                ? JSON.parse(data.data.psop)
+                                : data.data.psop;
+                            setPsopStatus(status);
+                        } catch (e) {
+                            console.error('Failed to parse psop_update data:', e);
+                        }
+                        break;
+                    case 'dispatch_result':
+                    case 'complete':
+                    case 'close':
+                        setIsRunning(false);
+                        setIsDispatching(false);
+                        setRunningId(null);
+                        es.close();
+                        break;
+                    case 'dispatch_error':
+                    case 'error':
+                        setError(data.data.error || 'Dispatch failed');
+                        setIsRunning(false);
+                        setIsDispatching(false);
+                        setRunningId(null);
+                        es.close();
+                        break;
+                }
+            } catch (err) {
+                console.error("Failed to parse dispatch event data:", err);
+            }
+        };
+
+        es.onerror = () => {
+            if (es.readyState === EventSource.CLOSED) {
+                setError("Dispatch SSE Connection Error");
+                setIsRunning(false);
+                setIsDispatching(false);
+                setRunningId(null);
+            }
+        };
+
+        setEventSource(es);
+    }, [userIntent, selectedAgent, eventSource, i18n.language]);
 
     // Update exact filter
     const updateFilter = useCallback((key, value) => {
@@ -725,15 +875,23 @@ const ExecutionCenter = ({ isDark }) => {
                 setSelectedExecutionId(executionId);
                 if (record.final_psop) setPsopStatus(record.final_psop);
                 if (record.events && record.events.length > 0) {
-                    const displayEvents = record.events.filter(e =>
-                        e.type === 'agent_request' || e.type === 'agent_response' ||
-                        e.type === 'negotiation_request' || e.type === 'negotiation_resolved' ||
-                        e.type === 'negotiation_failed'
-                    );
+                    const displayEvents = record.events.filter(e => {
+                        const t = e.type;
+                        return t === 'step_start' || t === 'step_complete' ||
+                            t === 'task_request' || t === 'task_response' ||
+                            t === 'task_status_changed' ||
+                            t === 'agent_request' || t === 'agent_response' ||
+                            t === 'agent_status_update' || t === 'agent_artifact_update' ||
+                            t === 'negotiation_request' || t === 'negotiation_resolved' ||
+                            t === 'negotiation_failed' ||
+                            t === 'complete' || t === 'error' || t === 'close' ||
+                            t === 'workflow_complete';
+                    });
                     setEvents(displayEvents);
                 }
                 setIsRunning(false);
                 setRunningId(null);
+                setSelectedSandboxReport(null);
                 setSelectedId(record.psop_id);
                 setWorkflowSource('retrieved');
                 setError(null);
@@ -780,7 +938,7 @@ const ExecutionCenter = ({ isDark }) => {
             const { nodes: n, edges: e } = transformWorkflowToReactFlow(psopStatus);
             setNodes(n);
             setEdges(e);
-        } else if (selectedId) {
+        } else if (selectedId && selectedId !== 'dispatch') {
             (async () => {
                 try {
                     const res = await getWorkflowById(selectedId);
@@ -811,6 +969,11 @@ const ExecutionCenter = ({ isDark }) => {
         const idToRun = overrideId || selectedId;
         if (!idToRun) return;
 
+        if (eventSource) {
+            eventSource.close();
+            setEventSource(null);
+        }
+
         setError(null);
         setEvents([]);
         setPsopStatus(null);
@@ -818,18 +981,15 @@ const ExecutionCenter = ({ isDark }) => {
         setRunningId(idToRun);
         setAutoScroll(true);
         setSelectedExecutionId(null);
+        setSelectedSandboxReport(null);
 
-        const url = getStartProcessStreamUrl(idToRun, userIntent, i18n.language);
-        const es = new EventSource(url);
+        const url = getStartProcessStreamUrl(idToRun, userIntent, i18n.language, selectedAgent);
+        const es = new EventSource(url, { withCredentials: true });
 
         es.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                if (data.type === 'agent_request' || data.type === 'agent_response'
-                    || data.type === 'negotiation_request' || data.type === 'negotiation_resolved'
-                    || data.type === 'negotiation_failed') {
-                    setEvents(prev => [...prev, data]);
-                }
+                setEvents(prev => [...prev, data]);
 
                 switch (data.type) {
                     case 'psop_update':
@@ -860,15 +1020,16 @@ const ExecutionCenter = ({ isDark }) => {
             }
         };
 
-        es.onerror = (err) => {
-            setError("SSE Connection Error");
-            setIsRunning(false);
-            setRunningId(null);
-            es.close();
+        es.onerror = () => {
+            if (es.readyState === EventSource.CLOSED) {
+                setError("SSE Connection Error");
+                setIsRunning(false);
+                setRunningId(null);
+            }
         };
 
         setEventSource(es);
-    }, [selectedId, userIntent]);
+    }, [selectedId, userIntent, selectedAgent]);
 
     useEffect(() => {
         return () => {
@@ -878,91 +1039,120 @@ const ExecutionCenter = ({ isDark }) => {
 
     const theme = useMemo(() => ({
         panel: isDark
-            ? 'bg-zinc-900 border-zinc-800 shadow-2xl backdrop-blur-xl'
-            : 'bg-white border-zinc-200 shadow-2xl backdrop-blur-xl',
+            ? 'bg-zinc-900/95 border-zinc-800 shadow-xl'
+            : 'bg-white border-zinc-200 shadow-lg',
         header: isDark
-            ? 'bg-zinc-800/20 border-zinc-800'
-            : 'bg-zinc-50/50 border-zinc-100',
+            ? 'bg-zinc-800/30 border-zinc-800'
+            : 'bg-zinc-50 border-zinc-100',
         input: isDark
             ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-500'
-            : 'bg-zinc-100 border-zinc-200 text-zinc-900 placeholder-zinc-400',
+            : 'bg-zinc-50 border-zinc-200 text-zinc-900 placeholder-zinc-400',
         content: isDark
-            ? 'bg-black/20'
-            : 'bg-zinc-50/50',
+            ? 'bg-zinc-950/30'
+            : 'bg-zinc-50/30',
     }), [isDark]);
 
 
 
     return (
-        <div className="h-full flex flex-col w-full overflow-hidden font-sans">
-            <div className="shrink-0 flex items-center gap-1 px-6 pt-6 pb-2">
-                <button
-                    onClick={() => setActiveSubMenu('execution')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300
-                        ${activeSubMenu === 'execution'
-                            ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-md'
-                            : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
-                >
-                    <Play size={14} />
-                    {t('execution.sub_menu_execution')}
-                </button>
-                <button
-                    onClick={() => setActiveSubMenu('statistics')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300
-                        ${activeSubMenu === 'statistics'
-                            ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-md'
-                            : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
-                >
-                    <BarChart3 size={14} />
-                    {t('execution.sub_menu_statistics')}
-                </button>
+        <div className="h-full flex flex-col w-full overflow-hidden">
+            {/* Header */}
+            <div className="shrink-0 px-8 pt-6 pb-4">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                            <Play size={18} className="text-white" fill="white" />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-bold text-zinc-900 dark:text-white">
+                                {t('nav.tabs.execution')}
+                            </h1>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                {activeSubMenu === 'execution' ? t('execution.sub_menu_execution') : t('execution.sub_menu_statistics')}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setActiveSubMenu('execution')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                activeSubMenu === 'execution'
+                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                                    : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                            }`}
+                        >
+                            {t('execution.sub_menu_execution')}
+                        </button>
+                        <button
+                            onClick={() => setActiveSubMenu('statistics')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                activeSubMenu === 'statistics'
+                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                                    : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                            }`}
+                        >
+                            {t('execution.sub_menu_statistics')}
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div className="flex-1 min-h-0 overflow-hidden">
                 {activeSubMenu === 'execution' ? (
-                    <div className="h-full p-10 flex flex-col gap-4 w-full transition-all animate-in fade-in duration-500 overflow-hidden">
-                        <div className={`shrink-0 rounded-[2.5rem] border flex flex-col px-8 py-5 ${theme.panel}`}>
+                    <div className="h-full px-8 pb-6 flex flex-col gap-4 w-full overflow-hidden">
+                        {/* Search & Control Bar */}
+                        <div className={`shrink-0 rounded-2xl border ${isSearchCollapsed ? 'px-5 py-3' : 'p-5'} ${theme.panel}`}>
 
-                <div className="flex items-center gap-4 mb-4">
-                    <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl">
+                {/* Search Mode Toggle + collapse toggle */}
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg">
                         <button
                             onClick={() => handleSearchModeChange('fuzzy')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase transition-all
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all
                                 ${searchMode === 'fuzzy'
                                     ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
                                     : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
                         >
-                            <Search size={14} />
+                            <Search size={13} />
                             {t('execution.search_fuzzy')}
                         </button>
                         <button
                             onClick={() => handleSearchModeChange('exact')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase transition-all
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all
                                 ${searchMode === 'exact'
                                     ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
                                     : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
                         >
-                            <SlidersHorizontal size={14} />
+                            <SlidersHorizontal size={13} />
                             {t('execution.search_exact')}
                         </button>
                     </div>
                     {searchMode === 'exact' && (
                         <button
                             onClick={() => setShowFilters(!showFilters)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase transition-all
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all
                                 ${showFilters
                                     ? 'bg-blue-600 text-white'
-                                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
                         >
-                            <SlidersHorizontal size={14} />
+                            <SlidersHorizontal size={13} />
                             {t('execution.filters')}
                         </button>
                     )}
+                        <button
+                            onClick={() => setIsSearchCollapsed(!isSearchCollapsed)}
+                            className="ml-auto p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            title={isSearchCollapsed ? t('execution.expand') : t('execution.collapse')}
+                        >
+                            {isSearchCollapsed ? <ChevronDown size={15} className="text-zinc-500" /> : <ChevronUp size={15} className="text-zinc-500" />}
+                        </button>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className="flex-1 relative group min-w-0">
-                        <Search size={22} className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500 transition-colors" />
+                {/* Search Input Row */}
+                {!isSearchCollapsed && (
+                <div className="flex items-center gap-3">
+                    <div className="flex-1 relative group">
+                        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500 transition-colors" />
                         <input
                             type="text"
                             value={searchMode === 'fuzzy' ? userIntent : exactFilters.name}
@@ -979,47 +1169,66 @@ const ExecutionCenter = ({ isDark }) => {
                                 }
                             }}
                             placeholder={searchMode === 'fuzzy' ? t('execution.intent_placeholder') : t('execution.search_by_name')}
-                            className={`w-full h-14 pl-14 pr-6 rounded-[1.25rem] border-2 text-base font-bold outline-none transition-all duration-300 focus:shadow-[0_0_0_6px_rgba(59,130,246,0.1)] focus:border-blue-500 ${theme.input} shadow-inner`}
+                            className={`w-full h-11 pl-11 pr-4 rounded-xl border text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${theme.input}`}
                         />
                     </div>
 
-                    <div className="shrink-0 flex items-center gap-4">
-                        {searchMode === 'fuzzy' ? (
-                            <div className="flex items-center gap-3 pr-6 border-r border-zinc-100 dark:border-zinc-800">
-                                <button
-                                    onClick={handleMatchIntent}
-                                    disabled={isMatching || !userIntent.trim()}
-                                    className="flex items-center gap-3 px-6 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.25rem] text-sm font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-blue-500/20"
-                                >
-                                    <Search size={16} strokeWidth={3} />
-                                    {isMatching ? t('execution.matching') : t('execution.match')}
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-3 pr-6 border-r border-zinc-100 dark:border-zinc-800">
-                                <button
-                                    onClick={clearFilters}
-                                    className="flex items-center gap-2 px-4 h-14 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-[1.25rem] text-sm font-black uppercase tracking-wider transition-all active:scale-95"
-                                >
-                                    <X size={16} strokeWidth={3} />
-                                    {t('execution.clear_filters')}
-                                </button>
-                            </div>
-                        )}
+                    {/* Action Buttons */}
+                    {searchMode === 'fuzzy' ? (
+                        <>
+                            <button
+                                onClick={handleMatchIntent}
+                                disabled={isMatching || !userIntent.trim()}
+                                className="flex items-center gap-2 px-5 h-11 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-blue-500/20"
+                            >
+                                <Search size={15} />
+                                {isMatching ? t('execution.matching') : t('execution.match')}
+                            </button>
 
-                        <div className="flex flex-col items-end">
-                            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{t('execution.engine_status')}</span>
-                            <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-emerald-500 animate-ping' : (psopStatus ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700')}`} />
-                                <span className={`text-[11px] font-black uppercase tracking-wider ${isRunning ? 'text-emerald-500' : 'dark:text-white'}`}>
-                                    {isRunning ? t('execution.running') : (psopStatus ? t('execution.completed') : t('execution.ready'))}
-                                </span>
-                            </div>
-                        </div>
+                            <div className="h-8 w-px bg-zinc-200 dark:bg-zinc-700" />
+
+                            <select
+                                value={selectedAgent}
+                                onChange={(e) => setSelectedAgent(e.target.value)}
+                                className={`h-11 px-3 rounded-xl border text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${theme.input} min-w-[160px]`}
+                            >
+                                <option value="">{t('execution.select_agent') || 'Select Agent'}</option>
+                                {agentCards.map(agent => (
+                                    <option key={agent.name} value={agent.name}>
+                                        {agent.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <button
+                                onClick={handleDispatch}
+                                disabled={isDispatching || !userIntent.trim() || !selectedAgent}
+                                className="flex items-center gap-2 px-5 h-11 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-emerald-500/20"
+                            >
+                                <Bot size={15} />
+                                {isDispatching ? (t('execution.dispatching') || 'Dispatching...') : (t('execution.dispatch') || 'Dispatch')}
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            onClick={clearFilters}
+                            className="flex items-center gap-2 px-5 h-11 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-xl text-sm font-medium transition-all active:scale-95"
+                        >
+                            <X size={15} />
+                            {t('execution.clear_filters')}
+                        </button>
+                    )}
+
+                    {/* Status Indicator */}
+                    <div className="flex items-center gap-2 pl-3 border-l border-zinc-200 dark:border-zinc-700">
+                        <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-emerald-500 animate-pulse' : (psopStatus ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600')}`} />
+                        <span className={`text-xs font-medium ${isRunning ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                            {isRunning ? t('execution.running') : (psopStatus ? t('execution.completed') : t('execution.ready'))}
+                        </span>
                     </div>
                 </div>
+                )}
 
-                {searchMode === 'exact' && showFilters && (
+                {searchMode === 'exact' && showFilters && !isSearchCollapsed && (
                     <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700 grid grid-cols-4 gap-4 animate-in slide-in-from-top duration-300">
                         <div>
                             <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-2 uppercase">{t('execution.filter_workflow_id')}</label>
@@ -1085,169 +1294,323 @@ const ExecutionCenter = ({ isDark }) => {
                 )}
             </div>
 
-            <div className="flex-1 flex gap-6 min-h-0">
-                <div className={`w-[320px] rounded-[2.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0 animate-in slide-in-from-left duration-500`}>
-                    <div className={`border-b shrink-0 ${theme.header}`}>
-                        <div className="flex">
-                            <button
-                                onClick={() => setActiveTab('match')}
-                                className={`flex-1 h-14 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-wide transition-all
-                                    ${activeTab === 'match' 
-                                        ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500' 
-                                        : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
-                            >
-                                <Search size={14} />
-                                {t('execution.match_tab')}
-                            </button>
-                            <button
-                                onClick={() => { setActiveTab('history'); loadHistoryRecords(); }}
-                                className={`flex-1 h-14 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-wide transition-all
-                                    ${activeTab === 'history' 
-                                        ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500' 
-                                        : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
-                            >
-                                <History size={14} />
-                                {t('execution.history_tab')}
-                            </button>
+            {/* Main Content Area - Three Column Layout */}
+            <div className="flex-1 flex gap-4 min-h-0 relative">
+                {/* Left Panel - Workflow List */}
+                {isLeftPanelCollapsed ? (
+                    <button
+                        onClick={() => setIsLeftPanelCollapsed(false)}
+                        className={`shrink-0 w-10 rounded-xl border flex items-center justify-center ${theme.panel} hover:shadow-md transition-all`}
+                        title={t('execution.expand')}
+                    >
+                        <ChevronRight size={16} className="text-zinc-400" />
+                    </button>
+                ) : (
+                    <div className={`w-[280px] rounded-xl border flex flex-col overflow-hidden ${theme.panel} shrink-0`}>
+                        {/* Panel Header with View Switcher */}
+                        <div className={`border-b px-3 py-3 ${theme.header}`}>
+                            <div className="flex items-center gap-2">
+                                <div className="relative min-w-0 flex-1">
+                                    <button
+                                        onClick={() => setIsTabMenuOpen(prev => !prev)}
+                                        className={`w-full h-10 px-3 rounded-xl border flex items-center justify-between gap-2 text-sm font-medium transition-all ${
+                                            isDark
+                                                ? 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700'
+                                                : 'border-slate-200 bg-white hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <span className="flex items-center gap-2 min-w-0">
+                                            <ActiveTabIcon size={14} className="text-zinc-500 dark:text-zinc-400" />
+                                            <span className="truncate">{t(activeTabConfig.labelKey)}</span>
+                                        </span>
+                                        <ChevronDown size={14} className={`shrink-0 text-zinc-400 transition-transform ${isTabMenuOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {isTabMenuOpen && (
+                                        <>
+                                            <div
+                                                className="fixed inset-0 z-20"
+                                                onClick={() => setIsTabMenuOpen(false)}
+                                            />
+                                            <div className={`absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-xl border p-1 shadow-xl ${
+                                                isDark ? 'border-zinc-800 bg-zinc-950' : 'border-slate-200 bg-white'
+                                            }`}>
+                                                {LEFT_PANEL_TABS.map(({ id, icon: Icon, labelKey }) => (
+                                                    <button
+                                                        key={id}
+                                                        onClick={() => {
+                                                            setActiveTab(id);
+                                                            if (id === 'history') loadHistoryRecords();
+                                                            if (id === 'sandbox') loadSandboxRecords();
+                                                            setIsTabMenuOpen(false);
+                                                        }}
+                                                        className={`w-full h-10 px-3 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors ${
+                                                            activeTab === id
+                                                                ? id === 'sandbox'
+                                                                    ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                                                                    : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                                                                : isDark
+                                                                    ? 'text-zinc-400 hover:bg-zinc-900'
+                                                                    : 'text-slate-600 hover:bg-slate-100'
+                                                        }`}
+                                                    >
+                                                        <Icon size={14} />
+                                                        <span className="flex-1 text-left truncate">{t(labelKey)}</span>
+                                                        {activeTab === id && <Check size={14} />}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => setIsLeftPanelCollapsed(true)}
+                                    className="p-2 shrink-0 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                                    title={t('execution.collapse')}
+                                >
+                                    <PanelLeftClose size={14} className="text-zinc-400" />
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
+                    {/* Match Tab Content */}
                     {activeTab === 'match' && (
-                        <div className={`flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar ${theme.content}`}>
+                        <div className={`flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar ${theme.content}`}>
                             {matchedWorkflows.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400 gap-3">
-                                    <Search size={48} strokeWidth={1.5} />
-                                    <p className="text-sm font-bold uppercase tracking-wider">{t('execution.no_match_yet')}</p>
+                                <div className="h-full flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500 py-12">
+                                    <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4">
+                                        <Search size={28} strokeWidth={1.5} />
+                                    </div>
+                                    <p className="text-sm font-medium">{t('execution.no_match_yet')}</p>
+                                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{t('execution.match_hint')}</p>
                                 </div>
                             ) : (
                                 matchedWorkflows.map(wf => (
                                     <div 
                                         key={wf.workflow_id}
                                         onClick={() => { setSelectedId(wf.workflow_id); setWorkflowSource('retrieved'); setPsopStatus(null); }}
-                                        className={`group relative p-5 rounded-[2rem] border-2 transition-all cursor-pointer box-border
+                                        className={`group relative p-4 rounded-xl border transition-all cursor-pointer
                                             ${selectedId === wf.workflow_id 
-                                                ? 'bg-blue-500/10 border-blue-500/50 shadow-[0_8px_30px_rgb(59,130,246,0.1)]' 
-                                                : 'bg-white/50 dark:bg-black/20 border-transparent hover:border-zinc-200 dark:hover:border-zinc-700'}
+                                                ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-300 dark:border-blue-800 shadow-sm' 
+                                                : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-sm'}
                                         `}
                                     >
-                                        <div className="flex flex-col gap-2 pr-12">
-                                            <div className="flex items-center gap-2">
-                                                <div className={`w-1.5 h-1.5 rounded-full ${selectedId === wf.workflow_id ? 'bg-blue-500 animate-pulse' : 'bg-zinc-300 dark:bg-zinc-600'}`} />
-                                                <span className="text-sm font-black dark:text-white truncate uppercase tracking-tight">{wf.name}</span>
+                                        <div className="flex items-start gap-3 pr-10">
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                                selectedId === wf.workflow_id 
+                                                    ? 'bg-blue-500 text-white' 
+                                                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+                                            }`}>
+                                                <FileText size={14} />
                                             </div>
-                                            <span className="text-[11px] font-medium opacity-60 dark:text-zinc-400 line-clamp-2 leading-normal">
-                                                {wf.description || t('execution.no_description')}
-                                            </span>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-sm font-semibold text-zinc-900 dark:text-white truncate">{wf.name}</span>
+                                                </div>
+                                                <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed">
+                                                    {wf.description || t('execution.no_description')}
+                                                </p>
+                                            </div>
                                         </div>
                                         
+                                        {isDispatching && wf.workflow_id === 'dispatch' ? (
+                                            <div className='absolute right-3 top-1/2 -translate-y-1/2'>
+                                                <Loader size={16} className='text-blue-500 animate-spin' />
+                                            </div>
+                                        ) : (
                                         <button 
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (runningId === wf.workflow_id) {
                                                     stopExecution();
+                                                } else if (wf.workflow_id === 'dispatch') {
+                                                    handleDispatch();
                                                 } else {
                                                     setSelectedId(wf.workflow_id);
                                                     startExecution(wf.workflow_id);
                                                 }
                                             }}
-                                            className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-2xl transition-all duration-300 shadow-xl
+                                            className={`absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-all
                                                 ${runningId === wf.workflow_id 
-                                                    ? 'opacity-100 scale-100 bg-rose-500 shadow-rose-500/20' 
-                                                    : (selectedId === wf.workflow_id ? 'opacity-100 scale-100 bg-emerald-500 shadow-emerald-500/20' : 'opacity-0 scale-75 bg-blue-600 group-hover:opacity-100 group-hover:scale-100 shadow-blue-500/20')}
-                                                hover:scale-110 active:scale-95 text-white z-10`}
+                                                    ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20' 
+                                                    : (selectedId === wf.workflow_id 
+                                                        ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' 
+                                                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 opacity-0 group-hover:opacity-100 hover:bg-zinc-200 dark:hover:bg-zinc-700')}
+                                                active:scale-90`}
                                         >
                                             {runningId === wf.workflow_id ? (
-                                                <StopCircle size={14} fill="white" strokeWidth={3} />
+                                                <StopCircle size={14} fill='white' />
                                             ) : (
-                                                <Play size={14} fill="white" strokeWidth={3} />
+                                                <Play size={14} fill='currentColor' />
                                             )}
                                         </button>
+                                        )}
                                     </div>
                                 ))
                             )}
                         </div>
                     )}
 
+                    {/* History Tab Content */}
                     {activeTab === 'history' && (
-                        <div className={`flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar ${theme.content}`}>
+                        <div className={`flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar ${theme.content}`}>
                             {isLoadingRecords ? (
-                                <div className="h-full flex flex-col items-center justify-center opacity-[0.30] text-zinc-400 gap-3">
-                                    <RotateCcw size={24} className="animate-spin" />
-                                    <p className="text-xs font-bold uppercase">{t('execution.loading')}</p>
+                                <div className="h-full flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500 py-12">
+                                    <Loader size={28} className="animate-spin mb-4" />
+                                    <p className="text-sm font-medium">{t('execution.loading')}</p>
                                 </div>
                             ) : executionRecords.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400 gap-3">
-                                    <Clock size={48} strokeWidth={1.5} />
-                                    <p className="text-sm font-bold uppercase tracking-wider">{t('execution.no_history')}</p>
+                                <div className="h-full flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500 py-12">
+                                    <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4">
+                                        <History size={28} strokeWidth={1.5} />
+                                    </div>
+                                    <p className="text-sm font-medium">{t('execution.no_history')}</p>
+                                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{t('execution.no_history_hint')}</p>
                                 </div>
                             ) : (
-                                executionRecords.map(record => (
-                                    <div
-                                        key={record.execution_id}
-                                        onClick={() => loadHistoryDetail(record.execution_id)}
-                                        className={`group relative p-4 rounded-2xl border transition-all cursor-pointer
-                                            ${selectedExecutionId === record.execution_id
-                                                ? 'bg-blue-500/10 border-blue-500/50' 
-                                                : 'bg-white/50 dark:bg-black/20 border-transparent hover:border-zinc-200 dark:hover:border-zinc-700'}
-                                        `}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            {record.status === 'success' ? (
-                                                <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" />
-                                            ) : record.status === 'failed' ? (
-                                                <XCircle size={16} className="text-rose-500 mt-0.5 shrink-0" />
-                                            ) : (
-                                                <Clock size={16} className="text-amber-500 mt-0.5 shrink-0" />
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="text-sm font-bold dark:text-white truncate">{record.psop_name || record.psop_id}</span>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setRecordToDelete(record);
-                                                            setShowDeleteDialog(true);
-                                                        }}
-                                                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/20 text-zinc-400 hover:text-rose-500 transition-all"
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </button>
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-zinc-400">
-                                                    <span>{record.started_at ? new Date(record.started_at).toLocaleString() : '-'}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-1.5">
-                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase
-                                                        ${record.status === 'success' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
-                                                          record.status === 'failed' ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' :
-                                                          'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'}
-                                                    `}>
-                                                        {record.status}
-                                                    </span>
-                                                    <span className="text-[10px] text-zinc-400">{record.step_count} steps</span>
+                                executionRecords.map(record => {
+                                    const statusColor = record.status === 'success'
+                                        ? 'bg-emerald-500'
+                                        : record.status === 'failed'
+                                            ? 'bg-rose-500'
+                                            : record.status === 'running'
+                                                ? 'bg-blue-500 animate-pulse'
+                                                : 'bg-zinc-400';
+                                    const statusLabel = record.status === 'success'
+                                        ? t('execution.status_success')
+                                        : record.status === 'failed'
+                                            ? t('execution.status_failed')
+                                            : record.status === 'running'
+                                                ? t('execution.status_running')
+                                                : record.status || t('execution.unknown_status');
+                                    const isSelected = selectedExecutionId === record.execution_id;
+                                    return (
+                                        <div
+                                            key={record.execution_id}
+                                            onClick={() => loadHistoryDetail(record.execution_id)}
+                                            className={`group relative p-3 rounded-xl border transition-all cursor-pointer
+                                                ${isSelected
+                                                    ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-300 dark:border-blue-800 shadow-sm'
+                                                    : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-sm'}
+                                            `}
+                                        >
+                                            <div className="flex items-start gap-2.5 pr-8">
+                                                <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${statusColor}`} />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-sm font-semibold text-zinc-900 dark:text-white truncate">
+                                                        {record.psop_name || record.psop_id}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                                                            record.status === 'success'
+                                                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                                                                : record.status === 'failed'
+                                                                    ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400'
+                                                                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+                                                        }`}>
+                                                            {statusLabel}
+                                                        </span>
+                                                        {record.started_at && (
+                                                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                                                                {new Date(record.started_at).toLocaleString()}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {record.error && (
+                                                        <p className="text-[10px] text-rose-500 dark:text-rose-400 mt-1 truncate">
+                                                            {record.error}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setRecordToDelete(record);
+                                                    setShowDeleteDialog(true);
+                                                }}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all"
+                                            >
+                                                <Trash2 size={13} />
+                                            </button>
                                         </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     )}
+
+                    {activeTab === 'sandbox' && (
+                        <div className={`flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar ${theme.content}`}>
+                            {sandboxReports.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500 py-12">
+                                    <FlaskConical size={28} strokeWidth={1.5} />
+                                    <p className="text-sm font-medium mt-3">{t('execution.sandbox_empty_title')}</p>
+                                    <p className="max-w-[220px] text-xs text-zinc-400 dark:text-zinc-500 mt-1 text-center px-6">
+                                        {t('execution.sandbox_empty_hint')}
+                                    </p>
+                                </div>
+                            ) : sandboxReports.map((report) => (
+                                <div
+                                    key={report.verification_id}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => loadSandboxDetail(report.verification_id)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                            event.preventDefault();
+                                            loadSandboxDetail(report.verification_id);
+                                        }
+                                    }}
+                                    className="relative group w-full text-left p-3 pr-10 rounded-xl border cursor-pointer transition-all hover:border-violet-500/50"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                                            isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-700'
+                                        }`}>SANDBOX</span>
+                                        <span className="text-xs font-bold truncate">{report.workflow_name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[10px] opacity-60">{t(`sandbox.scenarios.${report.scenario}`, { defaultValue: report.scenario })}</span>
+                                        <span className="text-[10px] font-bold uppercase opacity-70">{t(`sandbox.verdicts.${report.verdict}`, { defaultValue: report.verdict })}</span>
+                                    </div>
+                                    <button
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            setSandboxReportToDelete(report);
+                                            setShowSandboxDeleteDialog(true);
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all"
+                                        title={t('common.delete')}
+                                    >
+                                        <Trash2 size={13} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
-                <div className={`flex-1 flex flex-col rounded-[2.5rem] border overflow-hidden relative ${theme.panel}`}>
-                    <div className={`h-16 px-8 border-b flex justify-between items-center ${theme.header}`}>
+                )}
+                {/* Center Panel - Workflow Visualization */}
+                <div className={`flex-1 flex flex-col rounded-xl border overflow-hidden ${theme.panel}`}>
+                    {/* Panel Header */}
+                    <div className={`h-14 px-5 border-b flex items-center justify-between ${theme.header}`}>
                         <div className="flex items-center gap-3">
-                            <h2 className="text-lg font-black dark:text-white ">
+                            <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">
                                 {isMatching ? t('execution.processing_input') : (nodes.length > 0 ? (workflowSource === 'generated' ? t('execution.ai_planned') : t('execution.workflow_label')) : t('execution.interface_label'))}
                             </h2>
                             {workflowSource && (
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black  ${workflowSource === 'generated' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600' : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600'}`}>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium ${
+                                    workflowSource === 'generated' 
+                                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' 
+                                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                }`}>
                                     {workflowSource === 'generated' ? t('execution.ai_gen') : t('execution.native')}
                                 </span>
                             )}
                         </div>
                     </div>
 
+                    {/* Workflow Canvas */}
                     <div className={`flex-1 relative min-h-0 ${theme.content}`}>
                         {selectedId || nodes.length > 0 ? (
                             <UnifiedWorkflow
@@ -1260,47 +1623,52 @@ const ExecutionCenter = ({ isDark }) => {
                                 onSelectChange={handleNodeSelect}
                             />
                         ) : (
-                            <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400">
-                                <Bot size={64} strokeWidth={1.5} />
-                                <p className="text-xl font-black mt-4 uppercase tracking-widest">{t('execution.standby')}</p>
+                            <div className="h-full flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500">
+                                <div className="w-20 h-20 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4">
+                                    <Bot size={36} strokeWidth={1.5} />
+                                </div>
+                                <p className="text-base font-medium">{t('execution.standby')}</p>
+                                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{t('execution.standby_hint')}</p>
                             </div>
                         )}
 
+                        {/* Error Toast */}
                         {error && (
-                            <div className="absolute top-6 left-1/2 -translate-x-1/2 px-8 py-4 bg-white dark:bg-rose-500/10 border border-rose-500/50 backdrop-blur-xl rounded-2xl flex items-center gap-4 text-rose-500 shadow-2xl z-[50]">
-                                <AlertCircle size={20} />
-                                <p className="text-sm font-bold uppercase font-mono tracking-tighter">{error}</p>
-                                <button onClick={() => setError(null)} className="ml-4 opacity-50 hover:opacity-100">
-                                    <Plus size={18} className="rotate-45" />
+                            <div className="absolute top-4 left-1/2 -translate-x-1/2 px-5 py-3 bg-white dark:bg-zinc-900 border border-rose-200 dark:border-rose-800 backdrop-blur-xl rounded-xl flex items-center gap-3 text-rose-600 dark:text-rose-400 shadow-lg z-50 max-w-md">
+                                <AlertCircle size={18} className="shrink-0" />
+                                <p className="text-sm font-medium flex-1">{error}</p>
+                                <button onClick={() => setError(null)} className="shrink-0 p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors">
+                                    <X size={14} />
                                 </button>
                             </div>
                         )}
                     </div>
 
+                    {/* Summary Section (Collapsible) */}
                     <div className={`shrink-0 border-t ${theme.header}`}>
                         <button
                             onClick={() => setShowSummary(!showSummary)}
-                            className={`w-full flex items-center justify-between px-8 py-3 transition-all hover:bg-zinc-100 dark:hover:bg-zinc-800/50`}
+                            className="w-full flex items-center justify-between px-5 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                         >
                             <div className="flex items-center gap-2">
-                                <FileText size={16} className="text-blue-500" />
-                                <span className="text-sm font-black uppercase tracking-wide dark:text-white">
+                                <FileText size={15} className="text-blue-500" />
+                                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                                     {t('execution.summary_title')}
                                 </span>
                             </div>
                             {showSummary
-                                ? <ChevronDown size={16} className="text-zinc-400" />
-                                : <ChevronUp size={16} className="text-zinc-400" />}
+                                ? <ChevronDown size={15} className="text-zinc-400" />
+                                : <ChevronUp size={15} className="text-zinc-400" />}
                         </button>
                         {showSummary && (
-                            <div className="px-8 pb-6 animate-in slide-in-from-top duration-300">
-                                <div className={`rounded-xl border-2 border-dashed p-8 flex flex-col items-center justify-center gap-3
-                                    ${isDark ? 'border-zinc-700 bg-zinc-800/30' : 'border-zinc-200 bg-zinc-50/50'}`}>
-                                    <FileText size={32} className="text-zinc-300 dark:text-zinc-600" />
-                                    <p className="text-sm font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
+                            <div className="px-5 pb-4">
+                                <div className={`rounded-lg border-2 border-dashed p-6 flex flex-col items-center justify-center gap-2
+                                    ${isDark ? 'border-zinc-700 bg-zinc-800/30' : 'border-zinc-200 bg-zinc-50'}`}>
+                                    <FileText size={24} className="text-zinc-300 dark:text-zinc-600" />
+                                    <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
                                         {t('execution.summary_placeholder')}
                                     </p>
-                                    <p className="text-xs text-zinc-400 dark:text-zinc-600">
+                                    <p className="text-xs text-zinc-400 dark:text-zinc-500">
                                         {t('execution.summary_hint')}
                                     </p>
                                 </div>
@@ -1309,66 +1677,70 @@ const ExecutionCenter = ({ isDark }) => {
                     </div>
                 </div>
 
+                {/* Right Panel - Interaction Log */}
                 {isPanelExpanded && (
                     <div 
-                        className="fixed inset-0 bg-black/20 dark:bg-black/40 z-40 transition-opacity duration-300"
+                        className="absolute inset-0 bg-black/30 dark:bg-black/50 z-40 transition-opacity"
                         onClick={() => setIsPanelExpanded(false)}
                     />
                 )}
-                <div className={`rounded-[2.5rem] border flex flex-col overflow-hidden ${theme.panel} shrink-0 transition-all duration-300
+                <div className={`rounded-xl border flex flex-col overflow-hidden ${theme.panel} shrink-0 transition-all duration-300
                     ${isPanelExpanded 
-                        ? 'w-[65vw] fixed right-6 top-6 bottom-6 z-50 shadow-2xl' 
-                        : 'w-[450px]'}`}>
-                    <div className={`h-16 px-8 border-b flex items-center justify-between shrink-0 ${theme.header}`}>
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-blue-500/10 rounded-xl">
-                                <Terminal size={18} className="text-blue-500" />
+                        ? 'w-[60vw] absolute right-0 top-0 bottom-0 z-50 shadow-2xl'
+                        : 'w-[380px]'}`}>
+                    {/* Panel Header */}
+                    <div className={`h-14 px-5 border-b flex items-center justify-between ${theme.header}`}>
+                        <div className="flex items-center gap-2.5">
+                            {isPanelExpanded && (
+                                <button
+                                    onClick={() => setIsPanelExpanded(false)}
+                                    className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                                    title={t('execution.collapse')}
+                                >
+                                    <PanelRightClose size={15} className="text-zinc-500" />
+                                </button>
+                            )}
+                            <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                <Terminal size={15} className="text-blue-600 dark:text-blue-400" />
                             </div>
-                            <h3 className="text-lg font-black dark:text-white">{t('execution.interaction')}</h3>
+                            <div>
+                                <h3 className="text-sm font-semibold text-zinc-900 dark:text-white">{t('execution.interaction')}</h3>
+                                <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                                    {events.length > 0 ? t('execution.event_count', { count: events.length }) : t('execution.waiting_execution')}
+                                </p>
+                            </div>
                         </div>
                         <div className="flex items-center gap-2">
                             {!autoScroll && (
-                                <button onClick={() => setAutoScroll(true)} className="text-[10px] font-black text-blue-600 hover:text-blue-500 uppercase">
+                                <button 
+                                    onClick={() => setAutoScroll(true)} 
+                                    className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 px-2 py-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                >
                                     {t('execution.sync')}
                                 </button>
                             )}
                             <button
                                 onClick={() => setIsPanelExpanded(!isPanelExpanded)}
-                                className="p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                                className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                                 title={isPanelExpanded ? t('execution.collapse') : t('execution.expand')}
                             >
-                                {isPanelExpanded ? <PanelLeftClose size={18} className="text-zinc-500" /> : <PanelLeftOpen size={18} className="text-zinc-500" />}
+                                {isPanelExpanded ? <PanelLeftClose size={15} className="text-zinc-500" /> : <PanelLeftOpen size={15} className="text-zinc-500" />}
                             </button>
                         </div>
                     </div>
 
-                    <div ref={logScrollRef} onScroll={handleScroll} className={`flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar scroll-smooth ${theme.content}`}>
-                        {events.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center opacity-[0.15] dark:opacity-[0.25] text-zinc-400">
-                                <History size={64} strokeWidth={1.5} />
-                                <p className="text-xl font-black mt-4 uppercase tracking-widest">{t('execution.idle')}</p>
-                            </div>
+                    {/* Log Content */}
+                    <div ref={logScrollRef} onScroll={handleScroll} className={`flex-1 overflow-y-auto p-4 custom-scrollbar ${theme.content}`}>
+                        {selectedSandboxReport ? (
+                            <SandboxReportView report={selectedSandboxReport} isDark={isDark} />
                         ) : (
-                            events.map((event, index) => {
-                                const agentName = event.data.agent;
-                                const isSelected = selectedNodeId && (nodes.find(n => n.id === selectedNodeId)?.data?.name === agentName || nodes.find(n => n.id === selectedNodeId)?.data?.agent === agentName);
-                                
-                                return (
-                                    <LogEntry 
-                                        key={`${event.timestamp}-${event.data.agent}-${index}`} 
-                                        event={event} 
-                                        isDark={isDark} 
-                                        t={t} 
-                                        isSelected={isSelected}
-                                    />
-                                );
-                            })
+                            <ExecutionTimeline events={events} isDark={isDark} isRunning={isRunning || isDispatching} />
                         )}
                     </div>
                 </div>
             </div>
 
-            {showDeleteDialog && (
+            {(showDeleteDialog || showSandboxDeleteDialog) && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/20 backdrop-blur-sm animate-in fade-in duration-300">
                     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-8 shadow-2xl w-full max-w-md scale-in-center animate-in zoom-in-95 duration-300">
                         <div className="flex flex-col items-center text-center">
@@ -1376,26 +1748,35 @@ const ExecutionCenter = ({ isDark }) => {
                                 <Trash2 size={32} />
                             </div>
                             <h3 className="text-xl font-black dark:text-white mb-2 uppercase tracking-tight">
-                                {t('execution.delete_record_title')}
+                                {showSandboxDeleteDialog ? t('execution.delete_sandbox_title') : t('execution.delete_record_title')}
                             </h3>
                             <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-8">
-                                {t('execution.delete_record_confirm')}
+                                {showSandboxDeleteDialog ? t('execution.delete_sandbox_confirm') : t('execution.delete_record_confirm')}
                                 <br />
-                                <span className="font-bold text-zinc-900 dark:text-zinc-100 italic">"{recordToDelete?.psop_name || recordToDelete?.execution_id}"</span>
+                                <span className="font-bold text-zinc-900 dark:text-zinc-100 italic">"
+                                    {showSandboxDeleteDialog
+                                        ? (sandboxReportToDelete?.workflow_name || sandboxReportToDelete?.verification_id)
+                                        : (recordToDelete?.psop_name || recordToDelete?.execution_id)}
+                                "</span>
                             </p>
 
                             <div className="flex gap-4 w-full">
                                 <button
                                     onClick={() => {
-                                        setShowDeleteDialog(false);
-                                        setRecordToDelete(null);
+                                        if (showSandboxDeleteDialog) {
+                                            setShowSandboxDeleteDialog(false);
+                                            setSandboxReportToDelete(null);
+                                        } else {
+                                            setShowDeleteDialog(false);
+                                            setRecordToDelete(null);
+                                        }
                                     }}
                                     className="flex-1 px-6 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
                                 >
                                     {t('common.cancel')}
                                 </button>
                                 <button
-                                    onClick={handleDeleteRecord}
+                                    onClick={showSandboxDeleteDialog ? handleDeleteSandboxReport : handleDeleteRecord}
                                     className="flex-1 px-6 py-3 rounded-xl bg-red-500 text-white font-bold text-xs uppercase tracking-widest hover:bg-red-600 shadow-lg shadow-red-500/20 active:scale-95 transition-all"
                                 >
                                     {t('common.delete')}

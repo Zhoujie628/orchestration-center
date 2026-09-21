@@ -29,12 +29,13 @@ agent card loading) lives in the Workbench Agent.
 import asyncio
 import json
 import time
+from collections.abc import AsyncIterator
+from contextlib import suppress
 from pathlib import Path
-from typing import AsyncIterator
 
+from a2a.types import Part
 from loguru import logger
-
-from workflow_engine import A2ATransport, WorkflowEngineClient
+from workflow_engine import A2ATransport, MessageContent, WorkflowEngineClient
 
 try:
     from a2a_t.llm.factory import LLMClientFactory as _LLMFactory
@@ -48,14 +49,13 @@ class OrchestrationEngine:
     """Thin orchestration channel -- PSOP preview + A2A-T dispatch + event forward."""
 
     def __init__(self, agent_cards, target_agent: str = None, lang: str = None):
+        from common.util.config_util import get_conf
+
         self.lang = lang or "zh"
         self._agent_cards = agent_cards
-        self._target_agent = target_agent
+        self._target_agent = target_agent or get_conf().get("workflow_host_agent_name", "Host Agent")
 
-        from common.util.config_util import get_conf
         self._ssl_verify = str(get_conf().get("client_verify_server", "false")).lower() == "true"
-
-        self._a2at_env_path = str(Path(__file__).resolve().parent.parent.parent / ".env")
 
         cred_path = Path(__file__).resolve().parent.parent.parent / "samples" / "agent_credentials.json"
         self._cred_path = str(cred_path) if cred_path.is_file() else None
@@ -75,11 +75,10 @@ class OrchestrationEngine:
             raise RuntimeError(f"Agent '{self._target_agent}' not found in registry")
         transport = A2ATransport(
             agent_cards=[target_card],
-            a2at_env_path=self._a2at_env_path,
             credentials_config=self._cred_path,
             ssl_verify=self._ssl_verify,
         )
-        return WorkflowEngineClient(transport, max_negotiation_rounds=3)
+        return WorkflowEngineClient.owning(transport, max_negotiation_exchanges=3)
 
     async def events(self, intent: str) -> AsyncIterator[dict]:
         """Search PSOP for preview, dispatch to target agent, stream back events."""
@@ -119,7 +118,6 @@ class OrchestrationEngine:
             logger.warning("[Orchestration] No matching PSOP found, dispatching raw intent")
 
         engine_client = self._get_engine_client()
-        target_card = self._find_target_card()
 
         yield {
             "type": "start",
@@ -137,22 +135,21 @@ class OrchestrationEngine:
         dispatch_metadata = {}
         if psop_model:
             dispatch_metadata["__orch_psop_id__"] = psop_model.id
+            dispatch_metadata["__orch_psop__"] = json.dumps(
+                psop_model.model_dump(mode="json"),
+                ensure_ascii=False,
+            )
             logger.info(f"[Orchestration] Passing psop_id={psop_model.id} to target agent")
 
         try:
-            transport = engine_client._transport
-            a2a_client = transport.create_a2a_client(target_card)
-            send_req = transport.build_send_request(intent, None, dispatch_metadata)
-
-            async for response in a2a_client.send_message(send_req):
-                metadata = {}
-                if response.HasField("task"):
-                    metadata = transport._extract_task_metadata(response.task)
-                elif response.HasField("status_update"):
-                    metadata = transport._extract_task_metadata(response.status_update)
-                elif response.HasField("artifact_update"):
-                    metadata = transport._extract_task_metadata(response.artifact_update)
-                sdk_event_json = metadata.get("__sdk_event__")
+            content = MessageContent(
+                parts=(Part(text=intent),),
+                metadata=dispatch_metadata,
+            )
+            async for response in engine_client.stream_message(
+                self._target_agent, content,
+            ):
+                sdk_event_json = response.metadata.get("__sdk_event__")
                 if sdk_event_json:
                     try:
                         event = json.loads(sdk_event_json)
@@ -172,10 +169,8 @@ class OrchestrationEngine:
                 "timestamp": time.time(),
             }
         finally:
-            try:
+            with suppress(Exception):
                 await engine_client.close()
-            except Exception:
-                pass
 
     def _shape_psop_update(self, event: dict, psop_model) -> list:
         """Inject psop_update before task_status_changed for live graph updates."""
