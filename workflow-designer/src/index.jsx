@@ -27,9 +27,41 @@ import { usePortalContext } from '@openan/portal-sdk';
 import { setApiClient } from '@/service/api.js';
 import { ErrorBoundary } from '@/components/common/error_boundary/index.jsx';
 import OrchestrationCenter from '@/components/orchestration_center/index.jsx';
+import en from '@/locales/en.json';
+import zh from '@/locales/zh.json';
+
+// Merge this plugin's locale resources into the Portal's GLOBAL i18next instance.
+// IMPORTANT: react-i18next does NOT export the instance (.i18next is undefined) —
+// get it from the Portal's context instead (window.__OPENAN_PORTAL_CONTEXT__.i18n
+// is the same singleton useTranslation() resolves against). Runs on first render
+// when the context is guaranteed present.
+let i18nMerged = false;
+
+function registerPluginI18n(ctxI18n) {
+    if (i18nMerged) return;
+    try {
+        const i18n =
+            ctxI18n ||
+            (typeof window !== 'undefined' && window.__OPENAN_PORTAL_CONTEXT__ && window.__OPENAN_PORTAL_CONTEXT__.i18n) ||
+            null;
+        if (!i18n || typeof i18n.addResourceBundle !== 'function') return;
+        if (i18n.exists('orchestration.title')) {
+            i18nMerged = true;
+            return;
+        }
+        i18n.addResourceBundle('en', 'translation', en, true, true);
+        i18n.addResourceBundle('zh', 'translation', zh, true, true);
+        i18nMerged = true;
+    } catch { /* i18n unavailable — labels fall back to keys */ }
+}
 
 export default function OrchestrationCenterPlugin() {
-    const { theme, api } = usePortalContext();
+    const { theme, api, i18n } = usePortalContext();
+
+    // Merge locale resources on first render (Portal context guaranteed present).
+    useEffect(() => {
+        registerPluginI18n(i18n);
+    }, [i18n]);
     const isDark = theme.isDark;
 
     // Route every service-layer request through the Portal's axios instance

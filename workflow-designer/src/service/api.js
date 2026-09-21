@@ -57,7 +57,20 @@ export const getBaseUrl = () => {
    }
 }
 
-const ORCHESTRATE_BASE = () => `${getBaseUrl()}/rest/v1/orchestrate`;
+const ORCHESTRATE_BASE = () => `${getPortalAwareBaseUrl()}/rest/v1/orchestrate`;
+
+function getPortalAwareBaseUrl() {
+    // Portal plugin mode: ALWAYS use the gateway (relative path) regardless
+    // of the serving port. The getBaseUrl() port heuristics (and any saved
+    // direct-IP server config) describe the STANDALONE deployment; inside
+    // the Portal the request must go through the Portal's own origin and
+    // gateway proxy, otherwise the browser would try to reach e.g.
+    // http://127.0.0.1:5001 on the VISITOR's machine.
+    if (typeof window !== 'undefined' && window.__OPENAN_PORTAL_CONTEXT__) {
+        return '/api/orchestrate';
+    }
+    return getBaseUrl();
+}
 
 // withCredentials: true so the httpOnly session cookie is sent on every
 // request (and stored from every Set-Cookie response) -- same-origin via
@@ -126,7 +139,7 @@ export async function createWorkflow(data) {
     return api.post(`${ORCHESTRATE_BASE()}/workflows`, { psop: data });
 }
 
-// ──── Workflow Templates ────
+// 鈹€鈹€鈹€鈹€ Workflow Templates 鈹€鈹€鈹€鈹€
 
 export async function getTemplates() {
     return api.get(`${ORCHESTRATE_BASE()}/templates`);
@@ -147,7 +160,7 @@ function unwrapEnvelope(body) {
     return body.data;
 }
 
-// ──── PDF Parsing ────
+// 鈹€鈹€鈹€鈹€ PDF Parsing 鈹€鈹€鈹€鈹€
 
 export async function parsePdf(file) {
     const formData = new FormData();
@@ -156,7 +169,7 @@ export async function parsePdf(file) {
     return unwrapEnvelope(body);
 }
 
-// ──── Workflow Generation ────
+// 鈹€鈹€鈹€鈹€ Workflow Generation 鈹€鈹€鈹€鈹€
 
 export async function handlePlan(preflow, agentCards) {
     const body = await api.post(`${ORCHESTRATE_BASE()}/generate-from-preflow`, {
@@ -205,7 +218,7 @@ export async function matchWorkflowsTopN(intent, topN = 3) {
     }));
 }
 
-// ──── Workflow Execution ────
+// 鈹€鈹€鈹€鈹€ Workflow Execution 鈹€鈹€鈹€鈹€
 
 export function getStartProcessStreamUrl(psopId, userIntent = '', lang = '', targetAgent = '') {
     const base = `${ORCHESTRATE_BASE()}/execute?psop_id=${psopId}`;
@@ -236,7 +249,7 @@ export function getDispatchStreamUrl(intent, agentName, lang = '') {
     return `${base}?${params.join('&')}`;
 }
 
-// ──── Execution Records ────
+// 鈹€鈹€鈹€鈹€ Execution Records 鈹€鈹€鈹€鈹€
 
 export async function getExecutionRecords() {
     return api.get(`${ORCHESTRATE_BASE()}/execution-records`);

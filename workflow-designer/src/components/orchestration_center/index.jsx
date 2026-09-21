@@ -59,10 +59,10 @@ const MethodCard = ({ icon: Icon, title, onClick, color, loading, progress, stat
         </div>
 
         <div className="flex flex-col items-center z-10">
-            <span className="text-[17px] font-black dark:text-zinc-200 mb-1">
+            <span className="text-[17px] font-black text-zinc-900 dark:text-zinc-200 mb-1">
                 {title}
             </span>
-            {loading && (<span className="text-[13px] font-black dark:text-zinc-200 mb-1">
+            {loading && (<span className="text-[13px] font-black text-zinc-800 dark:text-zinc-200 mb-1">
                 {t ? t(status) : status} {Math.floor(progress)}%
             </span>)}
             <div className={`h-1 transition-all duration-500 rounded-full w-0 group-hover:w-8 bg-blue-500`} />
@@ -349,7 +349,7 @@ const OrchestrationCenter = ({ isDark }) => {
 
                         <div className="my-auto z-10 flex flex-col items-center w-full">
                         <div className="mb-16 text-center z-10 animate-in fade-in zoom-in-95 duration-1000">
-                            <h2 className="text-4xl font-black dark:text-white  mb-3">
+                            <h2 className="text-4xl font-black text-zinc-900 dark:text-white mb-3">
                                 {t('orchestration.build_workflow')}
                             </h2>
                         </div>
@@ -412,7 +412,7 @@ const OrchestrationCenter = ({ isDark }) => {
                                         >
                                             <div className="flex items-center gap-2 mb-2">
                                                 <Sparkles size={14} className="text-amber-500" />
-                                                <span className="font-black text-sm dark:text-white truncate">
+                                                <span className="font-black text-sm text-zinc-900 dark:text-white truncate">
                                                     {tpl.name}
                                                 </span>
                                             </div>
@@ -666,7 +666,7 @@ const OrchestrationCenter = ({ isDark }) => {
                                             <Sparkles size={20} />
                                         </div>
                                         <div>
-                                            <h3 className="text-base font-black dark:text-white uppercase tracking-tight">{t('orchestration.ai_orchestrator')}</h3>
+                                            <h3 className="text-base font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('orchestration.ai_orchestrator')}</h3>
                                         </div>
                                     </div>
                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -674,7 +674,7 @@ const OrchestrationCenter = ({ isDark }) => {
                                 <textarea
                                     value={aiPrompt}
                                     onChange={e => setAiPrompt(e.target.value)}
-                                    className="w-full bg-transparent border-none outline-none text-xl font-medium leading-relaxed dark:text-zinc-100 placeholder:text-zinc-300 dark:placeholder:text-zinc-700 h-40 resize-none custom-scrollbar transition-all"
+                                    className="w-full bg-transparent border-none outline-none text-xl font-medium leading-relaxed text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-300 dark:placeholder:text-zinc-700 h-40 resize-none custom-scrollbar transition-all"
                                     placeholder="..."
                                 />
                                 <div
@@ -829,13 +829,9 @@ const OrchestrationCenter = ({ isDark }) => {
                                 {t('orchestration.back_to_options')}
                             </button>
                         )}
-                        <div className="flex items-center gap-2 text-lg font-black uppercase">
-                            <span className="text-zinc-400 dark:text-zinc-500">{t('orchestration.title')}</span>
-                            <ChevronRight size={16} className="text-zinc-300 dark:text-zinc-600" />
-                            <span className="dark:text-white">
-                                {activeView === 'welcome' ? t('orchestration.start') : (activeView === 'ai' ? t('orchestration.ai_orchestrator') : (activeView === 'packages' ? t('orchestration.packages_title') : (activeView === 'browse' ? t('orchestration.browse_workflow') : (currentWf?.name || t('orchestration.new_design')))))}
-                            </span>
-                        </div>
+                        <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase">
+                            {activeView === 'welcome' ? t('orchestration.start') : (activeView === 'ai' ? t('orchestration.ai_orchestrator') : (activeView === 'packages' ? t('orchestration.packages_title') : (activeView === 'browse' ? t('orchestration.browse_workflow') : (currentWf?.name || t('orchestration.new_design')))))}
+                        </h2>
 
                         {activeView === 'detail' && (
 
@@ -873,7 +869,7 @@ const OrchestrationCenter = ({ isDark }) => {
                             <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-2xl mb-6">
                                 <Trash2 size={32} />
                             </div>
-                            <h3 className="text-xl font-black dark:text-white mb-2 uppercase tracking-tight">
+                            <h3 className="text-xl font-black text-zinc-900 dark:text-white mb-2 uppercase tracking-tight">
                                 {t('orchestration.delete_workflow_title')}
                             </h3>
                             <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-8">
