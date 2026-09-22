@@ -143,7 +143,7 @@ sequenceDiagram
 | **SSE Streaming** | Real-time execution progress via 11 event types (init, start, agent_request, agent_response, psop_update, negotiation_request, negotiation_resolved, negotiation_failed, complete, error, close) |
 | **Pluggable Storage** | File-based JSON or PostgreSQL persistence via HandlerRegistry |
 | **Template Marketplace** | Pre-built workflow templates for telecom scenarios (live broadcast, energy saving, fault handling) |
-| **Sample Agents** | 10 sample A2A agents with negotiation support for testing and demonstration |
+| **Sample Agents** | 3 sample A2A agents (Host Agent + two SPN domain agents) for testing and demonstration |
 
 ## Quick Start
 
@@ -438,14 +438,10 @@ Update client trust material where required; do not overwrite the CA store used 
 
 **Enabling HTTPS (step by step):**
 
-1. Generate certificates (see above). The script creates `server_RSA.cer` and `server_key_RSA.pem`. Copy to the names expected by `server.conf`:
-   ```bash
-   cd etc/ssl
-   cp server_RSA.cer server.cer
-   cp server_key_RSA.pem server_key.pem
-   cp server.cer trust.cer
-   echo -n "<your-password>" > cert_pwd
-   ```
+1. Generate certificates (see above). For `serverAuth` the script already writes the deployment
+   files expected by `server.conf` (`server.cer`, `trust.cer`, `server_key.pem`, `cert_pwd`);
+   add `--plain-key` to also get the unencrypted `server_key_nopass.pem` for nginx. No manual
+   copying or password file creation is needed.
 
 2. Update `etc/conf/server.conf`:
    ```ini
@@ -456,7 +452,7 @@ Update client trust material where required; do not overwrite the CA store used 
    agent_registry_url=https://127.0.0.1:5000   # if registry center also uses HTTPS
    ```
 
-3. Set `client_verify_server=false` in `etc/conf/server.properties` to skip remote cert verification when connecting to other services with self-signed certs (e.g., registry center).
+3. Set `client_verify_server=false` in `etc/conf/server.conf` to skip remote cert verification when connecting to other services with self-signed certs (e.g., registry center).
 
 4. Restart the backend: `python -m orchestrate.start` (or `systemctl restart orchestration-center`)
 
@@ -484,18 +480,17 @@ The external API (`/api/v1/*`) is protected by mTLS at the TLS layer when `enabl
 | `DELETE` | `/rest/v1/orchestrate/auth/users/{username}` | Delete a user (admin cannot be deleted) |
 
 ## Configuration
-## Configuration
 
 | Config File | Purpose |
 |-------------|---------|
-| `etc/conf/server.conf` | Server IP, port, TLS certificates, persistence mode, registry URL, access password |
-| `etc/conf/server.properties` | TLS versions, ciphers, rate limiting, connection limits, client_verify_server |
+| `etc/conf/server.conf` | Server IP, port, TLS certificates, persistence mode, registry URL, access password, `client_verify_server` |
+| `etc/conf/server.properties` | TLS ciphers, rate limiting, connection limits |
 | `etc/conf/db_config.json` | PostgreSQL connection settings — gitignored; copy `etc/conf/db_config.json.template` to get started (only needed for `persistence_mode=postgresql`) |
 | `common/config/llm_config.json` | LLM/embed/rerank model endpoints (overridable via `LLM_*`, see below) |
 | `.env` | Your local overrides — gitignored. Also where the negotiation SDK reads its `A2AT_*` variables directly (see below) |
 | `common/config/README_en.md` | LLM configuration guide |
 | `generate_selfsign_cert.py` | Self-signed certificate generator (RSA 3072) |
-| `common/ssl/client_ssl_context.py` | Client-side SSL context factory for outbound HTTPS |
+| `workflow_engine.client.ssl_context` | Client-side SSL context factory for outbound HTTPS (provided by the workflow-engine SDK) |
 
 ## LLM configuration
 

@@ -143,7 +143,7 @@ sequenceDiagram
 | **SSE 流式推送** | 11 种事件类型（init、start、agent_request、agent_response、psop_update、negotiation_request、negotiation_resolved、negotiation_failed、complete、error、close）实时推送执行进度 |
 | **可插拔存储** | 文件 JSON 或 PostgreSQL 持久化，通过 HandlerRegistry 切换 |
 | **模板市场** | 预置电信场景工作流模板（直播保障、节能、故障处理） |
-| **示例 Agent** | 10 个示例 A2A Agent，集成协商能力，用于测试和演示 |
+| **示例 Agent** | 3 个示例 A2A Agent（Host Agent + 两个 SPN 域 Agent），用于测试和演示 |
 
 ## 快速开始
 
@@ -334,14 +334,9 @@ SAN 必须与客户端 URL 的主机匹配，IP 必须使用 `--ip`，仅设置 
 
 **启用 HTTPS 步骤：**
 
-1. 生成证书（见上方命令），脚本会创建 `server_RSA.cer` 和 `server_key_RSA.pem`。复制为 `server.conf` 期望的文件名：
-   ```bash
-   cd etc/ssl
-   cp server_RSA.cer server.cer
-   cp server_key_RSA.pem server_key.pem
-   cp server.cer trust.cer
-   echo -n "<你的密码>" > cert_pwd
-   ```
+1. 生成证书（见上方命令）。`serverAuth` 会直接产出 `server.conf` 期望的部署文件
+   （`server.cer`、`trust.cer`、`server_key.pem`、`cert_pwd`）；加 `--plain-key` 还会额外
+   生成 Nginx 使用的未加密私钥 `server_key_nopass.pem`。无需手工复制或创建密码文件。
 
 2. 修改 `etc/conf/server.conf`：
    ```ini
@@ -351,7 +346,7 @@ SAN 必须与客户端 URL 的主机匹配，IP 必须使用 `--ip`，仅设置 
    agent_registry_url=https://127.0.0.1:5000   # 如果注册中心也用了 HTTPS
    ```
 
-3. 在 `etc/conf/server.properties` 中设置 `client_verify_server=false`，跳过对其他服务（如注册中心）的证书校验（自签名证书场景）。
+3. 在 `etc/conf/server.conf` 中设置 `client_verify_server=false`，跳过对其他服务（如注册中心）的证书校验（自签名证书场景）。
 
 4. 重启后端：`python -m orchestrate.start`（或 `systemctl restart orchestration-center`）
 
@@ -383,8 +378,8 @@ SAN 必须与客户端 URL 的主机匹配，IP 必须使用 `--ip`，仅设置 
 
 | 配置文件 | 用途 |
 |----------|------|
-| `etc/conf/server.conf` | 服务 IP、端口、TLS 证书、持久化模式、注册中心 URL, access password |
-| `etc/conf/server.properties` | TLS 版本、密码套件、流控参数、连接限制, client_verify_server |
+| `etc/conf/server.conf` | 服务 IP、端口、TLS 证书、持久化模式、注册中心 URL, access password, client_verify_server |
+| `etc/conf/server.properties` | TLS 密码套件、流控参数、连接限制 |
 | `etc/conf/db_config.json` | PostgreSQL 连接配置——已加入 .gitignore；复制 `etc/conf/db_config.json.template` 作为起点（仅 `persistence_mode=postgresql` 时需要） |
 | `common/config/llm_config.json` | LLM/Embedding/Rerank 模型端点（可通过 `LLM_*` 覆盖，见下文） |
 | `.env` | 本地覆盖配置 — 已加入 gitignore。协商 SDK 也直接从这里读取 `A2AT_*` 变量（见下文） |

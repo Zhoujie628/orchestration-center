@@ -74,28 +74,25 @@ SPDX-License-Identifier: Apache-2.0
 ```bash
 curl -X POST https://127.0.0.1:5001/rest/v1/orchestrate/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"password":"<sha256哈希值>"}'
+  -d '{"username":"admin","password":"<明文密码>"}'
 ```
-响应：
+密码经 TLS 明文发送，由后端负责哈希。登录成功后会话令牌通过 `HttpOnly` Cookie 下发，响应体本身不含令牌：
 ```json
-{"code": 200, "data": {"auth_required": true, "token": "<令牌>", "expires_in": 43200}}
+{"code": 200, "data": {"auth_required": true, "expires_in": 43200, "username": "admin", "role": "admin"}}
 ```
 
-**携带令牌的请求：**
+**携带令牌的请求**（浏览器会自动携带会话 Cookie；非浏览器客户端可改用请求头）：
 ```bash
 curl -H "Authorization: Bearer <令牌>" https://127.0.0.1:5001/rest/v1/orchestrate/workflows
 ```
 
-SSE 端点（EventSource 无法发送请求头），通过查询参数传递令牌：
-```
-/rest/v1/orchestrate/execute?psop_id=xxx&access_token=<令牌>
-```
+SSE 端点（`EventSource`）使用同一会话 Cookie 认证，浏览器会自动发送；不再支持查询参数传令牌。
 
 注册新用户（仅 PostgreSQL 模式）：
 ```bash
 curl -X POST https://127.0.0.1:5001/rest/v1/orchestrate/auth/register \\
   -H "Content-Type: application/json" \\
-  -d '{"username":"newuser","password":"<sha256哈希值>"}'
+  -d '{"username":"newuser","password":"<明文密码>"}'
 ```
 
 外部 API（`/api/v1/*`）在 `enable_https=true` 且 `verify_client=true` 时受 mTLS 保护。
