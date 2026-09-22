@@ -6,6 +6,10 @@ venv/
 .venv/
 log/
 .pytest_cache/
+.pytest-tmp/
+.coverage
+coverage.xml
+htmlcov/
 openspec/
 workflow-designer/dist/
 workflow-designer/stats.html
@@ -22,3 +26,4 @@ etc/conf/db_config.json
 *.token.md
 *token*.md
 workflow-designer/dist-plugin/
+.agents
