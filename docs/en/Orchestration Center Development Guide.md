@@ -167,7 +167,7 @@ Register the custom handler at application startup:
 ```python
 # Register custom handler
 # Note: Registration should be completed before business processing begins
-HandlerRegistry.register(InterfaceType.QUERY, MyCustomHandle)
+HandlerRegistry.register(InterfaceType.GET_PSOP_BY_ID, MyCustomHandle)
 ```
 Warning: A later-registered handler will overwrite a previous handler of the same type. Ensure the registration order matches expectations.
 
@@ -177,7 +177,7 @@ Retrieve and use the handler in business code:
 ```python
 # Get handler instance
 # HandlerRegistry will automatically return the registered custom handler or default implementation
-handle = HandlerRegistry.get_handler(InterfaceType.QUERY)
+handle = HandlerRegistry.get_handler(InterfaceType.GET_PSOP_BY_ID)
 
 # Use the handler for business execution
 result = handle.handle(...)
@@ -330,14 +330,18 @@ The configuration file is located at `common/config/llm_config.json`. The top le
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `description` | `string` | No | Model description, used for logging |
-| `model` | `string` | No | Model name, injected into the request body via the `$MODEL` placeholder |
+| `model` | `string` | **Yes** | Model name, injected into the request body via the `$MODEL` placeholder |
 | `url` | `string` | **Yes** | Model API endpoint address |
-| `api_key` | `string` | No | API key; automatically used as `Authorization: Bearer` header when `auth` is null |
+| `api_key` | `string` | **Yes** | API key; automatically used as `Authorization: Bearer` header when `auth` is null |
 | `enable_thinking` | `boolean` | No | Thinking mode toggle, injected via the `$ENABLE_THINKING` placeholder |
+| `verify_ssl` | `boolean` | No | Verify TLS certificates on outbound calls (default `true`); set `false` for self-signed endpoints |
+| `timeout` | `number` | No | Request timeout in seconds (default `60`) |
 | `auth` | `object/string/null` | No | Authentication strategy, see below |
 | `headers` | `object` | No | Additional static HTTP headers, merged into the final request headers |
 | `body` | `object` | **Yes** | Request body template, supports placeholders |
 | `response` | `object` | **Yes** | Response extraction path |
+
+`model`, `url` and `api_key` are validated before any call; leaving one as a `<YOUR_...>` placeholder (or empty) raises a `ValueError` naming the field and the environment variable that sets it.
 
 ##### Authentication Strategy (`auth` Field)
 
@@ -614,8 +618,8 @@ The internal API (`/rest/v1/orchestrate/*`) supports token-based authentication 
 - Falls back to this mode when database is not available
 
 **Common to both modes**:
-- **Token delivery**: `Authorization: Bearer <token>` header, or `access_token` query parameter (for SSE/EventSource)
-- **Password hashing**: Frontend hashes with `crypto.subtle.digest('SHA-256')` before sending; backend stores/compares hashes
+- **Token delivery**: session cookie (`Secure` when `enable_https=true`, `HttpOnly`, `SameSite=Lax`), or `Authorization: Bearer <token>` for non-browser clients. Query-parameter tokens are no longer accepted; `EventSource` picks up the cookie automatically
+- **Password hashing**: the frontend sends the plaintext password over TLS; the backend hashes it (per-user salt in DB mode, or against the configured SHA-256 in file mode)
 - **Disable**: When `access_password` is empty and no users exist, authentication is disabled (backward compatible)
 
 ### 6.2 TLS/HTTPS Configuration
@@ -631,7 +635,7 @@ Server-side HTTPS is configured via `etc/conf/server.conf`:
 | `ssl_keyfile_password` | Password file for private key |
 | `ssl_ca_certs` | CA trust store |
 
-Certificate validation requirements (in `common/cert/cert_validater.py`):
+Certificate validation requirements (in `common/cert/cert_validator.py`):
 - RSA: key size >= 3072 bits
 - ECDSA: key size >= 256 bits
 
@@ -657,13 +661,14 @@ Update client trust material where required; do not overwrite the CA store used 
 
 **Enabling HTTPS (step by step):**
 
-1. Generate certificates (see above). With `--plain-key` the command also produces the deployment
-   files expected by `server.conf` (`server.cer`, `trust.cer`, `server_key.pem`, `cert_pwd`, and the
-   unencrypted `server_key_nopass.pem`) — no manual copying or password file creation needed.
+1. Generate certificates (see above). For `serverAuth` the command already produces the deployment
+   files expected by `server.conf` (`server.cer`, `trust.cer`, `server_key.pem`, `cert_pwd`);
+   `--plain-key` additionally writes the unencrypted `server_key_nopass.pem` for nginx — no manual
+   copying or password file creation needed.
 
 2. Set `enable_https=true` in `etc/conf/server.conf`. Set `verify_client=true` for mTLS.
 
-3. Set `client_verify_server=false` in `etc/conf/server.properties` to skip remote cert verification (self-signed certs).
+3. Set `client_verify_server=false` in `etc/conf/server.conf` to skip remote cert verification (self-signed certs).
 
 4. Restart the backend service.
 
@@ -694,10 +699,10 @@ client certificates from that CA instead.
 
 Outbound HTTPS calls (e.g., orchestration center -> registry center) use a shared SSL context factory:
 
-- **Module**: `common/ssl/client_ssl_context.py` -- `create_client_ssl_context()`
-- **Config**: `client_verify_server` in `server.properties` (default: `false` for backward compat)
+- **Module**: `workflow_engine.client.ssl_context` -- `create_ssl_context()` (provided by the workflow-engine SDK)
+- **Config**: `client_verify_server` in `server.conf` (default: `false` for backward compat)
 - **Features**: CA trust store verification, optional mTLS client cert, CRL checking, cipher suite enforcement
-- **Usage**: Passed to `httpx.AsyncClient(verify=...)` in `orchestrate/registry_client/client.py` and `orchestrate/runtime/exec_engine.py`
+- **Usage**: Called as `create_ssl_context(verify_server=...)` and passed to `httpx.AsyncClient(verify=...)` in `orchestrate/registry_client/client.py`
 
 When `client_verify_server=false`, the SSL context returns `False` (no verification), allowing connections to servers with self-signed certificates. Set to `true` in production with a properly configured CA trust store.
 

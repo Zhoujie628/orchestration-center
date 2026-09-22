@@ -72,28 +72,28 @@ Authentication is enabled when `access_password` is set (file mode) or when the 
 ```bash
 curl -X POST https://127.0.0.1:5001/rest/v1/orchestrate/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"password":"<sha256_hash>"}'
+  -d '{"username":"admin","password":"<plaintext_password>"}'
 ```
-Response:
+The password is sent in plaintext over TLS and hashed server-side. On success the session token is
+set as an `HttpOnly` cookie; the response body does not contain the token itself:
 ```json
-{"code": 200, "data": {"auth_required": true, "token": "<token>", "expires_in": 43200}}
+{"code": 200, "data": {"auth_required": true, "expires_in": 43200, "username": "admin", "role": "admin"}}
 ```
 
-**Authenticated request:**
+**Authenticated request** (the browser attaches the session cookie automatically; non-browser
+clients may use the header instead):
 ```bash
 curl -H "Authorization: Bearer <token>" https://127.0.0.1:5001/rest/v1/orchestrate/workflows
 ```
 
-For SSE endpoints (EventSource cannot send headers), pass the token as a query parameter:
-```
-/rest/v1/orchestrate/execute?psop_id=xxx&access_token=<token>
-```
+SSE endpoints (`EventSource`) authenticate with the same session cookie, which the browser sends
+automatically. There is no query-parameter token.
 
 Registration (PostgreSQL mode only):
 ```bash
 curl -X POST https://127.0.0.1:5001/rest/v1/orchestrate/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"username":"newuser","password":"<sha256_hash>"}'
+  -d '{"username":"newuser","password":"<plaintext_password>"}'
 ```
 
 The external API (`/api/v1/*`) is protected by mTLS at the TLS layer when `enable_https=true` and `verify_client=true`.
