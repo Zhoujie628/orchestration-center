@@ -49,7 +49,7 @@ from common.config import (
     FLOW_CTL_PARALLEL_ALL_PSOPS, FLOW_CTL_PARALLEL_PLAN, FLOW_CTL_PARALLEL_PARSE_PDF,
     FLOW_CTL_START_PROCESS_STREAM, FLOW_CTL_PARALLEL_START_PROCESS_STREAM,
 )
-from common.custom.default_handle import HandlerRegistry
+from orchestrate.handlers.dispatch import get_storage_handler
 from common.custom.interface_type import InterfaceType
 import orchestrate.handlers  # noqa: F401  - registers the bundled storage handlers
 from orchestrate.server.sse_executor import dispatch_intent_sse
@@ -1247,7 +1247,7 @@ async def dispatch_to_agent(
 @router.delete("/execution-records/{execution_id}")
 async def delete_execution_record(execution_id: str):
     try:
-        handler = HandlerRegistry.get_handler(InterfaceType.DELETE_EXECUTION_RECORD)
+        handler = get_storage_handler(InterfaceType.DELETE_EXECUTION_RECORD)
         deleted = handler.handle(execution_id)
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")
@@ -1266,7 +1266,7 @@ async def delete_execution_record(execution_id: str):
 @router.get("/execution-records")
 async def list_execution_records():
     try:
-        handler = HandlerRegistry.get_handler(InterfaceType.LIST_EXECUTION_RECORDS)
+        handler = get_storage_handler(InterfaceType.LIST_EXECUTION_RECORDS)
         records = handler.handle()
         return ok(data=records)
     except HTTPException:
@@ -1280,7 +1280,7 @@ async def list_execution_records():
 @router.get("/execution-records/{execution_id}")
 async def get_execution_record(execution_id: str):
     try:
-        handler = HandlerRegistry.get_handler(InterfaceType.GET_EXECUTION_RECORD)
+        handler = get_storage_handler(InterfaceType.GET_EXECUTION_RECORD)
         record = handler.handle(execution_id)
         if not record:
             raise HTTPException(status_code=404, detail=f"Execution record {execution_id} not found")

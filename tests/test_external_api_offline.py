@@ -78,7 +78,7 @@ class TestOrchestrateSop:
         mock_psop.model_dump.return_value = _make_psop_dict()
         with patch("orchestrate.server.external_api.get_agent_cards", new_callable=AsyncMock) as mock_cards, \
              patch("orchestrate.server.external_api.PsopGenerator") as mock_gen_class, \
-             patch("orchestrate.server.external_api.HandlerRegistry") as mock_reg:
+             patch("common.custom.HandlerRegistry") as mock_reg:
             mock_cards.return_value = [MagicMock()]
             mock_gen = MagicMock()
             mock_gen.generate_psop_workflow.return_value = mock_psop
@@ -122,7 +122,7 @@ class TestOrchestrateSop:
         mock_psop.model_dump.return_value = _make_psop_dict()
         with patch("orchestrate.server.external_api.get_agent_cards", new_callable=AsyncMock) as mock_cards, \
              patch("orchestrate.server.external_api.PsopGenerator") as mock_gen_class, \
-             patch("orchestrate.server.external_api.HandlerRegistry") as mock_reg:
+             patch("common.custom.HandlerRegistry") as mock_reg:
             mock_cards.return_value = [MagicMock()]
             mock_gen = MagicMock()
             mock_gen.generate_psop_workflow.return_value = mock_psop
@@ -177,7 +177,7 @@ class TestOrchestrateIntent:
         mock_psop.model_dump.return_value = _make_psop_dict()
         with patch("orchestrate.server.external_api.get_agent_cards", new_callable=AsyncMock) as mock_cards, \
              patch("orchestrate.server.external_api.IntentPsopGenerator") as mock_gen_class, \
-             patch("orchestrate.server.external_api.HandlerRegistry") as mock_reg:
+             patch("common.custom.HandlerRegistry") as mock_reg:
             mock_cards.return_value = [MagicMock()]
             mock_gen = MagicMock()
             mock_gen.generate_psop_from_intent.return_value = mock_psop
@@ -352,7 +352,7 @@ class TestExecutePsopById:
 
 class TestListExecutions:
     def test_list_success(self, client):
-        with patch("orchestrate.server.external_api.HandlerRegistry") as mock_reg:
+        with patch("common.custom.HandlerRegistry") as mock_reg:
             mock_handler = MagicMock()
             mock_handler.handle.return_value = [{"execution_id": "e1", "status": "success"}]
             mock_reg.get_handler.return_value = mock_handler
@@ -361,7 +361,7 @@ class TestListExecutions:
             assert len(resp.json()["data"]) == 1
 
     def test_list_error(self, client):
-        with patch("orchestrate.server.external_api.HandlerRegistry") as mock_reg:
+        with patch("common.custom.HandlerRegistry") as mock_reg:
             mock_handler = MagicMock()
             mock_handler.handle.side_effect = RuntimeError("fail")
             mock_reg.get_handler.return_value = mock_handler
@@ -377,7 +377,7 @@ class TestGetExecution:
     def test_get_execution_success(self, client):
         mock_record = MagicMock()
         mock_record.model_dump.return_value = {"execution_id": "e1"}
-        with patch("orchestrate.server.external_api.HandlerRegistry") as mock_reg:
+        with patch("common.custom.HandlerRegistry") as mock_reg:
             mock_handler = MagicMock()
             mock_handler.handle.return_value = mock_record
             mock_reg.get_handler.return_value = mock_handler
@@ -386,7 +386,7 @@ class TestGetExecution:
             assert resp.json()["data"]["execution_id"] == "e1"
 
     def test_get_execution_not_found(self, client):
-        with patch("orchestrate.server.external_api.HandlerRegistry") as mock_reg:
+        with patch("common.custom.HandlerRegistry") as mock_reg:
             mock_handler = MagicMock()
             mock_handler.handle.return_value = None
             mock_reg.get_handler.return_value = mock_handler
@@ -396,7 +396,7 @@ class TestGetExecution:
     def test_get_execution_dict_record(self, client):
         """When the handler returns a dict (no model_dump), the endpoint
         should still return it as-is."""
-        with patch("orchestrate.server.external_api.HandlerRegistry") as mock_reg:
+        with patch("common.custom.HandlerRegistry") as mock_reg:
             mock_handler = MagicMock()
             mock_handler.handle.return_value = {"execution_id": "e2", "status": "success"}
             mock_reg.get_handler.return_value = mock_handler
@@ -405,7 +405,7 @@ class TestGetExecution:
             assert resp.json()["data"]["execution_id"] == "e2"
 
     def test_get_execution_error(self, client):
-        with patch("orchestrate.server.external_api.HandlerRegistry") as mock_reg:
+        with patch("common.custom.HandlerRegistry") as mock_reg:
             mock_handler = MagicMock()
             mock_handler.handle.side_effect = RuntimeError("fail")
             mock_reg.get_handler.return_value = mock_handler

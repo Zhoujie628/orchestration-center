@@ -112,20 +112,22 @@ class HandlerRegistry:
                 cls._bundled_overrides.pop(interface_type.value, None)
 
     @classmethod
-    def get_handler(cls, interface_type: InterfaceType) -> BaseHandler:
+    def get_handler(cls, interface_type: InterfaceType, mode: Optional[str] = None) -> BaseHandler:
         """Instantiate the handler matching the configured persistence mode."""
-        if is_db_mode():
+        db_mode = is_db_mode() if mode is None else mode != "file"
+        resolved_mode = persistence_mode() if mode is None else mode
+        if db_mode:
             handler_class = cls._overrides.get(interface_type.value)
             if handler_class is None:
                 raise ValueError(
                     f"No custom handler registered for '{interface_type.value}' "
-                    f"but persistence_mode={persistence_mode()}. "
+                    f"but persistence_mode={resolved_mode}. "
                     "Register a handler via HandlerRegistry.register() first."
                 )
-            logger.debug(f"[Registry] Dispatching '{interface_type.value}' → DB handler (mode={persistence_mode()})")
+            logger.debug(f"[Registry] Dispatching '{interface_type.value}' → DB handler (mode={resolved_mode})")
             return handler_class()
         handler_class = cls._defaults.get(interface_type.value)
         if handler_class is None:
             raise ValueError(f"Unknown interface type: {interface_type}")
-        logger.debug(f"[Registry] Dispatching '{interface_type.value}' → file handler (mode={persistence_mode()})")
+        logger.debug(f"[Registry] Dispatching '{interface_type.value}' → file handler (mode={resolved_mode})")
         return handler_class()

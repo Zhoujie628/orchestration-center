@@ -27,6 +27,7 @@ no user store; only the SQL backends do).
 """
 
 from abc import ABC, abstractmethod
+from contextlib import nullcontext
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -152,6 +153,13 @@ class PersistenceBackend(ABC):
     mode: str = ""
     #: Capabilities this backend really implements.
     capabilities: frozenset = frozenset()
+
+    def operation_scope(self):
+        """Bind legacy/extension handlers to this backend for one operation.
+
+        Backends without implicit connection state need no additional scope.
+        """
+        return nullcontext()
 
     @abstractmethod
     def check_ready(self) -> None:

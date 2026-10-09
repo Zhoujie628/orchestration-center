@@ -27,7 +27,8 @@ from a2a.types import AgentCard
 from google.protobuf.json_format import MessageToDict
 from loguru import logger
 
-from common.custom import HandlerRegistry, InterfaceType
+from common.custom import InterfaceType
+from orchestrate.handlers.dispatch import get_storage_handler
 from host_agent.service import start_agent_server
 import orchestrate.handlers  # noqa: F401  - registers the bundled storage handlers
 from orchestrate import AgentCardLoader
@@ -127,7 +128,7 @@ def pre_insert_psop():
         if psop is None:
             logger.warning(f"pre_insert_psop: workflow {wf_id} not found, skipping")
             continue
-        save_handle = HandlerRegistry.get_handler(InterfaceType.SAVE_PSOP)
+        save_handle = get_storage_handler(InterfaceType.SAVE_PSOP)
         save_handle.handle(psop)
 
 
