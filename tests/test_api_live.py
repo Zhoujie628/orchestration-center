@@ -69,7 +69,7 @@ def mock_deps():
          patch('orchestrate.server.frontend_support_server.IntentPsopGenerator', return_value=fake_intent_gen), \
          patch('orchestrate.server.frontend_support_server.SolutionPackageParser', return_value=fake_parser), \
          patch('orchestrate.server.frontend_support_server.get_agent_cards', return_value=[]), \
-         patch('orchestrate.server.frontend_support_server.HandlerRegistry', MagicMock()):
+         patch('common.custom.HandlerRegistry', MagicMock()):
         yield
 
 

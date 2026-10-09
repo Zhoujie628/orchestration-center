@@ -107,7 +107,8 @@ def _build_sse_response(
 
     async def stream():
         from orchestrate.core.model.execution_record import ExecutionRecord, ExecutionStatus
-        from common.custom import HandlerRegistry, InterfaceType
+        from common.custom import InterfaceType
+        from orchestrate.handlers.dispatch import get_storage_handler
 
         started_at = datetime.now(timezone.utc)
         collected_events = deque(maxlen=_RECORDED_EVENT_LIMIT)
@@ -226,7 +227,7 @@ def _build_sse_response(
                             if dropped_events else []) + list(collected_events),
                     error=record_error,
                 )
-                handler = HandlerRegistry.get_handler(InterfaceType.SAVE_EXECUTION_RECORD)
+                handler = get_storage_handler(InterfaceType.SAVE_EXECUTION_RECORD)
                 handler.handle(record)
                 logger.info(f"[SSE] Execution record saved: {record.execution_id} (status={record_status.value})")
             except Exception as e:

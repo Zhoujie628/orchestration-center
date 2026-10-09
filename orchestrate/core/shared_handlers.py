@@ -22,7 +22,7 @@ engine and the API layer can share it without the runtime depending on the
 server package.
 """
 
-from common.custom.default_handle import HandlerRegistry
+from orchestrate.handlers.dispatch import get_storage_handler
 from common.custom.interface_type import InterfaceType
 from orchestrate.core.retrieval import WorkflowRetrieval
 from orchestrate.workflow_storage_instance import get_workflow_storage
@@ -36,13 +36,13 @@ class SharedHandlers:
     @classmethod
     def save_psop(cls):
         if cls._save_handle is None:
-            cls._save_handle = HandlerRegistry.get_handler(InterfaceType.SAVE_PSOP)
+            cls._save_handle = get_storage_handler(InterfaceType.SAVE_PSOP)
         return cls._save_handle
 
     @classmethod
     def delete_psop(cls):
         if cls._delete_handle is None:
-            cls._delete_handle = HandlerRegistry.get_handler(InterfaceType.DELETE_PSOP)
+            cls._delete_handle = get_storage_handler(InterfaceType.DELETE_PSOP)
         return cls._delete_handle
 
     @classmethod

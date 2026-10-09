@@ -43,7 +43,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from common.config import FLOW_CTL_START_PROCESS_STREAM, FLOW_CTL_PLAN, FLOW_CTL_GENERATE_PSOP, MAX_FILE_SIZE_BYTES
-from common.custom.default_handle import HandlerRegistry
+from orchestrate.handlers.dispatch import get_storage_handler
 from orchestrate.persistence.errors import StorageError
 from orchestrate.server.storage_error_response import storage_http_exception
 from common.custom.interface_type import InterfaceType
@@ -183,7 +183,7 @@ async def orchestrate_sop(
         psop.user_intent = sop_text[:200]
         psop.related_preflow = preflow.id
 
-        save_handler = HandlerRegistry.get_handler(InterfaceType.SAVE_PSOP)
+        save_handler = get_storage_handler(InterfaceType.SAVE_PSOP)
         save_handler.handle(psop)
         return created(data=psop.model_dump(), message="PSOP generated and saved")
     except anyio.WouldBlock:
@@ -227,7 +227,7 @@ async def orchestrate_intent(
             abandon_on_cancel=False,
         )
 
-        save_handler = HandlerRegistry.get_handler(InterfaceType.SAVE_PSOP)
+        save_handler = get_storage_handler(InterfaceType.SAVE_PSOP)
         save_handler.handle(psop)
         return created(data=psop.model_dump(), message="PSOP generated and saved")
     except anyio.WouldBlock:
@@ -385,7 +385,7 @@ async def list_executions(
     Each record includes: execution_id, psop_id, psop_name, status, timestamps.
     """
     try:
-        handler = HandlerRegistry.get_handler(InterfaceType.LIST_EXECUTION_RECORDS)
+        handler = get_storage_handler(InterfaceType.LIST_EXECUTION_RECORDS)
         records = handler.handle()
         return ok(data=records, message=f"Found {len(records)} execution record(s)")
     except HTTPException:
@@ -405,7 +405,7 @@ async def get_execution(
     Get execution result by execution ID.
     """
     try:
-        handler = HandlerRegistry.get_handler(InterfaceType.GET_EXECUTION_RECORD)
+        handler = get_storage_handler(InterfaceType.GET_EXECUTION_RECORD)
         record = handler.handle(execution_id)
         if not record:
             raise HTTPException(status_code=404, detail=f"Execution {execution_id} not found")

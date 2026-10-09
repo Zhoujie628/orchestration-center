@@ -189,6 +189,10 @@ class _SqlUserRepository(UserRepository):
 class SqlPersistenceBackend(PersistenceBackend):
     """``persistence_mode=postgresql`` or ``mysql``; brand details live below this line."""
 
+    def operation_scope(self):
+        """Use this instance's connection provider, including extension calls."""
+        return connection_scope(self._provider)
+
     capabilities = frozenset({Capability.USERS})
 
     def __init__(self, mode: str, conf: Optional[dict] = None, storage=None) -> None:
