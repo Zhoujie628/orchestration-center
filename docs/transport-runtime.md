@@ -4,7 +4,7 @@ HTTP、HTTPS、是否验证客户端证书、业务认证与 AgentCard 签名是
 
 ## 编排中心
 
-- SQL 模式：PERSISTENCE_MODE=mysql/postgresql，DB_HOST/PORT/NAME/USERNAME/PASSWORD 注入；初次启动用 OC_ADMIN_INITIAL_PASSWORD。文件模式用户认证使用 ORCH_ACCESS_PASSWORD（版本化密码哈希），数据库初始化密码在文件模式无效。
+- SQL 模式：PERSISTENCE_MODE=mysql/postgresql，DB_HOST/PORT/NAME/USERNAME/PASSWORD 注入；空用户库初次启动用 OC_ADMIN_INITIAL_PASSWORD（优先）或 admin_initial_password_file，按服务端口令长度/复杂度规则校验，不再使用硬编码管理员密码。密码文件末尾换行会移除，密码本身不裁剪；已存在用户时不再读取初始化口令，也不重置账号。文件模式用户认证使用 ORCH_ACCESS_PASSWORD（版本化密码哈希），数据库初始化密码在文件模式无效。
 - 外部机器 API：默认 auto；验证客户端证书的 HTTPS 使用 mTLS，否则使用 ORCH_API_TOKEN（至少 32 字节）的 Authorization: Bearer。用户 Cookie 不作为机器认证；旧的匿名机器客户端需要升级。
 - 自定义认证：external.auth.mode=custom，通过 HandlerRegistry.register(InterfaceType.AUTHENTICATE_EXTERNAL, ...) 注册 BaseHandler 扩展，async handle(Request) 返回 MachineIdentity；异常/空结果失败关闭。插件必须在 startup preflight 前显式加载。
 - ORCH_ENABLE_HTTPS 与 ORCH_VERIFY_CLIENT 分开设置；ORCH_CLIENT_VERIFY_SERVER 控制访问 RC 的服务端校验。RC 主端口 Token 模式需要 REGISTRY_ACCESS_TOKEN，私有 CA/mTLS 使用 REGISTRY_CA_FILE、REGISTRY_CLIENT_CERT、REGISTRY_CLIENT_KEY，加密客户端 key 的口令通过 REGISTRY_CLIENT_KEY_PASSWORD 注入。

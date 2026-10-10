@@ -34,7 +34,7 @@ from common.util.config_util import get_conf
 from common.util.persistence_mode import validate_storage_mode
 from orchestrate.persistence import build_context, configure_context, current_context
 from orchestrate.server.frontend_support_server import app
-from orchestrate.server.security_preflight import SecurityPreflightError, security_preflight
+from orchestrate.server.security_preflight import SecurityPreflightError, security_preflight, initial_admin_password
 
 def seed_admin_if_empty(default_password):
     """Bootstrap through the bound user port, not the process-global SQL helper."""
@@ -180,7 +180,9 @@ def initialize_storage(server_config):
         # Seed the default admin user if the users table is empty. user_store
         # hashes the real plaintext password server-side (see #9), so this is
         # passed as-is rather than pre-hashed.
-        if seed_admin_if_empty("OpenAN@2026"):
+        if storage.users.has_any():
+            logger.info("Users already exist, skipping admin seed")
+        elif seed_admin_if_empty(initial_admin_password(server_config)):
             logger.info("Default admin user 'admin' created; a password change is required on first login")
         else:
             logger.info("Users already exist, skipping admin seed")

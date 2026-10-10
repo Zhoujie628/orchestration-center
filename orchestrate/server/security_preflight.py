@@ -53,6 +53,31 @@ class SecurityPreflightError(RuntimeError):
     """Raised when the deployment would start with no authentication at all."""
 
 
+def initial_admin_password(conf: dict) -> str:
+    """Resolve a first-boot secret; never fall back to a compiled-in password.
+
+    Process environment wins, including an explicitly empty (invalid) value.
+    Existing SQL users must be checked before calling this function so a
+    bootstrap secret is not required again on restart and never resets users.
+    """
+    if ADMIN_INITIAL_PASSWORD_ENV in os.environ:
+        password = os.environ[ADMIN_INITIAL_PASSWORD_ENV]
+    else:
+        from pathlib import Path
+        filename = str(conf.get(ADMIN_INITIAL_PASSWORD_FILE_KEY, "")).strip()
+        if not filename:
+            raise SecurityPreflightError("Empty user store requires OC_ADMIN_INITIAL_PASSWORD or admin_initial_password_file")
+        try:
+            password = Path(filename).read_text(encoding="utf-8").rstrip("\r\n")
+        except (OSError, UnicodeError):
+            raise SecurityPreflightError("Cannot read initial admin password file") from None
+    from common.util.password_util import validate_password_complexity
+    valid, _ = validate_password_complexity(password)
+    if not valid or len(password) > 256 or "\n" in password or "\r" in password:
+        raise SecurityPreflightError("Invalid initial admin password; use a single password meeting login length and complexity requirements")
+    return password
+
+
 @dataclass(frozen=True)
 class PreflightResult:
     """What the check decided, so the caller can log and audit it."""
