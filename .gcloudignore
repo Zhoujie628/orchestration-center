@@ -59,6 +59,8 @@ etc/conf/agent_credentials.json
 etc/conf/cipher.key
 etc/config/models.yaml
 common/config/models.yaml
+common/config/llm_config.json
+**/auth.local.json
 etc/ssl/
 etc/sign_cert/
 **/*.pem

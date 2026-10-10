@@ -43,7 +43,8 @@ def run():
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / name, target)
         for name in [".env", "etc/conf/server.conf", "etc/conf/cipher.key", "etc/ssl/server_key.pem",
-                     "etc/config/models.yaml", "common/config/llm_config.json", "orchestrate/data/private.json"]:
+                     "etc/config/models.yaml", "common/config/llm_config.json", "common/auth.local.json",
+                     "orchestrate/data/private.json"]:
             target = context / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(CANARY)
@@ -51,7 +52,8 @@ def run():
             command("docker", "build", "-t", image, str(context))
             command("docker", "run", "--rm", "--entrypoint", "python", image, "-c",
                     f"from pathlib import Path; r=Path('/opt/orchestration-center'); "
-                    f"assert all(b'{CANARY}' not in p.read_bytes() for p in r.rglob('*') if p.is_file())")
+                    f"leaks=[str(p.relative_to(r)) for p in r.rglob('*') "
+                    f"if p.is_file() and b'{CANARY}' in p.read_bytes()]; assert not leaks, leaks")
             bad = command("docker", "run", "--rm", image, check=False)
             assert bad.returncode != 0  # No anonymous production default.
             pki = root / "pki"

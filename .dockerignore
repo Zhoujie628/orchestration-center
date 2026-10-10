@@ -24,6 +24,8 @@ docs/
 etc/conf/db_config.json
 etc/conf/mysql_config.json
 common/config/models.yaml
+common/config/llm_config.json
+**/auth.local.json
 workflow-designer/node_modules/
 workflow-designer/dist/
 wheelhouse/

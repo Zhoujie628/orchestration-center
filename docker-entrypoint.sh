@@ -28,7 +28,7 @@ elif [ -n "${LLM_CONFIG_FILE:-}" ]; then
 elif [ -n "${LLM_CHAT_MODEL:-}" ] && [ -n "${LLM_CHAT_URL:-}" ]; then
     case "${LLM_CHAT_PROVIDER:-openai_compatible}" in
         openai|openai_compatible) ;;
-        *) echo "Provide a complete models.yaml for this model protocol" >&2; exit 1 ;;
+        *) echo "provide a complete models.yaml for this model protocol" >&2; exit 1 ;;
     esac
     mkdir -p "$(dirname "$MODELS_CONF")"
     export LLM_CONFIG_FILE="$MODELS_CONF"
