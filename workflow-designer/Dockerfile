@@ -43,7 +43,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY 15-openan-backend.envsh /docker-entrypoint.d/15-openan-backend.envsh
 RUN sed -i 's/\r$//' /docker-entrypoint.d/15-openan-backend.envsh \
-    && chmod 0644 /docker-entrypoint.d/15-openan-backend.envsh
+    && chmod 0755 /docker-entrypoint.d/15-openan-backend.envsh
 
 ENV BACKEND_HOST=orchestration-center \
     BACKEND_PORT=5001 \

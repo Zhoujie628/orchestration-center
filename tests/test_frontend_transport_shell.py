@@ -5,11 +5,25 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import re
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 BASH = os.environ.get("BASH_BIN") or shutil.which("bash")
+
+
+def test_frontend_hook_is_executable_in_image():
+    # Nginx sources *.envsh only when the executable bit is present.
+    dockerfile = (ROOT / "workflow-designer/Dockerfile").read_text(encoding="utf-8")
+    assert re.search(r"chmod 0?755 /docker-entrypoint.d/15-openan-backend.envsh", dockerfile)
+
+
+def test_compose_cookie_scheme_matches_http_frontend_by_default():
+    import yaml
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    env = compose["services"]["orchestration-center"]["environment"]
+    assert env["ORCH_PUBLIC_SCHEME"] == "${ORCH_PUBLIC_SCHEME:-http}"
 
 
 def run_hook(tmp_path, env):

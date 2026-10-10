@@ -9,6 +9,7 @@ HTTP、HTTPS、是否验证客户端证书、业务认证与 AgentCard 签名是
 - 自定义认证：external.auth.mode=custom，通过 HandlerRegistry.register(InterfaceType.AUTHENTICATE_EXTERNAL, ...) 注册 BaseHandler 扩展，async handle(Request) 返回 MachineIdentity；异常/空结果失败关闭。插件必须在 startup preflight 前显式加载。
 - ORCH_ENABLE_HTTPS 与 ORCH_VERIFY_CLIENT 分开设置；ORCH_CLIENT_VERIFY_SERVER 控制访问 RC 的服务端校验。RC 主端口 Token 模式需要 REGISTRY_ACCESS_TOKEN，私有 CA/mTLS 使用 REGISTRY_CA_FILE、REGISTRY_CLIENT_CERT、REGISTRY_CLIENT_KEY，加密客户端 key 的口令通过 REGISTRY_CLIENT_KEY_PASSWORD 注入。
 - ORCH_PUBLIC_SCHEME 指公共浏览器入口（http/https），与后端协议不一定一致。可信代理地址使用 ORCH_FORWARDED_ALLOW_IPS，不应默认 *；不会直接读取未受信的 X-Forwarded-Proto。
+- Compose 默认浏览器入口为 HTTP，因此公共协议默认 http，即使后端使用 HTTPS。外部 HTTPS 网关或直接使用后端 HTTPS 登录时，显式设置 ORCH_PUBLIC_SCHEME=https；这控制 Cookie Secure，不改变后端监听协议。
 - Compose 前端根据 ORCH_ENABLE_HTTPS 推导 upstream 协议；默认验证 HTTPS，需要 BACKEND_CA_FILE，mTLS 还需 BACKEND_CLIENT_CERT/KEY。BACKEND_VERIFY_SERVER=false 是显式跳过服务端校验，不会取消客户端证书要求。
 - 独立 HostAgent 接入使用显式 HostTlsConfig；HTTPS 声明缺材料会失败，不再降级 HTTP。独立 HostAgent 的注册中心凭据请由调用方注入 AgentCardProvider，不能依赖编排中心的全局环境。
 

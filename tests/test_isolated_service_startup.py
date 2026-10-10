@@ -19,7 +19,8 @@ TOKEN = "test-only-process-machine-token-000000000000000"
 
 
 @pytest.mark.parametrize("protocol", ["http", "https"])
-def test_fresh_service_login_cookie_and_workflow_crud(protocol, tmp_path, sample_psop_dict):
+@pytest.mark.parametrize("public_scheme", ["", "http", "https"])
+def test_fresh_service_login_cookie_and_workflow_crud(protocol, public_scheme, tmp_path, sample_psop_dict):
     workspace = tmp_path / "service"
     for package in ("orchestrate", "host_agent", "database", "common"):
         for path in (ROOT / package).rglob("*.py"):
@@ -51,6 +52,7 @@ def test_fresh_service_login_cookie_and_workflow_crud(protocol, tmp_path, sample
     env.update(PYTHONPATH=str(workspace), PYTHON_DOTENV_DISABLED="1",
                ORCH_IP="127.0.0.1", ORCH_PORT=str(port), PERSISTENCE_MODE="file",
                ORCH_ENABLE_HTTPS=str(protocol == "https").lower(), ORCH_VERIFY_CLIENT="false",
+               ORCH_PUBLIC_SCHEME=public_scheme,
                ORCH_API_TOKEN=TOKEN, ORCH_ACCESS_PASSWORD=hashlib.sha256(b"ProcessUser9!").hexdigest())
     with (tmp_path / "service.log").open("w", encoding="utf-8") as log:
         process = subprocess.Popen([sys.executable, "-m", "orchestrate.start"], cwd=workspace,
@@ -73,7 +75,12 @@ def test_fresh_service_login_cookie_and_workflow_crud(protocol, tmp_path, sample
                 assert client.get(base + "/workflows").status_code == 401
                 login = client.post(base + "/auth/login", json={"username": "admin", "password": "ProcessUser9!"})
                 assert login.status_code == 200, login.text
-                assert ("; secure" in login.headers["set-cookie"].lower()) == (protocol == "https")
+                assert ("; secure" in login.headers["set-cookie"].lower()) == ((public_scheme or protocol) == "https")
+                if protocol == "http" and public_scheme == "https":
+                    # The client here connects directly, not through the public
+                    # HTTPS gateway. Real browsers send the cookie to that gateway;
+                    # preserve that header while exercising the plain backend.
+                    client.headers["Cookie"] = login.headers["set-cookie"].split(";", 1)[0]
                 response = client.post(base + "/workflows", json={"psop": sample_psop_dict})
                 assert response.status_code == 201, response.text
                 workflow_id = response.json()["data"]["workflow_id"]
@@ -85,6 +92,7 @@ def test_fresh_service_login_cookie_and_workflow_crud(protocol, tmp_path, sample
                 assert client.delete(target).status_code == 200
                 assert client.get(target).status_code == 404
                 assert client.post(base + "/auth/logout").status_code == 200
+                client.headers.pop("Cookie", None)
                 assert client.get(base + "/workflows").status_code == 401
         finally:
             process.terminate()

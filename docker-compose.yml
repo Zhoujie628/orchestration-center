@@ -24,7 +24,9 @@ services:
       ORCH_VERIFY_CLIENT: ${ORCH_VERIFY_CLIENT:-false}
       ORCH_CLIENT_VERIFY_SERVER: ${ORCH_CLIENT_VERIFY_SERVER:-true}
       ORCH_FORWARDED_ALLOW_IPS: ${ORCH_FORWARDED_ALLOW_IPS:-127.0.0.1}
-      ORCH_PUBLIC_SCHEME: ${ORCH_PUBLIC_SCHEME:-}
+      # The bundled frontend listens on HTTP even when its upstream uses TLS.
+      # Set https explicitly when a public TLS gateway fronts this deployment.
+      ORCH_PUBLIC_SCHEME: ${ORCH_PUBLIC_SCHEME:-http}
       PERSISTENCE_MODE: ${PERSISTENCE_MODE:-file}
       AGENT_REGISTRY_URL: ${AGENT_REGISTRY_URL:-http://openan-registry-center:5000}
     networks:
