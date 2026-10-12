@@ -256,6 +256,25 @@ def test_import_does_not_set_testing_for_other_test_modules():
     assert result.returncode == 0, result.stderr
 
 
+def test_testing_env_does_not_disable_auth(monkeypatch):
+    # TESTING 曾是免声明关闭认证的后门:读取它的是生产模块,部署清单里
+    # 也看不到这个键。现在认证状态只由显式配置决定。
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.setattr("orchestrate.server.auth.get_conf",
+                        lambda: {"access_password": "v4:$2b$12$nonemptyhashvalueforcoverage"})
+    from orchestrate.server.auth import is_auth_enabled
+    assert is_auth_enabled() is True
+
+
+def test_internal_api_fails_closed_when_auth_disabled_without_dev_flag(client, monkeypatch):
+    # 无凭据且未显式开启 dev 模式:内部 API 与公开 API 同样拒绝(503),
+    # 不再出现"公开侧 503、内部侧放行"的语义分裂
+    monkeypatch.setattr("orchestrate.server.auth.get_conf", lambda: {"ip": "127.0.0.1"})
+    resp = client.get("/rest/v1/orchestrate/workflows")
+    assert resp.status_code == 503
+    assert "password=" not in resp.text
+
+
 @pytest.mark.anyio
 async def test_cancelled_retrieval_keeps_slot_until_worker_finishes(monkeypatch):
     from orchestrate.server import frontend_support_server as srv

@@ -12,7 +12,12 @@ ssl_certfile=etc/ssl/server.cer
 ssl_keyfile=etc/ssl/server_key.pem
 ssl_keyfile_password=etc/ssl/cert_pwd
 ssl_ca_certs=etc/ssl/trust.cer
+# Only the literal value false disables client verification; any other value
+# (including typos) keeps certificates required.
 verify_client=true
+# Optional X.509v2 CRL for client-certificate revocation. Empty or absent
+# disables revocation checking; env alias ORCH_SSL_CRL_FILE.
+ssl_crl_file=
 # Outbound server verification is independent of inbound client authentication.
 client_verify_server=true
 

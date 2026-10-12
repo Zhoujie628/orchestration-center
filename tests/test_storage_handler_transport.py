@@ -102,7 +102,9 @@ def test_handler_crud_uses_one_owned_connection_source(mode, transport, tmp_path
     record_id = next(iter(rows["execution_records"]))
 
     monkeypatch.setenv("ORCH_API_TOKEN", "transport-regression-token-000000000000")
-    monkeypatch.setattr(auth, "get_conf", lambda: {"external.auth.mode": "bearer"})
+    # dev-loopback 是认证关闭时内部路由唯一放行通道;/api/v1 的 bearer 契约
+    # 由 test_transport_auth_contract 在非 dev 配置下单独覆盖
+    monkeypatch.setattr(auth, "get_conf", lambda: {"ip": "127.0.0.1", "security.dev_insecure_mode": "true", "external.auth.mode": "bearer"})
     options, verify = {}, True
     if transport == "https":
         cert, key = _tls_files(tmp_path)

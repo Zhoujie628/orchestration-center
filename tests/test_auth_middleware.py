@@ -131,11 +131,33 @@ class TestAuthMiddleware:
         response = await auth_middleware(request, _call_next)
         assert response.status_code == 401
 
-    async def test_bypasses_entirely_when_auth_disabled(self, monkeypatch):
+    async def test_dev_insecure_loopback_bypasses_when_auth_disabled(self, monkeypatch):
+        # The one sanctioned credential-less mode: explicit dev flag on a
+        # loopback bind -- the only cell security_preflight lets a server
+        # start in without a credential.
         monkeypatch.setattr(auth_module, "is_auth_enabled", lambda: False)
+        monkeypatch.setattr(auth_module, "get_conf",
+                            lambda: {"ip": "127.0.0.1", "security.dev_insecure_mode": "true"})
         request = _make_request("/rest/v1/orchestrate/workflows")
         response = await auth_middleware(request, _call_next)
         assert response.status_code == 200
+
+    async def test_fails_closed_when_auth_disabled_without_dev_flag(self, monkeypatch):
+        # Auth-disabled must mean the same thing the public API already says:
+        # 503, never an unauthenticated pass-through (require_admin included).
+        monkeypatch.setattr(auth_module, "is_auth_enabled", lambda: False)
+        monkeypatch.setattr(auth_module, "get_conf", lambda: {"ip": "0.0.0.0"})
+        request = _make_request("/rest/v1/orchestrate/workflows")
+        response = await auth_middleware(request, _call_next)
+        assert response.status_code == 503
+
+    async def test_dev_flag_does_not_bypass_off_loopback_bind(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "is_auth_enabled", lambda: False)
+        monkeypatch.setattr(auth_module, "get_conf",
+                            lambda: {"ip": "0.0.0.0", "security.dev_insecure_mode": "true"})
+        request = _make_request("/rest/v1/orchestrate/workflows")
+        response = await auth_middleware(request, _call_next)
+        assert response.status_code == 503
 
     @pytest.mark.parametrize("path", sorted(_PUBLIC_AUTH_PATHS))
     async def test_public_auth_paths_bypass_without_a_token(self, monkeypatch, path):

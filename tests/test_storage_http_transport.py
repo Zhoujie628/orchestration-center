@@ -64,7 +64,9 @@ def test_storage_failure_over_actual_listener(mode, transport, tmp_path, monkeyp
 
     from orchestrate.server import external_auth
     monkeypatch.setenv("ORCH_API_TOKEN", "transport-regression-token-000000000000")
-    monkeypatch.setattr(auth, "get_conf", lambda: {"external.auth.mode": "bearer"})
+    # dev-loopback 是认证关闭时内部路由唯一放行通道;/api/v1 的 bearer 契约
+    # 由 test_transport_auth_contract 在非 dev 配置下单独覆盖
+    monkeypatch.setattr(auth, "get_conf", lambda: {"ip": "127.0.0.1", "security.dev_insecure_mode": "true", "external.auth.mode": "bearer"})
 
     options = {}
     verify = True

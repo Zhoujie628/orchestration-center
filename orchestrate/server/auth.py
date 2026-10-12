@@ -115,13 +115,7 @@ def is_auth_enabled() -> bool:
     RuntimeError when the user store is unreachable -- callers must fail
     closed (503) instead of treating "cannot determine" as "auth disabled".
     In file mode: checks ``access_password`` in server.conf.
-
-    Returns False when TESTING environment variable is set.
     """
-    import os
-    if os.environ.get('TESTING', '').lower() in ('true', '1', 'yes'):
-        return False
-
     conf = get_conf()
     storage = current_context()
     if storage.has_users:
@@ -253,9 +247,10 @@ def extract_token(request: Request) -> str | None:
 def require_admin(request: Request) -> None:
     """FastAPI dependency: reject the request unless the session role is 'admin'.
 
-    No-op when auth is disabled: ``auth_middleware`` already lets every
-    request through in that mode, so re-checking here would just lock
-    everyone out of a deployment that has authentication turned off.
+    No-op when auth is disabled: ``auth_middleware`` answers 503 to every
+    internal request in that mode unless the deployment explicitly opted into
+    the dev-insecure loopback bind, so this early return is only reachable in
+    that dev mode -- re-checking there would just lock the demo out.
     """
     try:
         auth_enabled = is_auth_enabled()
@@ -363,7 +358,18 @@ async def auth_middleware(request: Request, call_next):
         return JSONResponse(status_code=mapped.status_code, content=error(mapped.status_code, mapped.detail))
 
     if not auth_enabled:
-        return await call_next(request)
+        # The same "no credential" state that the public API answers with 503
+        # must not open the internal API. The only sanctioned credential-less
+        # mode is the explicit dev-insecure loopback bind -- the one cell
+        # security_preflight allows a server to start in.
+        from orchestrate.server.security_preflight import dev_insecure_mode_enabled, is_loopback_bind
+        conf = get_conf()
+        if dev_insecure_mode_enabled(conf) and is_loopback_bind(str(conf.get("ip", "127.0.0.1"))):
+            return await call_next(request)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=error(503, "Account authentication is not configured"),
+        )
 
     if path in _PUBLIC_AUTH_PATHS:
         return await call_next(request)

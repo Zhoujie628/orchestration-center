@@ -39,7 +39,7 @@ credential.
 | Surface | Mechanism today | Where |
 |---|---|---|
 | Internal API `/rest/v1/orchestrate/*` | Session token over DB-backed users (SHA-256 + salt), roles `admin` / `user`; `login` / `check` / `register` are public paths; session store is in-memory, single process | `orchestrate/server/auth.py:43-47, 98-116, 127-214, 284-325` |
-| Activation gate | `is_auth_enabled()`: postgres mode → "does any user exist"; **file mode → `access_password` non-empty**; `TESTING` env short-circuits to disabled | `orchestrate/server/auth.py:98-116` |
+| Activation gate | `is_auth_enabled()`: postgres mode → "does any user exist"; **file mode → `access_password` non-empty** | `orchestrate/server/auth.py:111-127` |
 | Shipped configuration | `enable_https=false`, `access_password=` (empty), `persistence_mode=file`, `verify_client=true` (only consulted on the TLS branch) | `etc/conf/server.conf` |
 | External API `/api/v1/*` | No application-layer authentication at all; documented as mTLS "when `enable_https=true` and `verify_client=true`" | `orchestrate/server/auth.py:18-28`, `orchestrate/server/external_api.py` (only `RateLimiter` dependencies, e.g. `:95`) |
 | Server startup | `enable_https=false` takes the plain-HTTP `uvicorn.run(app, ...)` branch — no TLS layer exists to carry that mTLS | `orchestrate/start.py:164-165` |

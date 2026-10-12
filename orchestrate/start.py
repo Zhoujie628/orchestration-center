@@ -140,7 +140,6 @@ class CustomUvicornServer:
         """
         Start the Uvicorn server with SSL configuration.
         """
-        os.environ["FORWARDED_ALLOW_IPS"] = self.server_config.get(FORWARDED_ALLOW_IPS, "127.0.0.1")
         server_config = uvicorn.Config(
             app=app,
             host=self.server_config.get('ip', "127.0.0.1"),
@@ -154,7 +153,8 @@ class CustomUvicornServer:
             timeout_keep_alive=5,
             timeout_graceful_shutdown=2,
             log_level="info",
-            proxy_headers=True
+            proxy_headers=True,
+            forwarded_allow_ips=self.server_config.get(FORWARDED_ALLOW_IPS, "127.0.0.1"),
         )
         server = uvicorn.Server(server_config)
         record_startup_log()
