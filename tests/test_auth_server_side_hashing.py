@@ -16,17 +16,15 @@
 #    under the License.
 
 import hashlib
+import os
 
 import bcrypt
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException, Request
 from pydantic import ValidationError
 from starlette.responses import Response
-
-os.environ.setdefault("TESTING", "True")
 
 from orchestrate.server import frontend_support_server as srv
 

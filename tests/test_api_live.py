@@ -18,17 +18,10 @@
 import pytest
 import json
 import os
-import atexit
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
-_prev_testing = os.environ.get('TESTING')
-os.environ['TESTING'] = 'True'
-
 from orchestrate.server.frontend_support_server import app
-
-at_exit_fn = lambda: os.environ.pop('TESTING', None) if _prev_testing is None else os.environ.__setitem__('TESTING', _prev_testing)
-atexit.register(at_exit_fn)
 
 client = TestClient(app)
 BASE = "/rest/v1/orchestrate"

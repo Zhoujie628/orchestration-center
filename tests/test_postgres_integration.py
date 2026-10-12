@@ -315,7 +315,6 @@ def test_live_http_https_auth_workflow_and_execution_apis(live_postgres, sample_
         cert, key = _certificate(tmp_path)
         command.extend([str(cert), str(key)])
     env = {**os.environ, "OC_POSTGRES_SMOKE_CONFIG": json.dumps(config), "PYTHON_DOTENV_DISABLED": "1"}
-    env.pop("TESTING", None)
     base = f"{'https' if https else 'http'}://127.0.0.1:{port}/rest/v1/orchestrate"
     log_path = tmp_path / "service.log"
     with log_path.open("w", encoding="utf-8") as log:

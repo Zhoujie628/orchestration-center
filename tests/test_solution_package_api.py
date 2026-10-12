@@ -19,16 +19,9 @@
 The routes read/write through SolutionPackageManager, so the tests point the
 manager at a temporary storage directory instead of the real data directory.
 
-TESTING is set before the app import so the auth middleware treats every
-request as authenticated regardless of the local server.conf (mirrors
-test_frontend_support_server.py).
+Unauthenticated internal requests pass through the conftest dev-loopback auth
+fixture (mirrors test_frontend_support_server.py).
 """
-import atexit
-import os
-
-_prev_testing = os.environ.get('TESTING')
-os.environ['TESTING'] = 'True'
-
 import pytest
 from fastapi.testclient import TestClient
 

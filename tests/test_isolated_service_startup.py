@@ -47,7 +47,6 @@ def test_fresh_service_login_cookie_and_workflow_crud(protocol, public_scheme, t
         port = sock.getsockname()[1]
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(("ORCH_", "OC_", "DB_", "MYSQL_", "PERSISTENCE_", "REGISTRY_", "LLM_"))}
-    env.pop("TESTING", None)
     env.pop("PORT", None)
     env.update(PYTHONPATH=str(workspace), PYTHON_DOTENV_DISABLED="1",
                ORCH_IP="127.0.0.1", ORCH_PORT=str(port), PERSISTENCE_MODE="file",

@@ -166,7 +166,6 @@ def test_cached_user_presence_does_not_turn_login_outage_into_bad_password(monke
     from orchestrate.server import frontend_support_server as server, auth
     from orchestrate.persistence import context
 
-    monkeypatch.delenv("TESTING", raising=False)
     monkeypatch.setattr(context, "_persistence_context", StorageContext(create_backend("mysql")))
     monkeypatch.setattr(user_store, "_any_user_exists_cache", True)
     context._persistence_context.backend._provider.users_observed = True

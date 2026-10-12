@@ -35,6 +35,22 @@ def _suppress_module_side_effects(monkeypatch):
    performing I/O during test collection."""
    monkeypatch.setenv("PYTEST_RUNNING", "1")
 
+@pytest.fixture(autouse=True)
+def _dev_loopback_auth(monkeypatch):
+   """Exercise the internal API without credentials, through the one
+   sanctioned path: security.dev_insecure_mode on a loopback bind.
+
+   auth_middleware answers 503 to unauthenticated internal requests unless
+   the deployment opted into that dev mode, so tests that call business
+   endpoints get it installed here. Tests that need authentication enabled
+   patch ``orchestrate.server.auth.is_auth_enabled`` / ``get_conf`` and
+   override this automatically (their monkeypatch wins).
+   """
+   monkeypatch.setattr(
+       "orchestrate.server.auth.get_conf",
+       lambda: {"ip": "127.0.0.1", "security.dev_insecure_mode": "true"},
+   )
+
 @pytest.fixture
 def sample_psop_dict():
     """Return a minimal valid PSOP dictionary for tests."""

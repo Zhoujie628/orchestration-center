@@ -42,14 +42,9 @@ def _database_context(mode="postgresql"):
 
 
 @pytest.fixture
-def client(_testing_mode):
+def client():
     with TestClient(app) as c:
         yield c
-
-
-@pytest.fixture(autouse=True)
-def _testing_mode(monkeypatch):
-    monkeypatch.setenv("TESTING", "True")
 
 
 @pytest.fixture(autouse=True)
@@ -108,7 +103,7 @@ def test_psops_allows_valid_session_when_auth_enabled(client):
 
 
 def test_psops_open_when_auth_disabled(client):
-    # TESTING=True 时 is_auth_enabled 为 False,与既有行为一致
+    # conftest 安装 dev_insecure_mode + 回环绑定,即"无凭据启动"的唯一合规形态
     with patch("orchestrate.core.shared_handlers.SharedHandlers.retrieval") as retrieval:
         retrieval.return_value.list_recent_workflows.return_value = []
         resp = client.get("/psops")
@@ -170,7 +165,7 @@ def test_middleware_returns_503_when_user_store_unreachable(client, monkeypatch)
     monkeypatch.setattr(user_store, "_any_user_exists_cache", False)
     monkeypatch.setattr(user_store, "create_connection", lambda: None)
 
-    # 绕过 TESTING 短路,直接模拟 DB 不可达(has_any_user 抛 RuntimeError)
+    # 直接模拟 DB 不可达(has_any_user 抛 RuntimeError)
     import orchestrate.server.auth as auth
 
     def _raise_down():
@@ -220,8 +215,9 @@ def test_file_mode_access_password_bcrypt_and_legacy(client, monkeypatch):
     assert _verify_access_password(versioned_hash, long_password)
     assert not _verify_access_password(versioned_hash, "密" * 39 + "别")
 
-    # file-mode 登录:TESTING 短路会跳过口令校验,需 patch 端点侧的
-    # is_auth_enabled=True 才能走到口令比对分支
+    # 中间件按 is_auth_enabled 放行登录端点;端点侧再 patch 一次,
+    # 才能走到 file 模式口令比对分支
+    monkeypatch.setattr("orchestrate.server.auth.is_auth_enabled", lambda: True)
     monkeypatch.setattr("orchestrate.server.frontend_support_server.is_auth_enabled", lambda: True)
     monkeypatch.setattr(
         "orchestrate.server.frontend_support_server.get_conf",
